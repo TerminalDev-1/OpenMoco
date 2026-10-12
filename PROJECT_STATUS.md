@@ -49,19 +49,20 @@ archives, captures, extracted libraries, and private keys were excluded.
 Android tooling discovery now uses SDK environment variables or ignored local
 configuration, and device identifiers were removed from public documentation.
 AGENTS.md records the checkpoint rule and
-public-content exclusions. APK release publication remains a separate future
-possibility.
+public-content exclusions.
 
-The user asked to document the possibility of publishing a GitHub repository
-and the experimental Android APK together. The APK portion is future release planning;
-no APK release has been published. Uploading was not part of
-the earlier documentation-only request. The subsequent public-repository
-request above supersedes that earlier scope. AGENTS.md preserves the intent and release
-packaging rules. A future release should include reproducible build/run
-instructions, required client splits, and a clear statement of the verified
-initial hello-exchange behavior. Private signing keys, device/account information,
-raw captures, extracted inputs, and original archives stay outside public
-repository contents.
+The user subsequently explicitly requested APK publication. AGENTS.md now
+requires a public verified client release with the matching splits and install
+instructions. Release v0.1.0-hello is being prepared: the 61 MB diagnostic base,
+three configuration splits, and the 3.77 GB asset-pack APK split into four
+1 GiB-or-smaller parts. tools/package_release.py prepares the assets and
+SHA-256 manifest; tools/assemble_release.py validates downloads and reassembles
+the asset APK. All five APKs use the isolated package and one signer. Native
+protocol probes are disabled. This remains a hello/login-capture prototype,
+without authentication or gameplay. Original archives, private signing keys,
+device/account records, and raw captures are excluded from releases.
+Comparable projects and their external client links are recorded in
+docs/RELATED_PROJECTS.md; no distribution policy is inferred from those examples.
 
 ## Current implementation
 - `--handshake` is opt-in in server.py and tools/run_local_test.py. Incoming

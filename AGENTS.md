@@ -45,14 +45,15 @@ The user wants to choose the next implementation area. Explain dependencies befo
 5. Gameplay, progression, inventory changes, and multiplayer follow after the login/home path works. Their exact server schemas remain to be investigated.
 Recommend encrypted transport first, then guest accounts and the login reply, then minimum home data. Account storage can be developed independently, but cannot make the current client authenticate until transport and reply compatibility are resolved.
 
-## Possible GitHub and APK publication
+## GitHub checkpoints and APK releases
 - The user chose `OpenMoco`. The public source repository is https://github.com/TerminalDev-1/OpenMoco, with default branch `main` and local remote `origin` configured. Use this repository for future checkpoints.
 - Commit and push a checkpoint after each successfully verified change. Use descriptive commit messages, include updated documentation, and report the checkpoint. Do not push failed or unverified work as a successful checkpoint.
 - Before the initial public push and every later checkpoint, inspect the staged contents for the existing exclusions: private signing keys, device/account information, raw captures, extracted proprietary inputs, original archives, and generated builds. Stage intended source/documentation explicitly.
-- The user wants the possibility of publishing a GitHub repository and the experimental Android APK documented. A future release may publish the repository together with the test-client APK, including any required split APKs and installation instructions.
-- Public repository creation and source checkpoints are authorized under the chosen name `OpenMoco`. Publishing APK release assets remains a future possibility, not part of the repository-creation request. See PROJECT_STATUS.md for actual publication status.
+- The user explicitly instructed us to publish the experimental Android APK publicly and record this requirement. Publish the verified local-test client as GitHub Release assets, including its required matching splits, checksums, and installation instructions. This supersedes the earlier future-possibility wording; no repeat confirmation is needed for this authorized publication.
+- Maintain a downloadable verified client release when successful client changes require a new APK. Server-only checkpoints do not require rebuilding unchanged APKs. Describe incomplete handshake/authentication/gameplay behavior accurately.
+- Keep APKs out of Git history. GitHub release files must be smaller than 2 GiB; split a larger asset-pack APK into numbered parts with a manifest and verified reassembly tool. Do not present a base-only APK as a complete fresh installation.
 - Prepare reproducible build instructions, dependency versions, and an accurate description of supported behavior when preparing a release. Identify what source and client artifacts can be distributed before assembling public release contents.
-- Keep private signing keys, device/account information, raw captures, extracted proprietary inputs, and original archives out of public repository contents. Generated APKs are currently ignored by Git; any intended APK release must be prepared explicitly.
+- Keep private signing keys, device/account information, raw captures, separately extracted proprietary inputs, and original archives out of public source and release contents. The verified modified APKs and their contained game assets are explicitly authorized release downloads; build outputs remain ignored by Git.
 - Preserve the separate test package and local-server identity in distributed test builds. Describe the verified hello exchange accurately; do not claim authentication or gameplay support.
 
 ## Working rules

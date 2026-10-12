@@ -5,9 +5,16 @@ client. The isolated test client connects, accepts the initial server hello,
 and sends an encrypted login request. Login authentication, the rest of the
 encrypted handshake, home data, and gameplay remain unimplemented.
 
-This repository contains research code and build tools. It does not contain
+The Git source tree contains research code and build tools. It does not contain
 the original APKs, game assets, extracted libraries, private signing keys,
-or device captures. Bring your own client input to reproduce the research.
+or device captures. Bring your own client input to reproduce the build.
+
+The experimental local-test client and all required splits are being published
+as [release downloads](https://github.com/TerminalDev-1/OpenMoco/releases).
+See [installation instructions](docs/INSTALL.md). The large asset APK is split
+into numbered download parts and reassembled with checksum verification.
+Other projects' distribution approaches are recorded in
+[related projects](docs/RELATED_PROJECTS.md).
 
 Python 3.10+ is required; no third-party Python dependencies are needed.
 
