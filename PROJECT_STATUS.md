@@ -44,7 +44,7 @@ https://github.com/TerminalDev-1/OpenMoco, default branch main, remote origin.
 Initial checkpoint: 7ad283e (verified hello exchange and isolated client tooling).
 GitHub visibility and the remote commit were checked after the push. Six tests
 passed and the diagnostic base verification preserved 1457 original payload
-entries. The public tree contains only 17 source/documentation files; APKs,
+entries. The initial public tree contained only 17 source/documentation files; APKs,
 archives, captures, extracted libraries, and private keys were excluded.
 Android tooling discovery now uses SDK environment variables or ignored local
 configuration, and device identifiers were removed from public documentation.
@@ -53,11 +53,19 @@ public-content exclusions.
 
 The user subsequently explicitly requested APK publication. AGENTS.md now
 requires a public verified client release with the matching splits and install
-instructions. Release v0.1.0-hello is being prepared: the 61 MB diagnostic base,
+instructions. Release v0.1.0-hello is public at
+https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.1.0-hello:
+the 61 MB diagnostic base,
 three configuration splits, and the 3.77 GB asset-pack APK split into four
 1 GiB-or-smaller parts. tools/package_release.py prepares the assets and
 SHA-256 manifest; tools/assemble_release.py validates downloads and reassembles
-the asset APK. All five APKs use the isolated package and one signer. Native
+the asset APK. All 12 release assets uploaded successfully, and GitHub's
+SHA-256 digests and sizes matched every local download file before the draft
+was published as a pre-release. The full asset APK was reassembled locally
+and its hash verified. All five APKs passed package/signature/alignment and
+original-payload checks, including 39950 asset-pack entries. Nine automated
+tests passed. Release source checkpoint: eda431c.
+All five APKs use the isolated package and one signer. Native
 protocol probes are disabled. This remains a hello/login-capture prototype,
 without authentication or gameplay. Original archives, private signing keys,
 device/account records, and raw captures are excluded from releases.
