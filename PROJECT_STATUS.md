@@ -13,6 +13,22 @@ Leave the server running for manual testing. The screen remains at loading
 while home data is missing.
 
 ## Current milestone: native login acceptance and encrypted session
+Further home research identified the SceneConfig type getter at 0x7b17bc
+(1003) and its field serializer at 0x7b0aa4. Fields include data, battleTime,
+initialFrame, initialFrameEvents, initialFrameChecksum, mapChecksum,
+frameChecksums, chronosModifiers, chronosCsvChanges, and serializedFrames.
+The correct wire representation and minimum frame/player contents are still
+unknown. Avoid treating a structurally empty object as a valid home.
+
+tools/read_client_table.py now decodes this build's compressed CSV assets:
+five LZMA property bytes, four-byte little-endian plain length, compressed data.
+It limits archive entries, declared output, and decoder memory to 64 MiB.
+The supplied battle_scenes.csv decoded to 188182 bytes. Its Home row names
+scene/home.json, SceneType Home, and PlayerCount 1; no numeric scene ID has yet
+been established. The decoded table stays under ignored analysis/.
+The original installation's version and first-install/update timestamps were
+rechecked after the latest clone installation and matched the earlier snapshot.
+
 Home investigation continued after the login checkpoint: message 23491 carries
 a typed `sceneConfig` (type parameter 1003), optional nested structures, and
 snapshot bytes; message 23492 is decompressed and decoded as 23491 by the game

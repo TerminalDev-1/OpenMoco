@@ -168,3 +168,14 @@ For transport research, add `--transport-probe` to `tools/run_local_test.py
 --login --launch`. It sends an encrypted empty keepalive; the diagnostic build's
 native Box verifier accepted it. This verifies reply encryption, not login.
 Research probes must be disabled in published client builds.
+
+For local home-data research, inspect the compressed scene table without
+changing the APK:
+
+```powershell
+python tools/read_client_table.py build/offline-client/split_install_time_asset_pack.apk
+```
+
+The decoded CSV is written under ignored `analysis/`. Its `Home` row identifies
+`scene/home.json` and one player. This establishes client configuration only;
+the server's scene/frame/player payload still needs to be derived.
