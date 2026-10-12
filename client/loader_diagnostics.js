@@ -153,16 +153,32 @@ rpc.exports = {
                     });
                     Interceptor.attach(owner.base.add(0x80d2e8), {
                         onEnter(args) {
+                            this.connection = args[0];
                             const id = args[1].add(0x90).readPointer();
                             log('Native login-success handler entered with local account high=' + id.readU32() + ' low=' + id.add(4).readU32());
                         },
-                        onLeave() { log('Native login-success handler completed'); }
+                        onLeave() {
+                            log('Native login-success handler completed');
+                            try {
+                                const count = this.connection.add(0x6c).readS32();
+                                const list = this.connection.add(0x60).readPointer();
+                                const rows = [];
+                                for (let i=0; i<count && i<100; i++) {
+                                    const observer = list.add(i*8).readPointer();
+                                    const vt = observer.readPointer();
+                                    rows.push({table: vt.sub(owner.base).toString(), handler: vt.readPointer().sub(owner.base).toString()});
+                                }
+                                File.writeAllText('/data/user/0/com.supercell.moco.localtest/files/diagnostics/post-login-observers.json', JSON.stringify(rows));
+                            } catch (error) { log('Observer inspection failed: ' + error); }
+                        }
                     });
                     Interceptor.attach(owner.base.add(0x80b62c), {
                         onEnter(args) {
                             const table = args[0].readPointer();
                             File.writeAllText('/data/user/0/com.supercell.moco.localtest/files/diagnostics/login-handler.json',
-                                JSON.stringify({table: table.sub(owner.base).toString(), method: table.add(0x38).readPointer().sub(owner.base).toString()}));
+                                JSON.stringify({table: table.sub(owner.base).toString(), method: table.add(0x38).readPointer().sub(owner.base).toString(),
+                                    caller: this.returnAddress.sub(owner.base).toString(),
+                                    trace: Thread.backtrace(this.context, Backtracer.ACCURATE).map(p => p.sub(owner.base).toString())}));
                         }
                     });
                     Interceptor.attach(owner.base.add(0xa36d1c), {

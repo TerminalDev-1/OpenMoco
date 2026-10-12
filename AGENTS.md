@@ -16,11 +16,11 @@ The user will test the client on an Android tablet with wireless debugging enabl
 Inspect the package, identify the client transport and connection configuration, and implement the smallest server needed for an initial connection. Add login and gameplay only after the connection path is understood. Distinguish a socket connection, a valid protocol handshake, authentication, and gameplay; never claim one proves another.
 
 ## Verified baseline
-Incoming login encryption is now resolved and verified on the tablet using a newly generated local server key pair. The bootstrap decodes/re-encodes this build's obfuscated peer-public-key table; the server uses Curve25519/XSalsa20-Poly1305 NaCl Box with BLAKE2b-24(client public key + server public key). The earlier mismatch was an incomplete interpretation of native inputs, not evidence of a custom cipher. `--login` verifies the challenge and decrypts the login. A successful encrypted server reply, client authentication, and home state are still pending.
+Encrypted local login is verified on the tablet using a newly generated local server key pair. The bootstrap decodes/re-encodes this build's obfuscated peer-public-key table; the server uses Curve25519/XSalsa20-Poly1305 NaCl Box with BLAKE2b-24(client public key + server public key). The earlier mismatch was an incomplete interpretation of native inputs, not evidence of a custom cipher. `--login` verifies the challenge, validates local guest credentials, sends 29125/version 1, and handles authenticated SecretBox keepalives. The native success handler completes. Home state and gameplay are still pending.
 - Use `tools/create_server_key.py`; keep private key JSON under ignored `.local/`. The runner provisions only the public key into the debuggable clone and cold-launches it for `--login` tests. Do not publish private keys or decrypted login captures.
 - The current development APK supports runtime public-key provisioning; the published v0.1.0-hello APK predates that feature. Publish a verified updated client release when this client work is stabilized; research builds with protocol probes enabled must not be published.
 
-The connection milestone and first hello exchange are achieved. The renamed Android client sends an 83-byte initial message, type 10100, version 0, payload length 76. With `--handshake`, the Python server replies with 20100/version 0 containing a length-prefixed 24-byte random challenge. The tablet accepts it and sends 10101/version 9 with 1,775 encrypted payload bytes. This was reproduced across cold launches, including with native protocol probes disabled. Full encrypted handshake, authentication, a login reply, and gameplay remain unimplemented.
+The connection milestone and first hello exchange are achieved. The renamed Android client sends an 83-byte initial message, type 10100, version 0, payload length 76. With `--handshake`, the Python server replies with 20100/version 0 containing a length-prefixed 24-byte random challenge. The tablet accepts it and sends 10101/version 9. This was reproduced across cold launches, including with native protocol probes disabled. Use `--login` for the now-verified encrypted local login and session; home data and gameplay remain unimplemented.
 - Use the diagnostic base APK built with `--local-network` alongside the four preserved offline splits. The original app remains installed separately.
 - The native game connection was observed on port 30000; the bootstrap routes it to tablet loopback port 9339, forwarded to the PC by ADB reverse.
 - The local-network build restores INTERNET permission only together with bootstrap routing. DNS resolves to loopback; IP connect/send operations are redirected to local test ports. SDK traffic uses local port 9340.
@@ -30,7 +30,7 @@ The connection milestone and first hello exchange are achieved. The renamed Andr
 - `python tools/run_local_test.py --install --launch` updates only the clone base APK, starts capture/routing, and launches the clone. See README.md for prerequisites.
 - Add `--handshake` to enable the verified initial server response. Capture-only mode remains the default. The received login envelope is not proof of authentication.
 - Native protocol dumps and encryption-input probes require an explicit diagnostic build flag, `--protocol-diagnostics`. Those files contain private ephemeral test material and stay under ignored local directories. Normal test builds leave these probes disabled.
-- Native plaintext login inspection observed account ID 0 and no token. Continue to require a separate local-server identity when implementing authentication; no local account has been authenticated or assigned yet.
+- The initial native login had account ID 0 and no token. The client now stores local credentials and reconnects to the private local account store. Never use them against production; package identity alone does not isolate an account.
 - The user expects persistence through routine failures. Do not end at the first crash with only an investigation summary; continue diagnosis and concrete fixes within the authorized milestone.
 
 ## Documentation and completed work
@@ -51,12 +51,12 @@ conversion requires the ID high word <=255. Use a persisted local namespace in
 IDs are migrated with token-validated aliases, without clearing clone data.
 See PROJECT_STATUS.md for failures and verification evidence.
 The user has now approved all four next stages: encrypted transport, local guest accounts, compatible login replies, and minimum home/profile data. Work through their dependencies without requesting the same approval again:
-1. Complete encrypted transport: resolve native crypto, configure local server keys, decode login, and encrypt replies. This currently blocks a successful wire-level login.
-2. Minimal local guest accounts: assign a separate account ID and random reconnect token, store the profile locally, and validate returning tokens. No real Supercell identity is needed for this milestone.
-3. Compatible login reply and session handling: derive the success/error layouts from the client, support reconnects, and inspect required keepalive behavior.
+1. Encrypted transport is verified: local keys, incoming login, initial reply, and session keepalives.
+2. Minimal guest storage is implemented: separate local account ID, random reconnect token stored as a hash, local profile, and returning-token validation. No real Supercell identity is used.
+3. Compatible success reply, reconnects, and encrypted keepalives are verified. Error-response layouts remain additional future work.
 4. Minimal home/profile data: inspect what the client requires after login and serialize the smallest valid starter state. The message ID and exact schema are not yet established; do not invent them.
 5. Gameplay, progression, inventory changes, and multiplayer follow after the login/home path works. Their exact server schemas remain to be investigated.
-Recommend encrypted transport first, then guest accounts and the login reply, then minimum home data. Account storage can be developed independently, but cannot make the current client authenticate until transport and reply compatibility are resolved.
+Continue with minimum home data. Preserve the working login/session baseline while investigating the scene/player schema; do not claim a usable home until the tablet actually loads it.
 
 ## GitHub checkpoints and APK releases
 - The user chose `OpenMoco`. The public source repository is https://github.com/TerminalDev-1/OpenMoco, with default branch `main` and local remote `origin` configured. Use this repository for future checkpoints.

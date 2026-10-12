@@ -3,7 +3,8 @@
 This mo.co 13.5.1 test build installs as `com.supercell.moco.localtest`, alongside
 the official app. It targets ARM64 devices, Android 10 or later, with the
 English and xxhdpi resource splits used in the verified tablet configuration.
-The local hello exchange works; login authentication and gameplay do not yet.
+The local encrypted guest login and keepalives work. Home data and gameplay
+remain incomplete, so the loading screen does not yet lead to a usable home.
 The build is debuggable for research; native protocol probes are disabled.
 
 ## Download and assemble
@@ -43,7 +44,9 @@ Clone the OpenMoco repository, connect exactly one authorized Android device,
 and run from the repository folder:
 
 ```powershell
-python tools/run_local_test.py --handshake --launch
+python -m pip install -r requirements.txt
+python tools/create_server_key.py
+python tools/run_local_test.py --login --launch
 ```
 
 ADB must be on PATH or discoverable through your Android SDK; otherwise add
@@ -51,8 +54,13 @@ ADB must be on PATH or discoverable through your Android SDK; otherwise add
 your test tablet. The runner forwards tablet ports 9339 and 9340 to the PC,
 starts the game listener and SDK sink, and launches **mo.co Local Test (Local
 Server)**. Local routing is installed before game startup. Keep ADB connected
-while testing. The server captures an encrypted login request after replying
-to the initial hello; a successful login screen is not implemented yet.
+while testing. The runner provisions only your server's public key into the
+clone. Keep the private key and `.local/accounts.sqlite3` on your PC; retain
+both across runs to preserve local test identities. The server verifies local
+credentials and sends the compatible encrypted login reply. Home data is pending.
+
+These login instructions require the v0.2.0-local-login client or a newer build.
+The earlier v0.1.0-hello client supports the hello milestone only.
 
 Existing installations can use the base APK as a partial update only when
 the four matching release splits are already installed with the same signer.

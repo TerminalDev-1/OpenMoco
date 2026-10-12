@@ -1,6 +1,29 @@
 # Project status — 2026-10-12
 
+## Current manual testing server
+The probe-free local-network APK was rebuilt, installed, and cold-launched.
+Capture 20261012T194719Z-fa0d4b2a verifies login-token validation and authenticated
+session keepalives with native protocol probes disabled. A hidden background
+runner is active in --login mode, PID 13576 as last checked. Its current private
+metadata is .local/user-test-server.json and logs are
+captures/user-test-server.log / captures/user-test-server.stderr.log.
+This supersedes the older foreground research and handshake-only process
+entries below. Recheck the PID command line before stopping or reusing it.
+Leave the server running for manual testing. The screen remains at loading
+while home data is missing.
+
 ## Current milestone: native login acceptance and encrypted session
+Home investigation continued after the login checkpoint: message 23491 carries
+a typed `sceneConfig` (type parameter 1003), optional nested structures, and
+snapshot bytes; message 23492 is decompressed and decoded as 23491 by the game
+handler. The scene-start handler is 0x5bf784. Required non-null nested data is
+consumed there. This is a next investigation target, not a verified minimal home
+schema. No trial home payload was sent. The post-login observer list was empty;
+the actual message consumer was traced through 0x7feda4 -> 0x80b62c -> 0x5be224.
+Native serializers expose keys such as `sceneConfig`, `players`, and `events`;
+standalone strings are not proof of a valid home payload. Read-only scratch
+analyses and the tablet loading-screen image remain under ignored analysis/.
+
 Type 29125/version 1 is now verified as the login-success reply. Its native
 decoder (0x835d6c), encoder (0x8359f4), router admission, and handler (0x80d2e8)
 were inspected. The real tablet completed that handler on capture
