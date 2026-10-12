@@ -1,9 +1,9 @@
 # OpenMoco
 
 An experimental local Python server for the supplied mo.co 13.5.1 Android
-client. The isolated test client connects, accepts the initial server hello,
-and sends an encrypted login request. Login authentication, the rest of the
-encrypted handshake, home data, and gameplay remain unimplemented.
+client. The isolated test client connects, completes an encrypted local guest
+login, and exchanges encrypted keepalives. Home data and gameplay remain
+unimplemented; the client cannot yet reach a usable home screen.
 
 The Git source tree contains research code and build tools. It does not contain
 the original APKs, game assets, extracted libraries, private signing keys,
@@ -36,7 +36,8 @@ The private key stays in ignored `.local/server-key.json`. Only the public key
 is provisioned into the clone through ADB. The bootstrap verifies the supplied
 13.5.1 key layout and configures the native peer key before connection. Python
 has verified and decrypted login on the tablet using this configuration.
-The login-success reply and home state are still under implementation.
+The tablet's native login-success handler completed with a separate local ID.
+Saved local tokens are accepted on reconnect. Home state is still under implementation.
 The published v0.1.0-hello APK predates this development-client feature.
 The optional builder `--server-key` flag can embed a public key as a fallback;
 the runtime public-key file takes precedence. The bootstrap reads that file
@@ -158,9 +159,10 @@ The bootstrap uses the official
 without a separate Frida server on the tablet.
 # Current login development
 
-`--login` verifies the tablet's encrypted request and creates or validates a
-separate guest in `.local/accounts.sqlite3`. The client does not yet receive
-a login-success reply or load home data. Reconnect tokens are hashed in storage.
+`--login` verifies the tablet's encrypted request, creates or validates a
+separate guest in `.local/accounts.sqlite3`, and sends its encrypted login reply.
+The client accepts it and sends encrypted keepalives. Home data is pending.
+Reconnect tokens are hashed in storage.
 
 For transport research, add `--transport-probe` to `tools/run_local_test.py
 --login --launch`. It sends an encrypted empty keepalive; the diagnostic build's

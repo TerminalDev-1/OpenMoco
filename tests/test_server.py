@@ -3,11 +3,76 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import hashlib
+from nacl.public import Box, PrivateKey
+from nacl.secret import SecretBox
+from accounts import AccountStore
+from transport import LoginTransport
 from protocol import Frame, FrameDecoder
 from server import capture
 
 
 class ServerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_encrypted_guest_reply_reconnect_and_keepalive(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            store = AccountStore(root/'accounts.sqlite3')
+            key = PrivateKey.generate()
+            async def exchange(identity, token):
+                output = root/str(identity)
+                output.mkdir(exist_ok=True)
+                finished = asyncio.get_running_loop().create_future()
+                async def connected(reader, writer):
+                    try:
+                        await capture(reader, writer, output, True, key, store)
+                        finished.set_result(None)
+                    except Exception as error:
+                        finished.set_exception(error)
+                listener = await asyncio.start_server(connected, '127.0.0.1', 0)
+                try:
+                    reader, writer = await asyncio.open_connection('127.0.0.1', listener.sockets[0].getsockname()[1])
+                    async def read_frame():
+                        header = await asyncio.wait_for(reader.readexactly(7), 2)
+                        return FrameDecoder().feed(header+await reader.readexactly(int.from_bytes(header[2:5], 'big')))[0]
+                    def string(value):
+                        return (-1).to_bytes(4,'big',signed=True) if value is None else len(value.encode()).to_bytes(4,'big')+value.encode()
+                    hello = bytes.fromhex('000000010000000f0000000d000000010000000500000028')
+                    hello += b'6bb2cf52ebd2f26a4a7c78154daea6ca2dd371a6' + bytes.fromhex('0000000200000002ffffffff')
+                    writer.write(Frame(10100,0,hello).encode())
+                    challenge = (await read_frame()).payload[4:]
+                    client = PrivateKey.generate()
+                    box = Box(client,key.public_key)
+                    nonce = bytes(range(24))
+                    body = identity.to_bytes(8,'big') + string(token) + bytes.fromhex('0000000d0000000100000005') + string('local')
+                    login_nonce = hashlib.blake2b(bytes(client.public_key)+bytes(key.public_key),digest_size=24).digest()
+                    writer.write(Frame(10101,9,bytes(client.public_key)+box.encrypt(challenge+nonce+body,login_nonce).ciphertext).encode())
+                    reply = await read_frame()
+                    self.assertEqual((reply.message_type,reply.version),(29125,1))
+                    reply_nonce = hashlib.blake2b(nonce+bytes(client.public_key)+bytes(key.public_key),digest_size=24).digest()
+                    plain = box.decrypt(reply.payload,reply_nonce)
+                    server_nonce,session_key,payload = plain[:24],plain[24:56],plain[56:]
+                    new_id = int.from_bytes(payload[:8],'big')
+                    token_size = int.from_bytes(payload[16:20],'big')
+                    new_token = payload[20:20+token_size].decode()
+                    cipher = SecretBox(session_key)
+                    writer.write(Frame(10108,0,cipher.encrypt(b'',LoginTransport.advance(nonce)).ciphertext).encode())
+                    keepalive = await read_frame()
+                    self.assertEqual(keepalive.message_type,20108)
+                    self.assertEqual(cipher.decrypt(keepalive.payload,LoginTransport.advance(server_nonce)),b'')
+                    writer.close()
+                    await writer.wait_closed()
+                    await asyncio.wait_for(finished,2)
+                    metadata = json.loads(next(output.glob('*.json')).read_text())
+                    self.assertNotIn(new_token,json.dumps(metadata))
+                    self.assertEqual(metadata['frames'][-1]['decrypted_bytes'],0)
+                    return new_id,new_token,metadata['local_account']['created']
+                finally:
+                    listener.close()
+                    await listener.wait_closed()
+            identity,token,created = await exchange(0,None)
+            self.assertTrue(created)
+            self.assertEqual(await exchange(identity,token),(identity,token,False))
+
     async def exchange(self, frames):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)

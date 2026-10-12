@@ -25,8 +25,15 @@ class AccountStore:
         with self.connect() as db:
             db.execute('CREATE TABLE IF NOT EXISTS settings (name TEXT PRIMARY KEY, value TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, token_hash TEXT NOT NULL, profile TEXT NOT NULL, created_at TEXT NOT NULL)')
-            db.execute('INSERT OR IGNORE INTO settings VALUES (?, ?)', ('namespace', str(0x40000000 | secrets.randbits(30))))
+            # Native player-tag conversion 0x8f81e8 rejects a high ID word >255.
+            db.execute('INSERT OR IGNORE INTO settings VALUES (?, ?)', ('namespace', str(128 | secrets.randbits(7))))
             self.namespace = int(db.execute('SELECT value FROM settings WHERE name=?', ('namespace',)).fetchone()[0])
+            if self.namespace > 255:
+                db.execute('INSERT OR IGNORE INTO settings VALUES (?, ?)', ('legacy_namespace', str(self.namespace)))
+                self.namespace = 128 | secrets.randbits(7)
+                db.execute('UPDATE settings SET value=? WHERE name=?', (str(self.namespace), 'namespace'))
+            previous = db.execute('SELECT value FROM settings WHERE name=?', ('legacy_namespace',)).fetchone()
+            self.legacy_namespace = int(previous[0]) if previous else None
 
     @contextmanager
     def connect(self):
@@ -54,10 +61,10 @@ class AccountStore:
                 if low_id > 0xffffffff:
                     raise ValueError('Local account ID range exhausted')
             return LocalAccount((self.namespace << 32) | low_id, token, profile, True)
-        if not isinstance(account_id, int) or account_id < 0 or account_id >> 32 != self.namespace or not token:
+        if not isinstance(account_id, int) or account_id < 0 or account_id >> 32 not in (self.namespace, self.legacy_namespace) or not token:
             raise ValueError('Unknown local account or missing reconnect token')
         with self.connect() as db:
             row = db.execute('SELECT token_hash,profile FROM accounts WHERE id=?', (account_id & 0xffffffff,)).fetchone()
         if row is None or not hmac.compare_digest(row[0], self.token_hash(token)):
             raise ValueError('Local reconnect token is invalid')
-        return LocalAccount(account_id, token, json.loads(row[1]), False)
+        return LocalAccount((self.namespace << 32) | (account_id & 0xffffffff), token, json.loads(row[1]), False)

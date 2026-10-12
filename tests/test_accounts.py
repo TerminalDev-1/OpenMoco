@@ -12,6 +12,7 @@ class AccountTests(unittest.TestCase):
             created = store.authenticate(0, None)
             self.assertTrue(created.created)
             self.assertNotEqual(created.account_id,0)
+            self.assertLessEqual(created.account_id >> 32,255)
             self.assertNotIn(created.token,repr(created))
             reopened = AccountStore(path)
             returning = reopened.authenticate(created.account_id,created.token)
@@ -35,3 +36,19 @@ class AccountTests(unittest.TestCase):
             first,second=store.authenticate(0,None),store.authenticate(0,None)
             self.assertNotEqual(first.account_id,second.account_id)
             self.assertNotEqual(first.token,second.token)
+
+    def test_migrate_legacy_id_without_losing_token_or_profile(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'accounts.sqlite3'
+            store = AccountStore(path)
+            account = store.authenticate(0,None)
+            with store.connect() as db:
+                db.execute('UPDATE settings SET value=? WHERE name=?', ('1073741824','namespace'))
+            migrated = AccountStore(path)
+            legacy_id = (1073741824 << 32) | (account.account_id & 0xffffffff)
+            returning = migrated.authenticate(legacy_id,account.token)
+            self.assertLessEqual(returning.account_id >> 32,255)
+            self.assertEqual(returning.profile,account.profile)
+            self.assertEqual(migrated.authenticate(returning.account_id,account.token).account_id,returning.account_id)
+            with self.assertRaises(ValueError):
+                migrated.authenticate(legacy_id,'wrong')

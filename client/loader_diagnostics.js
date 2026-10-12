@@ -148,6 +148,23 @@ rpc.exports = {
                         }
                     });
                     let factorySampled = false;
+                    Interceptor.attach(owner.base.add(0xa39800), {
+                        onEnter(args) { if (args[1].isNull()) log('Null SCString assignment caller=' + this.returnAddress.sub(owner.base)); }
+                    });
+                    Interceptor.attach(owner.base.add(0x80d2e8), {
+                        onEnter(args) {
+                            const id = args[1].add(0x90).readPointer();
+                            log('Native login-success handler entered with local account high=' + id.readU32() + ' low=' + id.add(4).readU32());
+                        },
+                        onLeave() { log('Native login-success handler completed'); }
+                    });
+                    Interceptor.attach(owner.base.add(0x80b62c), {
+                        onEnter(args) {
+                            const table = args[0].readPointer();
+                            File.writeAllText('/data/user/0/com.supercell.moco.localtest/files/diagnostics/login-handler.json',
+                                JSON.stringify({table: table.sub(owner.base).toString(), method: table.add(0x38).readPointer().sub(owner.base).toString()}));
+                        }
+                    });
                     Interceptor.attach(owner.base.add(0xa36d1c), {
                         onEnter(args) { this.cipherBytes = args[1].toInt32(); },
                         onLeave(result) { log('Native Box reply verification: status=' + result.toInt32() + ' ciphertextBytes=' + this.cipherBytes); }
@@ -172,6 +189,17 @@ rpc.exports = {
                                                 const object = create(factory,type);
                                                 if (object.isNull()) continue;
                                                 const vt = object.readPointer();
+                                                if (type === 29125) {
+                                                    const id = Memory.alloc(8); id.writeU64(0);
+                                                    object.add(0x90).writePointer(id);
+                                                    new NativeFunction(vt.add(0x10).readPointer(), 'void', ['pointer'])(object);
+                                                    const size = object.add(0x1c).readS32();
+                                                    if (size > 0 && size < 10000) {
+                                                        const encoded = new File('/data/user/0/com.supercell.moco.localtest/files/diagnostics/login-reply-default.bin', 'wb');
+                                                        encoded.write(object.add(0x40).readPointer().readByteArray(size)); encoded.close();
+                                                        log('Saved native default login reply: ' + size + ' bytes');
+                                                    }
+                                                }
                                                 rows.push({type, supported: true, version: object.add(0x88).readS32(),
                                                     table: vt.sub(owner.base).toString(),
                                                     methods: Array.from({length: 8}, (_,i) => vt.add(i*8).readPointer().sub(owner.base).toString())});

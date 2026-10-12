@@ -1,5 +1,40 @@
 # Project status — 2026-10-12
 
+## Current milestone: native login acceptance and encrypted session
+Type 29125/version 1 is now verified as the login-success reply. Its native
+decoder (0x835d6c), encoder (0x8359f4), router admission, and handler (0x80d2e8)
+were inspected. The real tablet completed that handler on capture
+20261012T193151Z-b62a94ce and repeatedly sent authenticated empty 10108/v0
+SecretBox keepalives. Python decrypted them and returned encrypted 20108/v0.
+A second cold launch, 20261012T193301Z-596ef655, reproduced the exchange.
+Twenty tests pass, including a complete socket-level synthetic guest login,
+encrypted reply, keepalive, and token reconnect.
+
+Initial replies reached the success handler but crashed with a null SCString
+assignment at 0x816148. Investigation traced this to player-tag conversion
+0x8f81e8: an ID high word >255 returns null. The first SQLite namespace was too
+large. It now allocates a persisted namespace from 128..255, preserves the
+old namespace as a token-validated migration alias, and returns the same local
+profile/token with the corrected ID. No clone data or original app was cleared.
+The client still supplied the old research ID on the second launch; the alias
+remains necessary. Successful replies use high word 166 and low word 4 locally.
+This namespace is a compatibility choice, not a claim of globally reserved IDs.
+Isolation rests on the separate package, local routing, private local store,
+and never using these credentials against production.
+
+A native default encoder sample (110 bytes, zero IDs/null tokens) verifies the
+reply field order. The server uses real local IDs/tokens, the observed client
+version fields, zero/null defaults for unknown fields, and present empty
+configuration strings in the suffix. A truncated-prefix experiment was not
+sufficient to prove a complete valid reply. A Process exception-handler probe
+was tried briefly; it captured unrelated/intercepted faults and was removed.
+The useful probe was a narrowly scoped null-SCString assignment hook.
+
+The normal --login server now sends this reply and supports encrypted keepalives.
+The home/profile message schema is the remaining approved stage, under active
+inspection. A usable home screen and gameplay have not been verified. Updated
+probe-free APK publication remains due after stabilizing the client build.
+
 ## Latest verified checkpoint: reply encryption and local guest storage
 The tablet accepted a NaCl Box encrypted server reply in capture
 20261012T191859Z-f2be5847. The native Box-open wrapper at libg+0xa36d1c

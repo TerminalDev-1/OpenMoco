@@ -111,6 +111,31 @@ def decode_login_request(payload):
     return LoginRequest(account_id, token, versions, fingerprint, payload[position:])
 
 
+def login_reply(account, version_fields):
+    """13.5.1 type 29125/v1, mandatory prefix from native decoder 0x835d6c.
+
+    Field order is also checked against the native encoder's default payload.
+    Unknown fields retain zero/null defaults; consumed configuration strings
+    are present as empty strings rather than null pointers.
+    """
+    def integer(value):
+        return value.to_bytes(4, 'big', signed=True)
+    def string(value):
+        if value is None:
+            return integer(-1)
+        encoded = value.encode('utf-8')
+        return integer(len(encoded)) + encoded
+    identity = account.account_id.to_bytes(8, 'big')
+    body = identity + identity + string(account.token) + string(None)
+    body += b''.join(integer(value) for value in version_fields)
+    body += integer(0) + string(None) + integer(0) * 3
+    body += string(None) * 2 + integer(0) + string(None) * 2
+    body += integer(0) + string(None) * 2 + integer(-1)
+    # Three bit-packed booleans occupy one byte, then a zero compact VInt.
+    body += bytes(2) + string('') * 4
+    return Frame(29125, 1, body)
+
+
 class FrameDecoder:
     def __init__(self, max_payload=4 * 1024 * 1024):
         self.pending = bytearray()

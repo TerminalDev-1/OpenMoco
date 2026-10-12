@@ -67,7 +67,8 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                     raise ValueError('Expected encrypted 10101 version-9 login envelope')
                                 record['client_public_key_bytes'] = 32
                                 state = 'encrypted_login_received'
-                                print(f'{session}: encrypted login received; authentication is not implemented', flush=True)
+                                print(f'{session}: encrypted login received; awaiting local verification' if crypto is not None else
+                                      f'{session}: encrypted login captured; no local key configured', flush=True)
                                 if crypto is not None:
                                     from protocol import decode_login_prefix
                                     plaintext = crypto.decode_login(frame.payload)
@@ -93,6 +94,33 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                         sent.append({'message_type': 20108, 'version': 0, 'payload_bytes': len(response.payload)})
                                         state = 'encrypted_transport_probe_sent'
                                         print(f'{session}: sent encrypted empty keepalive transport probe; no login success reply', flush=True)
+                                    elif accounts is not None:
+                                        from protocol import login_reply
+                                        reply = login_reply(account, request.version_fields)
+                                        response = Frame(reply.message_type, reply.version, crypto.encode_initial_reply(reply.payload))
+                                        encoded = response.encode()
+                                        with (output / (session + '.server.bin')).open('ab') as replies:
+                                            replies.write(encoded)
+                                        writer.write(encoded)
+                                        await writer.drain()
+                                        sent.append({'message_type': response.message_type, 'version': response.version,
+                                                     'payload_bytes': len(response.payload)})
+                                        state = 'local_login_reply_sent'
+                                        print(f'{session}: sent encrypted local login reply (29125/v1); home data pending', flush=True)
+                            elif crypto is not None and crypto.reply_sent:
+                                plaintext = crypto.decode_session(frame.payload)
+                                record['decrypted_bytes'] = len(plaintext)
+                                with (output / (session + '.session.bin')).open('ab') as clear:
+                                    clear.write(Frame(frame.message_type, frame.version, plaintext).encode())
+                                print(f'{session}: verified session frame {frame.message_type}, {len(plaintext)} decrypted bytes', flush=True)
+                                if frame.message_type == 10108 and not plaintext:
+                                    response = Frame(20108, 0, crypto.encode_session(b''))
+                                    encoded = response.encode()
+                                    with (output / (session + '.server.bin')).open('ab') as replies:
+                                        replies.write(encoded)
+                                    writer.write(encoded)
+                                    await writer.drain()
+                                    sent.append({'message_type': 20108, 'version': 0, 'payload_bytes': len(response.payload)})
                     except ValueError as error:
                         framing_error = str(error)
                         reason = 'protocol_error'
@@ -114,7 +142,7 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                     'sent_frames': sent, 'state': state, 'client_hello': hello,
                     'login_prefix': login_prefix,
                     'local_account': local_account,
-                    'note': 'Experimental server hello only; no authentication or gameplay.' if handshake
+                    'note': 'Local login development; home data and gameplay remain unimplemented.' if handshake
                             else 'Raw incoming TCP bytes. No protocol responses were sent.'}
         (output / (session + '.json')).write_text(json.dumps(metadata, indent=2), encoding='utf-8')
         print(f'Closed: {session}; {total} bytes; {reason}', flush=True)
