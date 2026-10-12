@@ -6,6 +6,7 @@ from pathlib import Path
 import secrets
 from nacl.exceptions import CryptoError
 from nacl.public import Box, PrivateKey, PublicKey
+from nacl.secret import SecretBox
 
 
 def load_key(path):
@@ -27,6 +28,9 @@ class LoginTransport:
         self.server_nonce = secrets.token_bytes(24)
         self.session_key = secrets.token_bytes(32)
         self.box = None
+        self.reply_sent = False
+        self.receive_nonce = None
+        self.send_nonce = self.server_nonce
 
     def decode_login(self, payload):
         if self.box is not None or len(payload) < 32 + 16 + 48:
@@ -46,7 +50,32 @@ class LoginTransport:
         return plaintext[48:]
 
     def encode_initial_reply(self, payload):
-        if self.box is None:
+        if self.box is None or self.reply_sent:
             raise ValueError('Login must be decoded before a reply')
         nonce = hashlib.blake2b(self.client_nonce + self.client_public + bytes(self.server_key.public_key), digest_size=24).digest()
-        return self.box.encrypt(self.server_nonce + self.session_key + payload, nonce).ciphertext
+        result = self.box.encrypt(self.server_nonce + self.session_key + payload, nonce).ciphertext
+        self.reply_sent = True
+        self.receive_nonce = self.client_nonce
+        return result
+
+    @staticmethod
+    def advance(nonce):
+        # Native 13.5.1 routine 0xfd81f8 adds two, carrying across 24 bytes.
+        return ((int.from_bytes(nonce, 'little') + 2) % (1 << 192)).to_bytes(24, 'little')
+
+    def encode_session(self, payload):
+        if not self.reply_sent:
+            raise ValueError('Initial encrypted reply must precede session traffic')
+        self.send_nonce = self.advance(self.send_nonce)
+        return SecretBox(self.session_key).encrypt(payload, self.send_nonce).ciphertext
+
+    def decode_session(self, payload):
+        if not self.reply_sent:
+            raise ValueError('Initial encrypted reply must precede session traffic')
+        nonce = self.advance(self.receive_nonce)
+        try:
+            result = SecretBox(self.session_key).decrypt(payload, nonce)
+        except CryptoError as error:
+            raise ValueError('Session encryption verification failed') from error
+        self.receive_nonce = nonce
+        return result

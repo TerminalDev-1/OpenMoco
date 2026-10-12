@@ -1,6 +1,7 @@
 import hashlib
 import unittest
 from nacl.public import Box, PrivateKey
+from nacl.secret import SecretBox
 from transport import LoginTransport
 
 
@@ -39,3 +40,30 @@ class TransportTests(unittest.TestCase):
         wrong = LoginTransport(PrivateKey.generate(), transport.challenge)
         with self.assertRaises(ValueError):
             wrong.decode_login(payload)
+
+    def test_session_nonce_carry_replay_and_authentication(self):
+        transport, _, payload, _, _, _ = self.fixture()
+        transport.decode_login(payload)
+        transport.encode_initial_reply(b'')
+        cipher = SecretBox(transport.session_key)
+        transport.send_nonce = b'\xff' + bytes(23)
+        self.assertEqual(cipher.decrypt(transport.encode_session(b'server'), b'\x01\x01' + bytes(22)), b'server')
+        nonce = LoginTransport.advance(transport.receive_nonce)
+        packet = cipher.encrypt(b'client', nonce).ciphertext
+        with self.assertRaises(ValueError):
+            transport.decode_session(packet[:-1] + bytes([packet[-1] ^ 1]))
+        self.assertEqual(transport.decode_session(packet), b'client')
+        with self.assertRaises(ValueError):
+            transport.decode_session(packet)
+        self.assertEqual(LoginTransport.advance(b'\xff' * 24), b'\x01' + bytes(23))
+
+    def test_session_requires_initial_reply(self):
+        transport, _, payload, _, _, _ = self.fixture()
+        transport.decode_login(payload)
+        with self.assertRaises(ValueError):
+            transport.encode_session(b'premature')
+        with self.assertRaises(ValueError):
+            transport.decode_session(b'premature')
+        transport.encode_initial_reply(b'')
+        with self.assertRaises(ValueError):
+            transport.encode_initial_reply(b'duplicate')

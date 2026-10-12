@@ -148,6 +148,10 @@ rpc.exports = {
                         }
                     });
                     let factorySampled = false;
+                    Interceptor.attach(owner.base.add(0xa36d1c), {
+                        onEnter(args) { this.cipherBytes = args[1].toInt32(); },
+                        onLeave(result) { log('Native Box reply verification: status=' + result.toInt32() + ' ciphertextBytes=' + this.cipherBytes); }
+                    });
                     Interceptor.attach(owner.base.add(0xa35d2c), {
                         onEnter(args) {
                             try {
@@ -164,9 +168,9 @@ rpc.exports = {
                                         try {
                                             const create = new NativeFunction(table.add(0x18).readPointer(), 'pointer', ['pointer','int']);
                                             const rows = [];
-                                            for (const type of [...Array.from({length: 200}, (_,i) => 20000+i), ...Array.from({length: 100}, (_,i) => 24100+i)]) {
+                                            for (let type = 1; type <= 65535; type++) {
                                                 const object = create(factory,type);
-                                                if (object.isNull()) { rows.push({type, supported: false}); continue; }
+                                                if (object.isNull()) continue;
                                                 const vt = object.readPointer();
                                                 rows.push({type, supported: true, version: object.add(0x88).readS32(),
                                                     table: vt.sub(owner.base).toString(),

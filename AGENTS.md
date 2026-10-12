@@ -41,6 +41,14 @@ The connection milestone and first hello exchange are achieved. The renamed Andr
 - The user requested a running server for manual testing. Leave that session running unless asked to stop it; recheck process details and logs listed in PROJECT_STATUS.md. A session idle timeout closes that socket, not the listener.
 
 ## Remaining implementation choices
+Current verified progress: incoming login and the first encrypted reply work
+with local keys. The tablet's native Box-open routine returned success for an
+encrypted empty keepalive probe; this is not authentication. SQLite guest
+storage and reconnect-token validation work on the server, but credentials have
+not yet been delivered to the client. Session SecretBox methods have unit tests;
+live session traffic and login/home replies remain to be verified. Runtime
+factory sampling suggests 29125/version 1 for login success; verify its handler
+and schema rather than treating it as established. See PROJECT_STATUS.md.
 The user has now approved all four next stages: encrypted transport, local guest accounts, compatible login replies, and minimum home/profile data. Work through their dependencies without requesting the same approval again:
 1. Complete encrypted transport: resolve native crypto, configure local server keys, decode login, and encrypt replies. This currently blocks a successful wire-level login.
 2. Minimal local guest accounts: assign a separate account ID and random reconnect token, store the profile locally, and validate returning tokens. No real Supercell identity is needed for this milestone.

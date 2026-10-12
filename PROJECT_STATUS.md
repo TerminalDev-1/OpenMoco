@@ -1,5 +1,45 @@
 # Project status — 2026-10-12
 
+## Latest verified checkpoint: reply encryption and local guest storage
+The tablet accepted a NaCl Box encrypted server reply in capture
+20261012T191859Z-f2be5847. The native Box-open wrapper at libg+0xa36d1c
+reported status 0 for the 72-byte ciphertext. The diagnostic reply is an empty
+20108/version-0 keepalive, not a login-success reply. Do not equate this with
+the client reaching its home screen. Use --login --transport-probe to reproduce.
+Native session-cipher inspection establishes SecretBox and little-endian
+24-byte nonce increments of two before each operation. Session methods have
+authentication, replay, ordering, and carry tests; session traffic is not yet
+verified against the tablet.
+
+accounts.py implements persistent SQLite guest identities, a distinct positive
+32-bit ID namespace, random reconnect tokens stored as hashes, and a minimal
+local profile. The live server created a guest from the tablet's decrypted
+zero-ID/null-token login. It has not sent those credentials to the client yet;
+repeat fresh launches therefore create additional guests. Accounts remain in
+ignored .local/accounts.sqlite3. Eighteen tests pass, including persistence,
+invalid tokens, foreign IDs, and crypto tampering. The first account tests
+exposed unclosed SQLite connections on Windows; explicit closing fixed this.
+
+Full factory sampling found 216 supported types across the uint16 range.
+Type 29125/version 1 is a strong login-success candidate: it is admitted by
+the pre-login router beside LoginFailed and its decoder reads two account IDs,
+strings, and version fields. Its layout and handling still need live verification.
+20104 and 24101 are not supported. Ignored evidence:
+analysis/runtime/message-factory-all.json and analysis/login-ok-decode.txt.
+
+Checkpoint b8485d6 was accidentally pushed after the APK verifier rejected a
+stale embedded diagnostic script: the PowerShell command continued despite
+the failed native exit code. This was disclosed, the APK rebuilt, and the
+matching source/build verified before installing. Subsequent builds passed
+1457 unchanged payload-entry checks and produced the live observations above.
+Keep checks and commit/push in separate inspected calls.
+
+The current research listener is the foreground --login --transport-probe
+runner, replacing stale background PID metadata. Research probes remain enabled
+only in the local development APK; do not publish this diagnostic build.
+Next: verify 29125's account/token fields and client handler, then derive the
+actual home/profile schema and publish a probe-free updated client release.
+
 ## Approved next stages: current work
 The user approved encrypted transport, local guest accounts, compatible login
 replies, and minimum home/profile data. Incoming login encryption is now resolved.

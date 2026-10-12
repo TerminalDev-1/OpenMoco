@@ -6,10 +6,10 @@ import json
 from pathlib import Path
 import uuid
 import secrets
-from protocol import FrameDecoder, decode_client_hello, server_hello
+from protocol import Frame, FrameDecoder, decode_client_hello, server_hello
 
 
-async def capture(reader, writer, output, handshake=False, server_key=None):
+async def capture(reader, writer, output, handshake=False, server_key=None, accounts=None, transport_probe=False):
     session = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ') + '-' + uuid.uuid4().hex[:8]
     peer = writer.get_extra_info('peername')
     total = 0
@@ -22,6 +22,7 @@ async def capture(reader, writer, output, handshake=False, server_key=None):
     hello = None
     crypto = None
     login_prefix = None
+    local_account = None
     print(f'Connected: {peer}; capture {session}', flush=True)
     try:
         with (output / (session + '.bin')).open('wb') as stream:
@@ -74,6 +75,24 @@ async def capture(reader, writer, output, handshake=False, server_key=None):
                                     (output / (session + '.login.bin')).write_bytes(plaintext)
                                     state = 'login_decrypted'
                                     print(f'{session}: verified and decrypted local-key login: {login_prefix}', flush=True)
+                                    if accounts is not None:
+                                        from protocol import decode_login_request
+                                        request = decode_login_request(plaintext)
+                                        account = accounts.authenticate(request.account_id, request.token)
+                                        local_account = {'account_id': account.account_id, 'created': account.created}
+                                        state = 'local_account_validated'
+                                        print(f'{session}: local guest account validated; client login reply still pending', flush=True)
+                                    if transport_probe:
+                                        # Empty decoder at native 0x8df280; this checks crypto, not login success.
+                                        response = Frame(20108, 0, crypto.encode_initial_reply(b''))
+                                        encoded = response.encode()
+                                        with (output / (session + '.server.bin')).open('ab') as replies:
+                                            replies.write(encoded)
+                                        writer.write(encoded)
+                                        await writer.drain()
+                                        sent.append({'message_type': 20108, 'version': 0, 'payload_bytes': len(response.payload)})
+                                        state = 'encrypted_transport_probe_sent'
+                                        print(f'{session}: sent encrypted empty keepalive transport probe; no login success reply', flush=True)
                     except ValueError as error:
                         framing_error = str(error)
                         reason = 'protocol_error'
@@ -94,15 +113,19 @@ async def capture(reader, writer, output, handshake=False, server_key=None):
                     'incomplete_frame_bytes': len(decoder.pending),
                     'sent_frames': sent, 'state': state, 'client_hello': hello,
                     'login_prefix': login_prefix,
+                    'local_account': local_account,
                     'note': 'Experimental server hello only; no authentication or gameplay.' if handshake
                             else 'Raw incoming TCP bytes. No protocol responses were sent.'}
         (output / (session + '.json')).write_text(json.dumps(metadata, indent=2), encoding='utf-8')
         print(f'Closed: {session}; {total} bytes; {reason}', flush=True)
 
 
-async def run(host, port, output, handshake=False, server_key=None):
+async def run(host, port, output, handshake=False, server_key=None, account_store=None, transport_probe=False):
     output.mkdir(parents=True, exist_ok=True)
-    server = await asyncio.start_server(lambda r, w: capture(r, w, output, handshake, server_key), host, port)
+    if server_key is not None and account_store is None:
+        from accounts import AccountStore
+        account_store = AccountStore(Path(__file__).resolve().parent/'.local/accounts.sqlite3')
+    server = await asyncio.start_server(lambda r, w: capture(r, w, output, handshake, server_key, account_store, transport_probe), host, port)
     print(f'Local listener: {host}:{port}; mode={"experimental hello" if handshake else "capture"}', flush=True)
     async with server:
         await server.serve_forever()

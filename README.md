@@ -156,3 +156,13 @@ of public releases. The passive ARM64 inspector is
 The bootstrap uses the official
 [Frida Gadget script interaction](https://frida.re/docs/gadget/) to run locally
 without a separate Frida server on the tablet.
+# Current login development
+
+`--login` verifies the tablet's encrypted request and creates or validates a
+separate guest in `.local/accounts.sqlite3`. The client does not yet receive
+a login-success reply or load home data. Reconnect tokens are hashed in storage.
+
+For transport research, add `--transport-probe` to `tools/run_local_test.py
+--login --launch`. It sends an encrypted empty keepalive; the diagnostic build's
+native Box verifier accepted it. This verifies reply encryption, not login.
+Research probes must be disabled in published client builds.

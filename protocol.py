@@ -3,7 +3,7 @@
 Observed layout: big-endian uint16 type, uint24 payload length, uint16
 version, followed by payload. This does not implement a server handshake.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -74,6 +74,41 @@ def decode_login_prefix(payload):
     return {'account_id': ((high & 0xffffffff) << 32) | (low & 0xffffffff),
             'token_present': token is not None and bool(token), 'version_fields': versions,
             'fingerprint': fingerprint, 'remaining_bytes': len(payload) - position}
+
+
+@dataclass(frozen=True)
+class LoginRequest:
+    account_id: int
+    token: str | None = field(repr=False)
+    version_fields: tuple
+    fingerprint: str | None
+    remaining: bytes = field(repr=False)
+
+
+def decode_login_request(payload):
+    """Preserve reconnect credentials internally; never include them in diagnostics."""
+    position = 0
+    def read(size):
+        nonlocal position
+        if size < 0 or position+size > len(payload):
+            raise ValueError('Truncated login request')
+        value = payload[position:position+size]
+        position += size
+        return value
+    def integer():
+        return int.from_bytes(read(4), 'big', signed=True)
+    def string():
+        size = integer()
+        if size == -1:
+            return None
+        if size < 0 or size > 900000:
+            raise ValueError('Invalid login string length')
+        return read(size).decode('utf-8')
+    account_id = int.from_bytes(read(8), 'big')
+    token = string()
+    versions = tuple(integer() for _ in range(3))
+    fingerprint = string()
+    return LoginRequest(account_id, token, versions, fingerprint, payload[position:])
 
 
 class FrameDecoder:
