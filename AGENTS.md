@@ -46,8 +46,8 @@ The user wants to choose the next implementation area. Explain dependencies befo
 Recommend encrypted transport first, then guest accounts and the login reply, then minimum home data. Account storage can be developed independently, but cannot make the current client authenticate until transport and reply compatibility are resolved.
 
 ## Possible GitHub and APK publication
-- The user explicitly wants a public GitHub repository so they can view the code and checkpoints. They chose the exact name `OpenMoco`. Use the authenticated GitHub account for repository creation.
-- Once the repository is created and its remote configured, commit and push a checkpoint after each successfully verified change. Use descriptive commit messages, include updated documentation, and report the checkpoint. Do not push failed or unverified work as a successful checkpoint.
+- The user chose `OpenMoco`. The public source repository is https://github.com/TerminalDev-1/OpenMoco, with default branch `main` and local remote `origin` configured. Use this repository for future checkpoints.
+- Commit and push a checkpoint after each successfully verified change. Use descriptive commit messages, include updated documentation, and report the checkpoint. Do not push failed or unverified work as a successful checkpoint.
 - Before the initial public push and every later checkpoint, inspect the staged contents for the existing exclusions: private signing keys, device/account information, raw captures, extracted proprietary inputs, original archives, and generated builds. Stage intended source/documentation explicitly.
 - The user wants the possibility of publishing a GitHub repository and the experimental Android APK documented. A future release may publish the repository together with the test-client APK, including any required split APKs and installation instructions.
 - Public repository creation and source checkpoints are authorized under the chosen name `OpenMoco`. Publishing APK release assets remains a future possibility, not part of the repository-creation request. See PROJECT_STATUS.md for actual publication status.

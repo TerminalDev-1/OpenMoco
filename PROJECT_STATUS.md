@@ -39,14 +39,22 @@ The later user-requested testing session is active as described above.
 ## Publication intent — recorded 2026-10-12
 Update: the user now requests a public GitHub repository and a pushed
 checkpoint after every successfully verified change. They are choosing the
-repository name and selected `OpenMoco`. Initial publication is being prepared
-under the authenticated account TerminalDev-1. AGENTS.md records the checkpoint rule and
+repository name and selected `OpenMoco`. The public source repository is now
+https://github.com/TerminalDev-1/OpenMoco, default branch main, remote origin.
+Initial checkpoint: 7ad283e (verified hello exchange and isolated client tooling).
+GitHub visibility and the remote commit were checked after the push. Six tests
+passed and the diagnostic base verification preserved 1457 original payload
+entries. The public tree contains only 17 source/documentation files; APKs,
+archives, captures, extracted libraries, and private keys were excluded.
+Android tooling discovery now uses SDK environment variables or ignored local
+configuration, and device identifiers were removed from public documentation.
+AGENTS.md records the checkpoint rule and
 public-content exclusions. APK release publication remains a separate future
 possibility.
 
 The user asked to document the possibility of publishing a GitHub repository
 and the experimental Android APK together. The APK portion is future release planning;
-no repository or APK release has been published, and uploading is not part of
+no APK release has been published. Uploading was not part of
 the earlier documentation-only request. The subsequent public-repository
 request above supersedes that earlier scope. AGENTS.md preserves the intent and release
 packaging rules. A future release should include reproducible build/run
