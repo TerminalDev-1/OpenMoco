@@ -10,7 +10,7 @@ the original APKs, game assets, extracted libraries, private signing keys,
 or device captures. Bring your own client input to reproduce the build.
 
 The experimental local-test client and all required splits are available as
-[release downloads](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.1.0-hello).
+[release downloads](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.2.0-local-login).
 See [installation instructions](docs/INSTALL.md). The large asset APK is split
 into numbered download parts and reassembled with checksum verification.
 Other projects' distribution approaches are recorded in
@@ -38,7 +38,8 @@ is provisioned into the clone through ADB. The bootstrap verifies the supplied
 has verified and decrypted login on the tablet using this configuration.
 The tablet's native login-success handler completed with a separate local ID.
 Saved local tokens are accepted on reconnect. Home state is still under implementation.
-The published v0.1.0-hello APK predates this development-client feature.
+The published v0.2.0-local-login APK includes this feature with probes disabled.
+The older v0.1.0-hello APK supports only the hello milestone.
 The optional builder `--server-key` flag can embed a public key as a fallback;
 the runtime public-key file takes precedence. The bootstrap reads that file
 through [Frida's File API](https://frida.re/docs/javascript-api/#file).

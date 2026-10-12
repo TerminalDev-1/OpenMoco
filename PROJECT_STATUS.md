@@ -1,5 +1,26 @@
 # Project status — 2026-10-12
 
+## Updated APK release: published and verified
+https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.2.0-local-login is a
+public prerelease built from source commit 6467451. Its 12 assets include the
+probe-free base APK, all four matching splits (the asset pack in four parts),
+manifest, reassembler, installation instructions, and checksums. Every remote
+asset name, size, upload status, and SHA-256 matched its local counterpart before
+publication. Reassembly verified the completed large APK. Full five-split
+verification passed, preserving 1457 base and 39950 asset-pack payload entries.
+The current server/test client still lack home data and gameplay.
+The first release-create attempt rejected an abbreviated target SHA (HTTP 422);
+retrying with the full commit SHA succeeded. No duplicate release was created.
+
+Completed source checkpoints this session: b8485d6 (incoming crypto), 8fefb16
+(reply crypto/guest store), db70918 (native login/session), 6467451 (probe-free
+release preparation), and a9be3fb (CSV reader/home research). All were pushed.
+Native guest login, saved-token reconnect, and encrypted keepalives are verified.
+The remaining approved stage is minimum home/frame/player data; it is not
+implemented or proven. Start with SceneConfig type 1003, frame type 1200, and
+the 23491 scene-start message/handler described below, preserving the working
+login baseline. Error replies and broader gameplay also remain future work.
+
 ## Current manual testing server
 The probe-free local-network APK was rebuilt, installed, and cold-launched.
 Capture 20261012T194719Z-fa0d4b2a verifies login-token validation and authenticated
@@ -56,7 +77,8 @@ large. It now allocates a persisted namespace from 128..255, preserves the
 old namespace as a token-validated migration alias, and returns the same local
 profile/token with the corrected ID. No clone data or original app was cleared.
 The client still supplied the old research ID on the second launch; the alias
-remains necessary. Successful replies use high word 166 and low word 4 locally.
+remains necessary. Successful replies use a compatible high word and preserve
+the existing local account's low word.
 This namespace is a compatibility choice, not a claim of globally reserved IDs.
 Isolation rests on the separate package, local routing, private local store,
 and never using these credentials against production.
