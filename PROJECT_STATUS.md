@@ -1,5 +1,45 @@
 # Project status — 2026-10-12
 
+## Active home investigation (supersedes historical next steps below)
+Terminology checkpoint c9e04f5 was pushed. OpenMoco is a private server; the
+Android application is the test client. Both public releases' INSTALL.md assets
+and SHA256SUMS.txt were updated and their remote digests verified; APKs were
+unchanged. The v0.1 release body also uses the corrected terminology.
+
+stream.py implements bounded native compact signed 32/64-bit integers and
+packed booleans. Boolean bits remain packed across intervening integer/string
+fields. Native methods: 0x8d7f24, 0x8d8464, 0x8d724c. All 23 tests pass.
+
+Native scene-start message 23491/v0 uses SceneConfig 1003 and Frame 1200.
+The typed Home data reference is 10900000 (class 109), verified through the
+client's loaded data registry; 900000 is a metadata override and caused a
+required-type mismatch. Correcting both scene references allows all scene-start
+handler stages to complete. Captures 20261012T202324Z-8c708e15 and
+20261012T202832Z-4673525a confirm decoding/handler completion and authenticated
+10177 (two strings plus a compact integer); its semantics remain unknown.
+This does not establish a usable home screen: the client subsequently crashes.
+
+The recovered private native crash envelope locates the null dereference at
+libg+0x725714: Frame copying requires the non-null handler at primary+0xd8.
+The default frame lacks it. Removing concurrent fixture-generation probes did
+not fix that crash. Structured registry dispatch is 0x8f07c0; its three child
+factories are 0x6b5648, 0x7eeaec, 0x83d234. Unbounded type sampling encountered
+an invalid constructor path and was removed; use statically supported types.
+Type 1240 is an evidenced OpenWorld handler candidate, not yet a verified Home
+handler. The experimental --home-probe path is opt-in; normal --login retains
+the working baseline. Research APKs with probes enabled must not be published.
+
+The prior background manual-test runner PID 13576 was stopped for research;
+its .local/user-test-server.json metadata is stale until the runner is restored.
+Wireless ADB occasionally stalled during APK installation. Restarting only the
+verified adb fork-server daemon and retrying recovered the paired tablet.
+No original-app data or test credentials were cleared. Private native samples,
+crash envelopes, screenshots, and captures remain in ignored analysis/.local.
+
+Next: supply the evidenced compatible frame handler, verify its required player
+and account state, implement a Python encoder, and observe an actual usable home
+on the tablet. Then restore the probe-free client and manual testing server.
+
 ## Updated APK release: published and verified
 https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.2.0-local-login is a
 public prerelease built from source commit 6467451. Its 12 assets include the
@@ -400,20 +440,7 @@ tablet required pairing. Recheck `adb devices -l` before requesting pairing.
   or gameplay is implemented.
 
 ## Next steps
-The user approved all four stages: encrypted transport, local guest accounts,
-compatible login replies, and minimum home/profile data. Their dependencies
-are recorded in AGENTS.md under Remaining implementation choices.
-Minimum local guest-account persistence, compatible login replies, and the
-client's required home/profile state are all still missing. The exact home
-message schema has not been reverse-engineered. Continue through these stages
-without waiting for another selection or repeat approval.
-
-1. Resolve the login encryption algorithm, nonce construction, and embedded
-   server-public-key configuration from native evidence. Standard PyNaCl and
-   hashlib comparisons have not matched; do not assume compatible crypto yet.
-2. Configure a newly generated local server key pair in the test client, implement
-   verified login decryption and the evidenced server reply, and only then
-   create/authenticate a separate local-server identity. Never use real credentials.
-3. Keep all experiments on local endpoints and preserve the original app.
-
-Do not infer successful reverse engineering from the Python loopback test.
+Encrypted login, guest persistence, compatible success replies, reconnects, and
+session keepalives are complete. Continue the approved minimum home/profile
+stage using the active investigation at the top of this file. Historical
+observations above describe earlier milestones, not current blockers.

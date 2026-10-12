@@ -57,7 +57,7 @@ The user has now approved all four next stages: encrypted transport, local guest
 1. Encrypted transport is verified: local keys, incoming login, initial reply, and session keepalives.
 2. Minimal guest storage is implemented: separate local account ID, random reconnect token stored as a hash, local profile, and returning-token validation. No real Supercell identity is used.
 3. Compatible success reply, reconnects, and encrypted keepalives are verified. Error-response layouts remain additional future work.
-4. Minimal home/profile data: inspect what the client requires after login and serialize the smallest valid starter state. The message ID and exact schema are not yet established; do not invent them.
+4. Minimal home/profile data: inspect what the client requires after login and serialize the smallest valid starter state. Scene-start 23491/v0, SceneConfig 1003, Frame 1200, and typed Home reference 10900000 are evidenced. The frame handler and player/profile contents remain under investigation; do not invent them.
 5. Gameplay, progression, inventory changes, and multiplayer follow after the login/home path works. Their exact server schemas remain to be investigated.
 Continue with minimum home data. Preserve the working login/session baseline while investigating the scene/player schema; do not claim a usable home until the tablet actually loads it.
 
@@ -86,3 +86,6 @@ Continue with minimum home data. Preserve the working login/session baseline whi
 ## Inputs
 - `com.supercell.moco_13.5.1-13000501_2arch_7dpi_24lang_1feat_7ac6d8b137dbdc83079ed7e0cb21f572_apkmirror.com.apkm`
 - `Archive.zip` contains another copy of the APKM; avoid unpacking it unnecessarily.
+
+## Home investigation continuation
+The corrected typed Home references allow native scene-start handler completion, but the default frame crashes during copying at libg+0x725714 because primary+0xd8 has no handler. This is not a usable home. Type 1240 is an evidenced OpenWorld handler candidate awaiting verification. Keep experimental scene bodies opt-in and do not run fixture-generation probes concurrently with real scene startup. See the active section at the top of PROJECT_STATUS.md before interpreting historical entries.
