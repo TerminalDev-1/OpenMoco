@@ -1,5 +1,33 @@
 # Project status — 2026-10-12
 
+## Approved next stages: current work
+The user approved encrypted transport, local guest accounts, compatible login
+replies, and minimum home/profile data. Incoming login encryption is now resolved.
+Decoding the 13.5.1 obfuscated peer-public-key table reproduced the saved native
+nonce and ciphertext exactly with standard BLAKE2b-24 and PyNaCl NaCl Box.
+The previous mismatch came from overlooking native substitution of the peer
+public key into the hash input; do not repeat the custom-cipher hypothesis.
+
+A new local key pair is stored only in .local/server-key.json. The clone's
+bootstrap validates and re-encodes its native public-key table before connect.
+The runner provisions only the public key into clone-private storage. Real
+tablet captures 20261012T185708Z-5b1b9b41, 20261012T185957Z-1a170e34, and
+20261012T190616Z-59829e05 all decrypted successfully: account ID 0, no token,
+version fields [13,1,5]. Thirteen tests passed, including wrong-key, tampering,
+challenge verification, and initial reply crypto round-trip. Native inspection
+also establishes first-reply nonce BLAKE2b-24(client nonce + client public key
++ server public key), with server nonce (24 bytes) and session key (32 bytes)
+preceding the reply body. That reply still needs live client verification.
+
+The actual native message factory was observed at method 0x7590dc. Its runtime
+samples show that 20104 and 24101 are unsupported by this client; do not assume
+generic Supercell login/home message IDs. Further inspection is continuing.
+Diagnostic samples are under analysis/runtime/, excluded from Git.
+The current live research process uses --login and a probe-enabled clone;
+the earlier background server was replaced for this work. The public
+v0.1.0-hello release remains the earlier probe-free hello build. Local accounts,
+the server login-success reply, and minimum home data are still in progress.
+
 ## Active user testing session
 At the user's request, the handshake-mode server was started in a background
 Python process, listening on PC loopback ports 9339 and 9340.
@@ -236,12 +264,13 @@ tablet required pairing. Recheck `adb devices -l` before requesting pairing.
   or gameplay is implemented.
 
 ## Next steps
-The user has asked to choose the next implementation area. The choices and
-dependencies are recorded in AGENTS.md under Remaining implementation choices.
+The user approved all four stages: encrypted transport, local guest accounts,
+compatible login replies, and minimum home/profile data. Their dependencies
+are recorded in AGENTS.md under Remaining implementation choices.
 Minimum local guest-account persistence, compatible login replies, and the
 client's required home/profile state are all still missing. The exact home
-message schema has not been reverse-engineered. Wait for the user's selection
-before starting another implementation area.
+message schema has not been reverse-engineered. Continue through these stages
+without waiting for another selection or repeat approval.
 
 1. Resolve the login encryption algorithm, nonce construction, and embedded
    server-public-key configuration from native evidence. Standard PyNaCl and

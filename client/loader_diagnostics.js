@@ -39,6 +39,49 @@ rpc.exports = {
         }
         if (localNetwork) {
             let gameDumped = false;
+            let gameKeyConfigured = false;
+            function configureLocalKey(owner) {
+                let publicKey = parameters.server_public_key;
+                const keyPath = '/data/user/0/com.supercell.moco.localtest/files/local-server-public-key.txt';
+                try { publicKey = File.readAllText(keyPath).trim(); } catch (_) {}
+                if (publicKey === undefined || gameKeyConfigured) return true;
+                try {
+                    if (!/^[0-9a-f]{64}$/.test(publicKey)) throw new Error('Invalid local public key');
+                    const encoded = owner.base.add(0x189738);
+                    const masks = owner.base.add(0x189778);
+                    function decodeKey() {
+                        let value = '';
+                        for (let j = 0; j < 16; j++) {
+                            const mask = masks.add((31 - j * 2) * 2).readU16();
+                            const a = encoded.add(j * 4).readU16() ^ mask;
+                            const b = encoded.add(j * 4 + 2).readU16() ^ mask;
+                            const shift = 11 - (j % 8);
+                            const rotated = ((a | b) << shift) | ((a | b) >>> (16 - shift));
+                            const word = (rotated ^ masks.add((31-j)*2).readU16()) & 65535;
+                            value += (word & 255).toString(16).padStart(2,'0') + (word >>> 8).toString(16).padStart(2,'0');
+                        }
+                        return value;
+                    }
+                    if (decodeKey() !== '94170f4efb518b827d40a3f3f4305856adb49c2ad443816bfc9851611c06754d')
+                        throw new Error('13.5.1 key-layout verification failed');
+                    const protection = Process.findRangeByAddress(encoded).protection;
+                    if (!Memory.protect(encoded, 64, 'rwx')) throw new Error('Key page cannot be updated');
+                    try {
+                        for (let j = 0; j < 16; j++) {
+                            const word = parseInt(publicKey.slice(j*4,j*4+2),16) | (parseInt(publicKey.slice(j*4+2,j*4+4),16) << 8);
+                            const value = word ^ masks.add((31-j)*2).readU16();
+                            const shift = 11 - (j % 8);
+                            const raw = (((value >>> shift) | (value << (16-shift))) ^ masks.add((31-j*2)*2).readU16()) & 65535;
+                            encoded.add(j*4).writeU16(raw);
+                            encoded.add(j*4+2).writeU16(raw);
+                        }
+                    } finally { Memory.protect(encoded, 64, protection); }
+                    if (decodeKey() !== publicKey) throw new Error('Local key verification failed');
+                    gameKeyConfigured = true;
+                    log('Configured local server public key for native login encryption');
+                    return true;
+                } catch (error) { log('Local server key setup failed: ' + error); return false; }
+            }
             function route(address, length, caller) {
                 if (address.isNull() || length < 4) return { allowed: true, address, length };
                 const family = address.readU16();
@@ -46,6 +89,7 @@ rpc.exports = {
                 const owner = Process.findModuleByAddress(caller);
                 const oldPort = (address.add(2).readU8() << 8) | address.add(3).readU8();
                 const game = owner !== null && owner.name === 'libg.so' && oldPort === 30000;
+                if (game && !configureLocalKey(owner)) return { allowed: false, address, length };
                 if (game && !gameDumped && parameters.protocol_diagnostics === true) {
                     gameDumped = true;
                     function dumpGame(prefix) { try {
@@ -101,6 +145,39 @@ rpc.exports = {
                             if (this.nonceOutput === undefined) return;
                             const file = new File('/data/user/0/com.supercell.moco.localtest/files/diagnostics/login-hash-output.bin', 'wb');
                             file.write(this.nonceOutput.readByteArray(24)); file.close();
+                        }
+                    });
+                    let factorySampled = false;
+                    Interceptor.attach(owner.base.add(0xa35d2c), {
+                        onEnter(args) {
+                            try {
+                                const factory = args[0].add(0x118).readPointer();
+                                const table = factory.readPointer();
+                                const file = new File('/data/user/0/com.supercell.moco.localtest/files/diagnostics/incoming-factory.json', 'w');
+                                file.write(JSON.stringify({ message_type: args[1].toInt32(),
+                                    table: table.sub(owner.base).toString(),
+                                    methods: Array.from({length: 8}, (_,i) => table.add(i*8).readPointer().sub(owner.base).toString()) }));
+                                file.close();
+                                if (!factorySampled) {
+                                    factorySampled = true;
+                                    setTimeout(() => {
+                                        try {
+                                            const create = new NativeFunction(table.add(0x18).readPointer(), 'pointer', ['pointer','int']);
+                                            const rows = [];
+                                            for (const type of [...Array.from({length: 200}, (_,i) => 20000+i), ...Array.from({length: 100}, (_,i) => 24100+i)]) {
+                                                const object = create(factory,type);
+                                                if (object.isNull()) { rows.push({type, supported: false}); continue; }
+                                                const vt = object.readPointer();
+                                                rows.push({type, supported: true, version: object.add(0x88).readS32(),
+                                                    table: vt.sub(owner.base).toString(),
+                                                    methods: Array.from({length: 8}, (_,i) => vt.add(i*8).readPointer().sub(owner.base).toString())});
+                                            }
+                                            File.writeAllText('/data/user/0/com.supercell.moco.localtest/files/diagnostics/message-factory-samples.json', JSON.stringify(rows));
+                                            log('Saved native message-factory samples');
+                                        } catch (error) { log('Message-factory sampling failed: ' + error); }
+                                    }, 500);
+                                }
+                            } catch (e) { log('Incoming factory capture failed: ' + e); }
                         }
                     });
                 }

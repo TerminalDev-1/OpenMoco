@@ -14,7 +14,13 @@ def main():
     parser.add_argument('--debuggable', action='store_true', help='Enable run-as for retrieving private runtime dumps')
     parser.add_argument('--local-network', action='store_true', help='Restore INTERNET with bootstrap-enforced loopback routing')
     parser.add_argument('--protocol-diagnostics', action='store_true', help='Capture build-specific native protocol inputs in clone-private storage')
+    parser.add_argument('--server-key', type=Path, help='Local server key JSON; embeds only its public key')
     args = parser.parse_args()
+    server_public_key = None
+    if args.server_key:
+        server_public_key = json.loads(args.server_key.read_text(encoding='utf-8'))['public_key']
+        if len(bytes.fromhex(server_public_key)) != 32 or not args.local_network:
+            parser.error('--server-key requires a 32-byte public key and --local-network')
     build = ROOT / 'build' / 'diagnostic-client'
     build.mkdir(parents=True, exist_ok=True)
     classes = build / 'classes'
@@ -87,7 +93,10 @@ def main():
         dst.write(ROOT / '.tools' / 'libgadget.so', 'lib/arm64-v8a/libgadget.so', compress_type=zipfile.ZIP_STORED)
         config = {'interaction': {'type': 'script', 'path': 'libgadget.script.so',
             'parameters': {'local_network': args.local_network, 'protocol_diagnostics': args.protocol_diagnostics,
+                           'supports_local_server_key': True,
                            'game_port': 9339, 'sdk_port': 9340}}, 'runtime': 'qjs'}
+        if server_public_key:
+            config['interaction']['parameters']['server_public_key'] = server_public_key
         dst.writestr('lib/arm64-v8a/libgadget.config.so', json.dumps(config), compress_type=zipfile.ZIP_STORED)
         dst.write(ROOT / 'client' / 'loader_diagnostics.js', 'lib/arm64-v8a/libgadget.script.so', compress_type=zipfile.ZIP_STORED)
     run(BUILD_TOOLS / 'zipalign.exe', '-f', '-P', '16', '4', unsigned, aligned)

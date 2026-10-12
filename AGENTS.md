@@ -16,6 +16,10 @@ The user will test the client on an Android tablet with wireless debugging enabl
 Inspect the package, identify the client transport and connection configuration, and implement the smallest server needed for an initial connection. Add login and gameplay only after the connection path is understood. Distinguish a socket connection, a valid protocol handshake, authentication, and gameplay; never claim one proves another.
 
 ## Verified baseline
+Incoming login encryption is now resolved and verified on the tablet using a newly generated local server key pair. The bootstrap decodes/re-encodes this build's obfuscated peer-public-key table; the server uses Curve25519/XSalsa20-Poly1305 NaCl Box with BLAKE2b-24(client public key + server public key). The earlier mismatch was an incomplete interpretation of native inputs, not evidence of a custom cipher. `--login` verifies the challenge and decrypts the login. A successful encrypted server reply, client authentication, and home state are still pending.
+- Use `tools/create_server_key.py`; keep private key JSON under ignored `.local/`. The runner provisions only the public key into the debuggable clone and cold-launches it for `--login` tests. Do not publish private keys or decrypted login captures.
+- The current development APK supports runtime public-key provisioning; the published v0.1.0-hello APK predates that feature. Publish a verified updated client release when this client work is stabilized; research builds with protocol probes enabled must not be published.
+
 The connection milestone and first hello exchange are achieved. The renamed Android client sends an 83-byte initial message, type 10100, version 0, payload length 76. With `--handshake`, the Python server replies with 20100/version 0 containing a length-prefixed 24-byte random challenge. The tablet accepts it and sends 10101/version 9 with 1,775 encrypted payload bytes. This was reproduced across cold launches, including with native protocol probes disabled. Full encrypted handshake, authentication, a login reply, and gameplay remain unimplemented.
 - Use the diagnostic base APK built with `--local-network` alongside the four preserved offline splits. The original app remains installed separately.
 - The native game connection was observed on port 30000; the bootstrap routes it to tablet loopback port 9339, forwarded to the PC by ADB reverse.
@@ -37,7 +41,7 @@ The connection milestone and first hello exchange are achieved. The renamed Andr
 - The user requested a running server for manual testing. Leave that session running unless asked to stop it; recheck process details and logs listed in PROJECT_STATUS.md. A session idle timeout closes that socket, not the listener.
 
 ## Remaining implementation choices
-The user wants to choose the next implementation area. Explain dependencies before starting another area:
+The user has now approved all four next stages: encrypted transport, local guest accounts, compatible login replies, and minimum home/profile data. Work through their dependencies without requesting the same approval again:
 1. Complete encrypted transport: resolve native crypto, configure local server keys, decode login, and encrypt replies. This currently blocks a successful wire-level login.
 2. Minimal local guest accounts: assign a separate account ID and random reconnect token, store the profile locally, and validate returning tokens. No real Supercell identity is needed for this milestone.
 3. Compatible login reply and session handling: derive the success/error layouts from the client, support reconnects, and inspect required keepalive behavior.

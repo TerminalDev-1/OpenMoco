@@ -9,7 +9,7 @@ import secrets
 from protocol import FrameDecoder, decode_client_hello, server_hello
 
 
-async def capture(reader, writer, output, handshake=False):
+async def capture(reader, writer, output, handshake=False, server_key=None):
     session = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ') + '-' + uuid.uuid4().hex[:8]
     peer = writer.get_extra_info('peername')
     total = 0
@@ -20,6 +20,8 @@ async def capture(reader, writer, output, handshake=False):
     sent = []
     state = 'awaiting_client_hello' if handshake else 'capture_only'
     hello = None
+    crypto = None
+    login_prefix = None
     print(f'Connected: {peer}; capture {session}', flush=True)
     try:
         with (output / (session + '.bin')).open('wb') as stream:
@@ -47,6 +49,9 @@ async def capture(reader, writer, output, handshake=False):
                                     raise ValueError('Expected version-0 client hello (10100)')
                                 hello = decode_client_hello(frame.payload)
                                 challenge = secrets.token_bytes(24)
+                                if server_key is not None:
+                                    from transport import LoginTransport
+                                    crypto = LoginTransport(server_key, challenge)
                                 response = server_hello(challenge)
                                 encoded = response.encode()
                                 (output / (session + '.server.bin')).write_bytes(encoded)
@@ -62,6 +67,13 @@ async def capture(reader, writer, output, handshake=False):
                                 record['client_public_key_bytes'] = 32
                                 state = 'encrypted_login_received'
                                 print(f'{session}: encrypted login received; authentication is not implemented', flush=True)
+                                if crypto is not None:
+                                    from protocol import decode_login_prefix
+                                    plaintext = crypto.decode_login(frame.payload)
+                                    login_prefix = decode_login_prefix(plaintext)
+                                    (output / (session + '.login.bin')).write_bytes(plaintext)
+                                    state = 'login_decrypted'
+                                    print(f'{session}: verified and decrypted local-key login: {login_prefix}', flush=True)
                     except ValueError as error:
                         framing_error = str(error)
                         reason = 'protocol_error'
@@ -81,15 +93,16 @@ async def capture(reader, writer, output, handshake=False):
                     'frames': frames, 'framing_error': framing_error,
                     'incomplete_frame_bytes': len(decoder.pending),
                     'sent_frames': sent, 'state': state, 'client_hello': hello,
+                    'login_prefix': login_prefix,
                     'note': 'Experimental server hello only; no authentication or gameplay.' if handshake
                             else 'Raw incoming TCP bytes. No protocol responses were sent.'}
         (output / (session + '.json')).write_text(json.dumps(metadata, indent=2), encoding='utf-8')
         print(f'Closed: {session}; {total} bytes; {reason}', flush=True)
 
 
-async def run(host, port, output, handshake=False):
+async def run(host, port, output, handshake=False, server_key=None):
     output.mkdir(parents=True, exist_ok=True)
-    server = await asyncio.start_server(lambda r, w: capture(r, w, output, handshake), host, port)
+    server = await asyncio.start_server(lambda r, w: capture(r, w, output, handshake, server_key), host, port)
     print(f'Local listener: {host}:{port}; mode={"experimental hello" if handshake else "capture"}', flush=True)
     async with server:
         await server.serve_forever()
@@ -101,8 +114,14 @@ if __name__ == '__main__':
     parser.add_argument('--port', type=int, default=9339, help='Local capture port; the observed game port 30000 is redirected here')
     parser.add_argument('--output', type=Path, default=Path(__file__).resolve().parent / 'captures')
     parser.add_argument('--handshake', action='store_true', help='Send the evidenced 20100 hello; capture the next client message')
+    parser.add_argument('--login', action='store_true', help='Verify and decrypt login using a local server key')
+    parser.add_argument('--server-key', type=Path, default=Path(__file__).resolve().parent/'.local/server-key.json')
     args = parser.parse_args()
     try:
-        asyncio.run(run(args.host, args.port, args.output, args.handshake))
+        key = None
+        if args.login:
+            from transport import load_key
+            key = load_key(args.server_key)
+        asyncio.run(run(args.host, args.port, args.output, args.handshake or args.login, key))
     except KeyboardInterrupt:
         pass

@@ -16,7 +16,31 @@ into numbered download parts and reassembled with checksum verification.
 Other projects' distribution approaches are recorded in
 [related projects](docs/RELATED_PROJECTS.md).
 
-Python 3.10+ is required; no third-party Python dependencies are needed.
+Python 3.10+ is required. Capture/hello mode uses the standard library;
+local-key login decryption requires `python -m pip install -r requirements.txt`.
+
+## Local-key login decryption (development client)
+
+The development client can use your own server key pair. Generate the private
+key locally, build the updated debuggable client, and install/test it:
+
+```powershell
+python -m pip install -r requirements.txt
+python tools/create_server_key.py
+python tools/build_diagnostic_client.py --debuggable --local-network
+python tools/verify_test_client.py --diagnostic --base-only
+python tools/run_local_test.py --install --login --launch
+```
+
+The private key stays in ignored `.local/server-key.json`. Only the public key
+is provisioned into the clone through ADB. The bootstrap verifies the supplied
+13.5.1 key layout and configures the native peer key before connection. Python
+has verified and decrypted login on the tablet using this configuration.
+The login-success reply and home state are still under implementation.
+The published v0.1.0-hello APK predates this development-client feature.
+The optional builder `--server-key` flag can embed a public key as a fallback;
+the runtime public-key file takes precedence. The bootstrap reads that file
+through [Frida's File API](https://frida.re/docs/javascript-api/#file).
 
 ## Inspect the supplied package
 ```powershell
