@@ -1,0 +1,14 @@
+analysis/
+captures/
+__pycache__/
+*.apkm
+*.apk
+Archive.zip
+.tools/
+.local/
+build/
+.venv/
+*.p12
+*.jks
+*.keystore
+.env
