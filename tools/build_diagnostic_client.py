@@ -13,7 +13,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--debuggable', action='store_true', help='Enable run-as for retrieving private runtime dumps')
     parser.add_argument('--local-network', action='store_true', help='Restore INTERNET with bootstrap-enforced loopback routing')
-    parser.add_argument('--protocol-diagnostics', action='store_true', help='Capture build-specific native protocol inputs in clone-private storage')
+    parser.add_argument('--protocol-diagnostics', action='store_true', help='Capture build-specific native protocol inputs in test-client-private storage')
     parser.add_argument('--server-key', type=Path, help='Local server key JSON; embeds only its public key')
     args = parser.parse_args()
     server_public_key = None

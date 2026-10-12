@@ -25,7 +25,7 @@ to the local Python server with ADB reverse.
 the source checkpoint and completed APK hashes. No private signing key,
 account data, device capture, or original APKM archive is included.
 
-For the server, clone https://github.com/TerminalDev-1/OpenMoco and run:
+For the server, download https://github.com/TerminalDev-1/OpenMoco and run:
 
 ```powershell
 python tools/run_local_test.py --handshake --launch

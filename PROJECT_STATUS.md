@@ -48,7 +48,7 @@ The supplied battle_scenes.csv decoded to 188182 bytes. Its Home row names
 scene/home.json, SceneType Home, and PlayerCount 1; no numeric scene ID has yet
 been established. The decoded table stays under ignored analysis/.
 The original installation's version and first-install/update timestamps were
-rechecked after the latest clone installation and matched the earlier snapshot.
+rechecked after the latest test client installation and matched the earlier snapshot.
 
 Home investigation continued after the login checkpoint: message 23491 carries
 a typed `sceneConfig` (type parameter 1003), optional nested structures, and
@@ -75,7 +75,7 @@ assignment at 0x816148. Investigation traced this to player-tag conversion
 0x8f81e8: an ID high word >255 returns null. The first SQLite namespace was too
 large. It now allocates a persisted namespace from 128..255, preserves the
 old namespace as a token-validated migration alias, and returns the same local
-profile/token with the corrected ID. No clone data or original app was cleared.
+profile/token with the corrected ID. No test client data or original app was cleared.
 The client still supplied the old research ID on the second launch; the alias
 remains necessary. Successful replies use a compatible high word and preserve
 the existing local account's low word.
@@ -144,9 +144,9 @@ nonce and ciphertext exactly with standard BLAKE2b-24 and PyNaCl NaCl Box.
 The previous mismatch came from overlooking native substitution of the peer
 public key into the hash input; do not repeat the custom-cipher hypothesis.
 
-A new local key pair is stored only in .local/server-key.json. The clone's
+A new local key pair is stored only in .local/server-key.json. The test client's
 bootstrap validates and re-encodes its native public-key table before connect.
-The runner provisions only the public key into clone-private storage. Real
+The runner provisions only the public key into test-client-private storage. Real
 tablet captures 20261012T185708Z-5b1b9b41, 20261012T185957Z-1a170e34, and
 20261012T190616Z-59829e05 all decrypted successfully: account ID 0, no token,
 version fields [13,1,5]. Thirteen tests passed, including wrong-key, tampering,
@@ -159,7 +159,7 @@ The actual native message factory was observed at method 0x7590dc. Its runtime
 samples show that 20104 and 24101 are unsupported by this client; do not assume
 generic Supercell login/home message IDs. Further inspection is continuing.
 Diagnostic samples are under analysis/runtime/, excluded from Git.
-The current live research process uses --login and a probe-enabled clone;
+The current live research process uses --login and a probe-enabled test client;
 the earlier background server was replaced for this work. The public
 v0.1.0-hello release remains the earlier probe-free hello build. Local accounts,
 the server login-success reply, and minimum home data are still in progress.
@@ -193,8 +193,8 @@ protocol probes disabled (captures/game/20261012T180051Z-176bfeee.bin).
 The state is `encrypted_login_received`; full encrypted handshake,
 authentication, a login reply, and gameplay remain unimplemented.
 
-After the earlier automated verification the clone was force-stopped, PC test listeners were
-stopped, and the two test ADB reverse mappings were removed. The cloned app
+After the earlier automated verification the test client was force-stopped, PC test listeners were
+stopped, and the two test ADB reverse mappings were removed. The test client
 remains installed. The original app's version and installation/update
 timestamps match the pre-test snapshot (analysis/original-install-final.txt).
 The wireless tablet remains paired; no re-pairing is required to continue.
@@ -243,7 +243,7 @@ docs/RELATED_PROJECTS.md; no distribution policy is inferred from those examples
   messages are rejected without a server reply. No login-success response is sent.
 - protocol.py now serializes frames and decodes the observed client hello.
   Its separate plaintext login-prefix inspector must not be applied to encrypted
-  wire data. The captured clone login has account ID 0, no token, version fields
+  wire data. The captured test client login has account ID 0, no token, version fields
   [13, 1, 5], the same 40-character fingerprint, and 1,611 remaining opaque bytes.
 - The diagnostic builder has optional `--protocol-diagnostics` for loaded game
   dumps and native encryption-input probes. The final installed baseline omits
@@ -255,14 +255,14 @@ docs/RELATED_PROJECTS.md; no distribution policy is inferred from those examples
   the captured inputs have not matched a standard Python crypto implementation.
 - Wireless streamed base updates stalled during research. Restarting the PC ADB
   daemon restored the existing pairing. The runner now uses --no-streaming for
-  clone-only base updates; the final installation and cold launch succeeded.
+  test-client-only base updates; the final installation and cold launch succeeded.
 - The current base APK is `build/diagnostic-client/base.apk`, built with
   `python tools/build_diagnostic_client.py --debuggable --local-network`.
 - It retains package `com.supercell.moco.localtest`, separate providers,
   allowBackup=false, and the original DEX/native/assets. Added classes3.dex
   contains DiagnosticFactory; Frida Gadget 17.23.3 runs the local bootstrap.
 - Native loader package lookups were still hard-coded to com.supercell.moco.
-  Redirecting those lookups to the clone fixed the initial JNI_ERR failure.
+  Redirecting those lookups to the test client fixed the initial JNI_ERR failure.
 - The next native startup check reported code 0x16. A narrowly scoped getuid
   override at the loader classification call site (return address 0x2231bc)
   selects its isolated-process compatibility path. The real Android UID
@@ -276,7 +276,7 @@ docs/RELATED_PROJECTS.md; no distribution policy is inferred from those examples
   to tablet 127.0.0.1:9339 and forwarded to the PC via ADB reverse. Other IP
   connections are routed to local SDK port 9340; DNS inputs become loopback.
 - `tools/run_local_test.py` automates the existing paired tablet, partial
-  clone-only base update, local listeners, ADB reverse, and optional launch.
+  test-client-only base update, local listeners, ADB reverse, and optional launch.
   Its parser handles the spaces in the tablet's mDNS serial.
 - server.py saves raw bytes and frame metadata; protocol.py handles TCP
   fragmentation and combined frames. Six fragmentation patterns and partial
@@ -411,7 +411,7 @@ without waiting for another selection or repeat approval.
 1. Resolve the login encryption algorithm, nonce construction, and embedded
    server-public-key configuration from native evidence. Standard PyNaCl and
    hashlib comparisons have not matched; do not assume compatible crypto yet.
-2. Configure a newly generated local server key pair in the clone, implement
+2. Configure a newly generated local server key pair in the test client, implement
    verified login decryption and the evidenced server reply, and only then
    create/authenticate a separate local-server identity. Never use real credentials.
 3. Keep all experiments on local endpoints and preserve the original app.

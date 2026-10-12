@@ -40,7 +40,7 @@ local data. Do not sign it into your real Supercell account.
 
 ## Start the Python server and local routing
 
-Clone the OpenMoco repository, connect exactly one authorized Android device,
+Download the OpenMoco repository, connect exactly one authorized Android device,
 and run from the repository folder:
 
 ```powershell
@@ -55,7 +55,7 @@ your test tablet. The runner forwards tablet ports 9339 and 9340 to the PC,
 starts the game listener and SDK sink, and launches **mo.co Local Test (Local
 Server)**. Local routing is installed before game startup. Keep ADB connected
 while testing. The runner provisions only your server's public key into the
-clone. Keep the private key and `.local/accounts.sqlite3` on your PC; retain
+test client. Keep the private key and `.local/accounts.sqlite3` on your PC; retain
 both across runs to preserve local test identities. The server verifies local
 credentials and sends the compatible encrypted login reply. Home data is pending.
 

@@ -51,7 +51,7 @@ def main():
             if config['interaction']['parameters'].get('local_network') is not True:
                 parser.error('Build with --local-network before installing for a server test')
             if key is not None and not config['interaction']['parameters'].get('supports_local_server_key') and config['interaction']['parameters'].get('server_public_key') != bytes(key.public_key).hex():
-                parser.error('Build the clone with the matching --server-key before a login test')
+                parser.error('Build the test client with the matching --server-key before a login test')
             if apk.read('lib/arm64-v8a/libgadget.script.so') != (ROOT / 'client' / 'loader_diagnostics.js').read_bytes():
                 parser.error('Client bootstrap changed; rebuild the base APK first')
         adb('install-multiple', '-r', '-p', PACKAGE, '--no-streaming', str(base))

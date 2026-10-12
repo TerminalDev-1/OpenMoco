@@ -1,5 +1,8 @@
 # mo.co Python server project
 
+## Terminology
+OpenMoco is a private server. Always call the project a private server and the Android application a test client or private-server client. Never use "clone" to describe this project or its client. This user preference applies to all future explanations, code comments, documentation, and release notes.
+
 ## Goal and agreed scope
 The user wants to reverse-engineer the supplied mo.co 13.5.1 Android client and implement a local Python server. They confirmed that the first milestone is connecting the original Android client to that server. A standalone Python game is not the current objective.
 The user will test the client on an Android tablet with wireless debugging enabled, not an emulator. Dictation initially described this as a phone and debugging disabled; the user corrected both.
@@ -17,7 +20,7 @@ Inspect the package, identify the client transport and connection configuration,
 
 ## Verified baseline
 Encrypted local login is verified on the tablet using a newly generated local server key pair. The bootstrap decodes/re-encodes this build's obfuscated peer-public-key table; the server uses Curve25519/XSalsa20-Poly1305 NaCl Box with BLAKE2b-24(client public key + server public key). The earlier mismatch was an incomplete interpretation of native inputs, not evidence of a custom cipher. `--login` verifies the challenge, validates local guest credentials, sends 29125/version 1, and handles authenticated SecretBox keepalives. The native success handler completes. Home state and gameplay are still pending.
-- Use `tools/create_server_key.py`; keep private key JSON under ignored `.local/`. The runner provisions only the public key into the debuggable clone and cold-launches it for `--login` tests. Do not publish private keys or decrypted login captures.
+- Use `tools/create_server_key.py`; keep private key JSON under ignored `.local/`. The runner provisions only the public key into the debuggable test client and cold-launches it for `--login` tests. Do not publish private keys or decrypted login captures.
 - The public v0.2.0-local-login APK supports runtime public-key provisioning and verified local guest login with probes disabled. The older v0.1.0-hello APK predates that feature. Continue publishing verified client updates when needed; research builds with protocol probes enabled must not be published.
 
 The connection milestone and first hello exchange are achieved. The renamed Android client sends an 83-byte initial message, type 10100, version 0, payload length 76. With `--handshake`, the Python server replies with 20100/version 0 containing a length-prefixed 24-byte random challenge. The tablet accepts it and sends 10101/version 9. This was reproduced across cold launches, including with native protocol probes disabled. Use `--login` for the now-verified encrypted local login and session; home data and gameplay remain unimplemented.
@@ -27,7 +30,7 @@ The connection milestone and first hello exchange are achieved. The renamed Andr
 - DiagnosticFactory refuses startup if the per-process bootstrap completion marker is missing.
 - The bootstrap redirects the protection library's hard-coded package lookup to the test package and applies a narrowly scoped loader UID-classification compatibility override. It does not change the kernel UID or the original app's data.
 - Native offsets are specific to the supplied 13.5.1 build. Do not reuse them for another version without inspecting it.
-- `python tools/run_local_test.py --install --launch` updates only the clone base APK, starts capture/routing, and launches the clone. See README.md for prerequisites.
+- `python tools/run_local_test.py --install --launch` updates only the test client base APK, starts capture/routing, and launches the test client. See README.md for prerequisites.
 - Add `--handshake` to enable the verified initial server response. Capture-only mode remains the default. The received login envelope is not proof of authentication.
 - Native protocol dumps and encryption-input probes require an explicit diagnostic build flag, `--protocol-diagnostics`. Those files contain private ephemeral test material and stay under ignored local directories. Normal test builds leave these probes disabled.
 - The initial native login had account ID 0 and no token. The client now stores local credentials and reconnects to the private local account store. Never use them against production; package identity alone does not isolate an account.
@@ -35,8 +38,8 @@ The connection milestone and first hello exchange are achieved. The renamed Andr
 
 ## Documentation and completed work
 - This file preserves the agreed scope, ongoing instructions, verified baseline, and publication intent. PROJECT_STATUS.md records detailed findings, failures, fixes, validation results, evidence paths, and next steps. README.md documents reproducible build and run commands. Read all three when resuming work.
-- Completed work includes package inspection; building and validating five independently signed, renamed tablet splits; installing the clone alongside the original; diagnosing native loader and no-INTERNET startup failures; adding the guarded local-network bootstrap; automating tablet routing and launch; and implementing the Python capture server and incremental frame decoder.
-- The connection was verified on two cold launches, with the second capture decoded. Original payload hashes, package/provider configuration, signing, alignment, and the original installation's version/timestamps were checked. Test listeners and reverse mappings were stopped afterward; the clone remains installed.
+- Completed work includes package inspection; building and validating five independently signed, renamed tablet splits; installing the test client alongside the original; diagnosing native loader and no-INTERNET startup failures; adding the guarded local-network bootstrap; automating tablet routing and launch; and implementing the Python capture server and incremental frame decoder.
+- The connection was verified on two cold launches, with the second capture decoded. Original payload hashes, package/provider configuration, signing, alignment, and the original installation's version/timestamps were checked. Test listeners and reverse mappings were stopped afterward; the test client remains installed.
 - Keep both this summary and PROJECT_STATUS.md current after material changes. Record unsuccessful approaches and remaining unknowns in PROJECT_STATUS.md so future sessions do not repeat them.
 - The user requested a running server for manual testing. Leave that session running unless asked to stop it; recheck process details and logs listed in PROJECT_STATUS.md. A session idle timeout closes that socket, not the listener.
 
@@ -48,7 +51,7 @@ Reconnect-token validation is verified on real cold launches. Home data and
 gameplay remain absent; this is not a working home screen. The native player-tag
 conversion requires the ID high word <=255. Use a persisted local namespace in
 128..255; SQLite profiles and tokens belong only to this server. Older research
-IDs are migrated with token-validated aliases, without clearing clone data.
+IDs are migrated with token-validated aliases, without clearing test client data.
 See PROJECT_STATUS.md for failures and verification evidence.
 The user has now approved all four next stages: encrypted transport, local guest accounts, compatible login replies, and minimum home/profile data. Work through their dependencies without requesting the same approval again:
 1. Encrypted transport is verified: local keys, incoming login, initial reply, and session keepalives.

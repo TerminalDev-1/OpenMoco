@@ -33,7 +33,7 @@ python tools/run_local_test.py --install --login --launch
 ```
 
 The private key stays in ignored `.local/server-key.json`. Only the public key
-is provisioned into the clone through ADB. The bootstrap verifies the supplied
+is provisioned into the test client through ADB. The bootstrap verifies the supplied
 13.5.1 key layout and configures the native peer key before connection. Python
 has verified and decrypted login on the tablet using this configuration.
 The tablet's native login-success handler completed with a separate local ID.
@@ -58,7 +58,7 @@ asset pack. Strings are investigative clues, not verified runtime behavior.
 python server.py
 ```
 It defaults to `127.0.0.1:9339`. The observed native game TCP port is 30000;
-the prepared clone routes it to 9339 through ADB reverse. Incoming
+the prepared test client routes it to 9339 through ADB reverse. Incoming
 TCP bytes and session metadata are saved under `captures/`. Capture-only
 mode sends no responses; `--handshake` enables the verified hello response.
 Connections close
@@ -69,7 +69,7 @@ For a device on the same LAN, explicitly bind an interface reachable by it:
 python server.py --host 0.0.0.0 --port 9339
 ```
 Starting server.py alone does not configure tablet forwarding. Use
-tools/run_local_test.py with the prepared local-network clone for the
+tools/run_local_test.py with the prepared local-network test client for the
 verified connection setup. Current evidence is in PROJECT_STATUS.md.
 
 ## Separate offline Android test build
@@ -114,24 +114,24 @@ python tools/verify_test_client.py --diagnostic --base-only
 ```
 The build requires the existing Android tools and `.tools/libgadget.so`
 (official Frida Gadget 17.23.3 for Android ARM64). The debug flag enables
-`run-as` access to the clone's diagnostic files and is optional for connection
+`run-as` access to the test client's diagnostic files and is optional for connection
 testing. The local-network flag restores INTERNET permission with the
 bootstrap's routing enabled. The factory refuses startup if that bootstrap
 does not finish.
 
-For the already installed clone and paired tablet, run:
+For the already installed test client and paired tablet, run:
 ```powershell
 python tools/run_local_test.py --install --launch
 ```
-This updates only the clone's base APK, forwards tablet port 9339 to the PC,
+This updates only the test client's base APK, forwards tablet port 9339 to the PC,
 starts the game capture listener and a separate SDK sink on port 9340, and
-launches the clone. Keep the tablet wirelessly connected. Stop the PC listener
+launches the test client. Keep the tablet wirelessly connected. Stop the PC listener
 with Ctrl+C. The source game's observed connection port is 30000; the bootstrap
 maps that libg.so connection to local test port 9339.
 
-For a fresh clone installation, install the diagnostic base together with
+For a fresh test client installation, install the diagnostic base together with
 the four offline ARM64/English/xxhdpi/asset splits, all signed by the local
-key. Partial installation requires the clone to exist already.
+key. Partial installation requires the test client to exist already.
 
 Protocol observations and runtime evidence are documented in PROJECT_STATUS.md.
 The framing implementation is in protocol.py. Capture mode sends no responses.
@@ -151,7 +151,7 @@ python -m unittest discover -s tests -v
 
 For native protocol research only, add `--protocol-diagnostics` when building
 the diagnostic client. This enables build-specific memory dumps and probes
-that save ephemeral encryption inputs inside the clone's private diagnostic
+that save ephemeral encryption inputs inside the test client's private diagnostic
 folder. Normal builds leave them disabled. These private files must stay out
 of public releases. The passive ARM64 inspector is
 `tools/disassemble_runtime.py`; it uses Capstone from `.tools/python`.
