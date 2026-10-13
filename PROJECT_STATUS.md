@@ -26,8 +26,8 @@ Resetting the stream via 0x8d7b2c before native encoding produces a standalone
 identity fields are re-bound per account; encrypted new-account and reconnect
 tests verify profile/scene delivery and subsequent nonce ordering.
 
-All 41 tests passed before the stream-reset correction, and the three affected
-scene/encrypted-account integration tests passed again afterward. Full APK
+All 41 tests pass with the corrected standalone scene, including encrypted
+new-account and reconnect delivery. Full APK
 verification passed all five matching splits: 1457 base and 40015 split payload
 entries unchanged, consistent signing/alignment/package isolation. The installed
 release candidate has protocol_diagnostics, connection_diagnostics, and
@@ -39,10 +39,21 @@ Current hidden background launcher/listener: 16972/24564, ports 9339/9340,
 mode --login --apartment, logs captures/user-test-server-apartment-live.log
 and .stderr.log. .local/user-test-server.json records these details. LEAVE ON.
 
-The user explicitly requested publishing the apartment APK/checkpoint.
-Preparing v0.3.0-apartment with a normal probe-free base, matching splits,
-checksums/reassembly, and corrected installation instructions. Only publish
-after remote asset names/sizes/SHA-256 digests are verified.
+The apartment release is public:
+https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.3.0-apartment.
+Source checkpoint 6f0b117; controller checkpoint 7420bf9. All 12 remote asset
+names, sizes, and SHA-256 digests matched the prepared files before publication.
+Five-split verification and local reassembly passed. Assets include the normal
+probe-free base, three matching configuration APKs, four asset-pack parts,
+manifest, checksums, reassembly tool, and corrected installation instructions.
+GitHub's tag lookup API returned 404 for the draft; verification instead used
+the authenticated release listing and release ID before making it public.
+Private keys, account/device data, captures, extracted research assets, and
+original archives remain excluded. The user confirms client audio is fine.
+
+Next implementation work: execute and persist evidenced tutorial/quest commands,
+then implement authoritative movement/collision and the missing key-item portal.
+Keep the current normal apartment test and background server available.
 
 ## Controller input decoder checkpoint
 movement.py decodes authenticated 18854/v0 using the native decoder chain

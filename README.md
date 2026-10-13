@@ -13,7 +13,7 @@ the original APKs, game assets, extracted libraries, private signing keys,
 or device captures. Bring your own client input to reproduce the build.
 
 The experimental local-test client and all required splits are available as
-[release downloads](https://github.com/TerminalDev-1/OpenMoco/releases).
+[release downloads](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.3.0-apartment).
 See [installation instructions](docs/INSTALL.md). The large asset APK is split
 into numbered download parts and reassembled with checksum verification.
 Other projects' distribution approaches are recorded in
