@@ -62,7 +62,7 @@ the prepared test client routes it to 9339 through ADB reverse. Incoming
 TCP bytes and session metadata are saved under `captures/`. Capture-only
 mode sends no responses; `--handshake` enables the verified hello response.
 Connections close
-after 30 seconds idle or a 4 MiB capture limit.
+when the peer disconnects; quiet manual sessions remain open without a cumulative capture cutoff.
 
 For a device on the same LAN, explicitly bind an interface reachable by it:
 ```powershell
@@ -170,6 +170,13 @@ For transport research, add `--transport-probe` to `tools/run_local_test.py
 native Box verifier accepted it. This verifies reply encryption, not login.
 Research probes must be disabled in published client builds.
 
+The server keeps quiet connections open. During onboarding it answers game-clock
+18851 with 28851, including the latest received frame-ready 18853 confirmation.
+This prevents the client's frame-gap disconnect; it does not supply gameplay.
+For socket-close investigation, `--connection-diagnostics` enables passive
+native close/shutdown tracing. Normal builds disable it, and release packaging
+rejects either connection or protocol research probes.
+
 For local home-data research, inspect the compressed scene table without
 changing the APK:
 
@@ -183,11 +190,13 @@ the server's scene/frame/player payload still needs to be derived.
 
 ### Current onboarding research
 The test client now reaches age-onboarding and "Let's Go" with an experimental
-own-home profile and scene frame. Subsequent scene-clock/onboarding responses
-and gameplay remain incomplete. The current manual-testing server runs in the
+own-home profile and scene frame. Game-clock replies and frame acknowledgements
+are implemented; subsequent onboarding commands and gameplay remain incomplete.
+The current manual-testing server runs in the
 background; runtime details are in PROJECT_STATUS.md. Keep it running while the
 user tests. home.py encodes the validated minimum profile; scene serialization
-and authenticated-account integration remain ongoing work.
+remains ongoing work. The known zero-ID starter fixture is encoded with the
+authenticated local guest's ID before delivery.
 
 Research-only fixture delivery is available through `--login --home-probe PATH
 --profile-probe PATH` on tools/run_local_test.py. Fixture bodies, captures, and

@@ -99,5 +99,22 @@ to continue research while the user is testing. Check listener and actual client
 traffic separately: a client can time out while the listener is still running.
 Onboarding and "Let's Go" are now observed, but subsequent responses/gameplay
 are unfinished. home.py's 156-byte starter profile encoder has golden validation;
-its authenticated-account integration is pending. Current research fixtures are
+its authenticated-account integration now binds the known starter fixture to
+the validated local guest ID. Current research fixtures are
 isolated local data. See the latest status section before historical findings.
+
+## Persistent test connections
+The manual server must not close a session after 30 seconds of silence or
+4 MiB of cumulative capture. Keep individual frame length validation.
+The observed approximately 35-second disconnect came from the native client:
+its current game frame exceeded the last server-confirmed frame limit
+(0x60e7ec..0x60e860). Reply to game-clock 18851/v0 with 28851/v0 and advance
+its raw confirmation integer from authenticated frame-ready 18853/v0.
+Native evidence: 0x5c3320 queues event 3; 0x5c2c34 -> 0x610d78 updates
+the confirmed frame monotonically. This acknowledges receipt for the current
+onboarding experiment; it does not implement authoritative gameplay.
+Do not guess a 28853 payload: the discarded four-integer candidate crashed.
+Connection tracing is research-only (`--connection-diagnostics`), disabled
+by default, and blocked from release packaging alongside protocol probes.
+Verify real tablet traffic beyond the previous disconnect interval before
+claiming the problem fixed. Leave the hidden background listener running.

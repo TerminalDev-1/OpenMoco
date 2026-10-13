@@ -13,6 +13,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--debuggable', action='store_true', help='Enable run-as for retrieving private runtime dumps')
     parser.add_argument('--local-network', action='store_true', help='Restore INTERNET with bootstrap-enforced loopback routing')
+    parser.add_argument('--connection-diagnostics', action='store_true', help='Trace test-client game socket closure without protocol probes')
     parser.add_argument('--protocol-diagnostics', action='store_true', help='Capture build-specific native protocol inputs in test-client-private storage')
     parser.add_argument('--server-key', type=Path, help='Local server key JSON; embeds only its public key')
     args = parser.parse_args()
@@ -92,7 +93,7 @@ def main():
         dst.write(dex / 'classes.dex', 'classes3.dex', compress_type=zipfile.ZIP_STORED)
         dst.write(ROOT / '.tools' / 'libgadget.so', 'lib/arm64-v8a/libgadget.so', compress_type=zipfile.ZIP_STORED)
         config = {'interaction': {'type': 'script', 'path': 'libgadget.script.so',
-            'parameters': {'local_network': args.local_network, 'protocol_diagnostics': args.protocol_diagnostics,
+            'parameters': {'local_network': args.local_network, 'protocol_diagnostics': args.protocol_diagnostics, 'connection_diagnostics': args.connection_diagnostics,
                            'supports_local_server_key': True,
                            'game_port': 9339, 'sdk_port': 9340}}, 'runtime': 'qjs'}
         if server_public_key:

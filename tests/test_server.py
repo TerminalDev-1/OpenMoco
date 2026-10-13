@@ -10,6 +10,7 @@ from accounts import AccountStore
 from transport import LoginTransport
 from protocol import Frame, FrameDecoder
 from server import capture
+from home import own_home
 
 
 class ServerTests(unittest.IsolatedAsyncioTestCase):
@@ -24,7 +25,7 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                 finished = asyncio.get_running_loop().create_future()
                 async def connected(reader, writer):
                     try:
-                        await capture(reader, writer, output, True, key, store)
+                        await capture(reader, writer, output, True, key, store, profile_probe=own_home(0))
                         finished.set_result(None)
                     except Exception as error:
                         finished.set_exception(error)
@@ -55,16 +56,41 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                     token_size = int.from_bytes(payload[16:20],'big')
                     new_token = payload[20:20+token_size].decode()
                     cipher = SecretBox(session_key)
+                    profile = await read_frame()
+                    self.assertEqual(profile.message_type, 24548)
+                    server_nonce = LoginTransport.advance(server_nonce)
+                    profile_body = cipher.decrypt(profile.payload, server_nonce)
+                    self.assertEqual(profile_body, own_home(new_id))
                     writer.write(Frame(10108,0,cipher.encrypt(b'',LoginTransport.advance(nonce)).ciphertext).encode())
                     keepalive = await read_frame()
                     self.assertEqual(keepalive.message_type,20108)
                     self.assertEqual(cipher.decrypt(keepalive.payload,LoginTransport.advance(server_nonce)),b'')
+                    send_nonce = LoginTransport.advance(nonce)
+                    receive_nonce = LoginTransport.advance(server_nonce)
+                    for client_frame in (1234, 1200):
+                        send_nonce = LoginTransport.advance(send_nonce)
+                        frame_ready = client_frame.to_bytes(4, 'big') + b'\x00'
+                        writer.write(Frame(18853, 0, cipher.encrypt(frame_ready, send_nonce).ciphertext).encode())
+                        send_nonce = LoginTransport.advance(send_nonce)
+                        request_clock = bytes.fromhex('00000000000014b47f')
+                        writer.write(Frame(18851, 0, cipher.encrypt(request_clock, send_nonce).ciphertext).encode())
+                        await writer.drain()
+                        clock_reply = await read_frame()
+                        self.assertEqual(clock_reply.message_type, 28851)
+                        receive_nonce = LoginTransport.advance(receive_nonce)
+                        clock_body = cipher.decrypt(clock_reply.payload, receive_nonce)
+                        self.assertEqual(clock_body[:8], request_clock[:8])
+                        self.assertEqual(int.from_bytes(clock_body[16:20], 'big'), 1234)
+                        transport_keepalive = await read_frame()
+                        self.assertEqual(transport_keepalive.message_type, 20108)
+                        receive_nonce = LoginTransport.advance(receive_nonce)
+                        self.assertEqual(cipher.decrypt(transport_keepalive.payload, receive_nonce), b'')
                     writer.close()
                     await writer.wait_closed()
                     await asyncio.wait_for(finished,2)
                     metadata = json.loads(next(output.glob('*.json')).read_text())
                     self.assertNotIn(new_token,json.dumps(metadata))
-                    self.assertEqual(metadata['frames'][-1]['decrypted_bytes'],0)
+                    self.assertEqual(metadata['frames'][-1]['decrypted_bytes'],9)
                     return new_id,new_token,metadata['local_account']['created']
                 finally:
                     listener.close()
@@ -126,3 +152,29 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(response)
         self.assertEqual(metadata['close_reason'], 'protocol_error')
         self.assertEqual(metadata['sent_frames'], [])
+
+    async def test_quiet_socket_survives_the_original_idle_cutoff(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            finished = asyncio.get_running_loop().create_future()
+            async def connected(reader, writer):
+                await capture(reader, writer, output)
+                finished.set_result(None)
+            listener = await asyncio.start_server(connected, '127.0.0.1', 0)
+            reader, writer = await asyncio.open_connection('127.0.0.1', listener.sockets[0].getsockname()[1])
+            try:
+                await asyncio.sleep(31)
+                self.assertFalse(finished.done(), 'Server closed a quiet manual-testing socket')
+                wire = Frame(10108, 0, b'').encode()
+                writer.write(wire)
+                await writer.drain()
+                writer.close()
+                await writer.wait_closed()
+                await asyncio.wait_for(finished, 2)
+                self.assertEqual(next(output.glob('*.bin')).read_bytes(), wire)
+                record = json.loads(next(output.glob('*.json')).read_text())
+                self.assertEqual(record['close_reason'], 'peer_closed')
+            finally:
+                writer.close()
+                listener.close()
+                await listener.wait_closed()

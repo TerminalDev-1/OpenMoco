@@ -1,4 +1,51 @@
-# Project status — 2026-10-12
+# Project status — 2026-10-13
+
+## Active repair: persistent onboarding connection
+The previous approximately 35-second disconnection was initiated by the tablet,
+not by the running listener. Connection-only close/shutdown tracing located the
+native caller at 0x60e860: current frame exceeds confirmed frame plus the
+configured tolerance (0x60e7ec..0x60e7fc, native log 'Connection lost %d > %d').
+The server's separate 30-second read timeout and 4 MiB cumulative capture cutoff
+have also been removed. Individual frame size validation remains enforced.
+
+18853/v0 carries one raw signed frame integer plus two adjacent boolean flags
+(decoder 0x765728). The server records the maximum authenticated received frame.
+18851/v0 carries raw 64-bit client clock plus a compact auxiliary (0x765860).
+28851/v0 replies with echoed clock, server elapsed milliseconds, raw confirmed
+frame, compact -1 and compact 0 (decoder 0x763028). Handler 0x5c3320 queues
+event 3 with this raw integer; event dispatch 0x5c2c34 calls 0x610d78 to advance
+confirmed frame monotonically. The existing encrypted transport keepalive is
+also sent during clock traffic. A guessed 28853 four-integer reply crashed the
+client and was discarded; that message remains unimplemented.
+
+The known zero-ID starter profile fixture is now regenerated as
+own_home(authenticated_account_id). Guest IDs and reconnect tokens remain
+isolated from production. Frame acknowledgements support the onboarding
+experiment; authoritative state, subsequent commands, and gameplay are pending.
+
+All 31 tests pass, including 31 seconds of socket silence beyond the old cutoff,
+encrypted clock/frame acknowledgements with out-of-order frames, nonce ordering,
+and correct authenticated profile IDs. The temporary connection diagnostic
+build was replaced with a verified normal local-network build: 1457 unchanged
+payload entries, connection/protocol probes both disabled. Release packaging
+rejects either probe flag. No production application or data was modified.
+
+Actual tablet verification: initial repaired session 20261013T154705Z-358bc7bc
+continued beyond the old disconnect boundary. After replacing the diagnostic
+APK, normal-build session 20261013T154816Z-af493a2a remained established for
+over two minutes with continuous authenticated 18851/18853 traffic; PID 30390
+remained alive. At 15:50:30 UTC the client displayed Luna's onboarding dialogue
+('a bow? what portal?') with no connection error. No UI input was automated.
+This demonstrates sustained onboarding connectivity, not complete gameplay.
+
+Current hidden background runner: launcher PID 7904, listener PID 10464 on
+9339 and 9340. Started with tools/run_local_test.py --login --home-probe
+.local/home-scene-probe-body.bin --profile-probe .local/own-home-probe-body.bin
+--launch, using the canonical installed ADB. Logs:
+captures/user-test-server-frame-ack.log and matching .stderr.log.
+.local/user-test-server.json contains current launcher details. LEAVE RUNNING.
+
+This section supersedes historical timeout/integration notes below.
 
 ## Latest checkpoint: onboarding/profile initialization
 home.py implements a named Python encoder for 24548/v0 own-home data. Its

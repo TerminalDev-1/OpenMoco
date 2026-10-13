@@ -155,3 +155,39 @@ class FrameDecoder:
                                 bytes(self.pending[7:7 + size])))
             del self.pending[:7 + size]
         return frames
+
+
+def game_clock_reply(payload, server_milliseconds, confirmed_frame=0):
+    """18851/v0 -> 28851/v0, evidenced by native 13.5.1 code.
+
+    Client decoder 0x765860: raw 64-bit clock + compact request field.
+    Reply decoder 0x763028: two raw clocks, raw integer, two compact integers.
+    Handler 0x5c3268 -> 0x610ca0 uses the first clock as the echoed client
+    timestamp and the second as server time. The raw integer queues event 3
+    (0x5c3320), dispatched at 0x5c2c34 to 0x610d78, which advances the
+    confirmed frame. The two compact auxiliaries retain constructor defaults.
+    """
+    from stream import Reader, Writer
+    import struct
+    reader = Reader(payload)
+    echoed_clock = reader.raw(8)
+    reader.compact()
+    if reader.remaining:
+        raise ValueError('Unexpected game-clock request suffix')
+    if not isinstance(server_milliseconds, int) or not 0 <= server_milliseconds < 1 << 64:
+        raise ValueError('Invalid server clock')
+    writer = Writer().raw(echoed_clock).raw(struct.pack('>Q', server_milliseconds))
+    if not isinstance(confirmed_frame, int) or not 0 <= confirmed_frame < 1 << 31:
+        raise ValueError('Invalid confirmed frame')
+    writer.integer(confirmed_frame).compact(-1).compact(0)
+    return Frame(28851, 0, writer.bytes())
+
+
+def decode_frame_ready(payload):
+    """18853/v0: raw frame + two adjacent bit booleans (native 0x765728)."""
+    if len(payload) != 5 or payload[4] & ~3:
+        raise ValueError('Invalid frame-ready request')
+    frame = int.from_bytes(payload[:4], 'big', signed=True)
+    if frame < 0:
+        raise ValueError('Invalid client frame')
+    return frame

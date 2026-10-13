@@ -10,6 +10,7 @@ rpc.exports = {
     init(stage, parameters) {
         log('Offline loader diagnostics initialized');
         const localNetwork = parameters.local_network === true;
+        const gameSockets = new Set();
         const errno = new NativeFunction(Module.getGlobalExportByName('__errno'), 'pointer', []);
         const loopback4 = Memory.allocUtf8String('127.0.0.1');
         const loopback6 = Memory.allocUtf8String('::1');
@@ -430,7 +431,7 @@ rpc.exports = {
                     copy.add(24).writeU32(0);
                 } else return { allowed: false, address, length };
                 log('Local socket route: caller=' + (owner === null ? '?' : owner.name) + ' originalPort=' + oldPort + ' localPort=' + port);
-                return { allowed: true, address: copy, length };
+                return { allowed: true, address: copy, length, game };
             }
             for (const name of ['connect', 'sendto']) {
                 const address = Module.getGlobalExportByName(name);
@@ -441,8 +442,25 @@ rpc.exports = {
                     const routed = route(args[index], args[index + 1], this.returnAddress);
                     if (!routed.allowed) { errno().writeS32(113); return -1; }
                     args[index] = routed.address;
+                    if (parameters.connection_diagnostics === true && name === 'connect' && routed.game) gameSockets.add(args[0]);
                     return original(...args);
                 }, name === 'connect' ? 'int' : 'long', types));
+            }
+            if (parameters.connection_diagnostics === true) {
+                for (const name of ['close', 'shutdown']) {
+                    Interceptor.attach(Module.getGlobalExportByName(name), {
+                        onEnter(args) {
+                            const fd=args[0].toInt32();
+                            if (!gameSockets.has(fd)) return;
+                            if (name === 'close') gameSockets.delete(fd);
+                            log('Game socket '+name+' fd='+fd+' caller='+DebugSymbol.fromAddress(this.returnAddress));
+                            log('Game socket close stack='+Thread.backtrace(this.context,Backtracer.ACCURATE).map(a=>{
+                                const module=Process.findModuleByAddress(a);
+                                return module===null?a.toString():module.name+'+'+a.sub(module.base);
+                            }).join(','));
+                        }
+                    });
+                }
             }
             const sendmsgAddress = Module.getGlobalExportByName('sendmsg');
             const sendmsg = new NativeFunction(sendmsgAddress, 'long', ['int', 'pointer', 'int']);

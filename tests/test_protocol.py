@@ -43,5 +43,34 @@ class ProtocolTests(unittest.TestCase):
                 decode_login_prefix(payload[:length])
 
 
+class GameClockTests(unittest.TestCase):
+    def test_native_clock_layout_echoes_client_timestamp(self):
+        from protocol import game_clock_reply
+        from stream import Reader
+        response = game_clock_reply(bytes.fromhex('00000000000014b47f'), 5320, 1234)
+        self.assertEqual((response.message_type, response.version), (28851, 0))
+        reader = Reader(response.payload)
+        self.assertEqual(int.from_bytes(reader.raw(8), 'big'), 5300)
+        self.assertEqual(int.from_bytes(reader.raw(8), 'big'), 5320)
+        self.assertEqual(reader.integer(), 1234)
+        self.assertEqual(reader.compact(), -1)
+        self.assertEqual(reader.compact(), 0)
+        self.assertEqual(reader.remaining, 0)
+
+    def test_invalid_clock_frames_rejected(self):
+        from protocol import game_clock_reply
+        for payload in (b'', bytes(8), bytes(10)):
+            with self.assertRaises(ValueError):
+                game_clock_reply(payload, 0)
+
+    def test_frame_ready_flags_and_bounds(self):
+        from protocol import decode_frame_ready
+        for flags in range(4):
+            self.assertEqual(decode_frame_ready(bytes.fromhex('00000123') + bytes([flags])), 291)
+        for payload in (b'', bytes(4), bytes(6), bytes.fromhex('ffffffff00'), bytes.fromhex('0000000104')):
+            with self.assertRaises(ValueError):
+                decode_frame_ready(payload)
+
+
 if __name__ == '__main__':
     unittest.main()

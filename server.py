@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import uuid
 import secrets
+import time
 from protocol import Frame, FrameDecoder, decode_client_hello, server_hello
 
 
@@ -23,15 +24,14 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
     crypto = None
     login_prefix = None
     local_account = None
+    clock_started = time.monotonic()
+    confirmed_frame = 0
     print(f'Connected: {peer}; capture {session}', flush=True)
     try:
         with (output / (session + '.bin')).open('wb') as stream:
             while True:
-                try:
-                    chunk = await asyncio.wait_for(reader.read(65536), timeout=30)
-                except asyncio.TimeoutError:
-                    reason = 'idle_timeout'
-                    break
+                # Manual testing sessions must remain open while the tablet is idle.
+                chunk = await reader.read(65536)
                 if not chunk:
                     break
                 stream.write(chunk)
@@ -108,7 +108,10 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                         state = 'local_login_reply_sent'
                                         print(f'{session}: sent encrypted local login reply (29125/v1); home data pending', flush=True)
                                         if profile_probe is not None:
-                                            response = Frame(24548, 0, crypto.encode_session(profile_probe))
+                                            from home import own_home
+                                            # Bind the validated starter profile to this local guest.
+                                            profile_body = own_home(account.account_id) if profile_probe == own_home(0) else profile_probe
+                                            response = Frame(24548, 0, crypto.encode_session(profile_body))
                                             encoded = response.encode()
                                             with (output / (session + '.server.bin')).open('ab') as replies:
                                                 replies.write(encoded)
@@ -132,6 +135,27 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                 with (output / (session + '.session.bin')).open('ab') as clear:
                                     clear.write(Frame(frame.message_type, frame.version, plaintext).encode())
                                 print(f'{session}: verified session frame {frame.message_type}, {len(plaintext)} decrypted bytes', flush=True)
+                                if frame.message_type == 18853:
+                                    from protocol import decode_frame_ready
+                                    confirmed_frame = max(confirmed_frame, decode_frame_ready(plaintext))
+                                if frame.message_type == 18851:
+                                    from protocol import game_clock_reply
+                                    response = game_clock_reply(plaintext, int((time.monotonic() - clock_started) * 1000), confirmed_frame)
+                                    response = Frame(response.message_type, response.version, crypto.encode_session(response.payload))
+                                    encoded = response.encode()
+                                    with (output / (session + '.server.bin')).open('ab') as replies:
+                                        replies.write(encoded)
+                                    writer.write(encoded)
+                                    await writer.drain()
+                                    sent.append({'message_type': response.message_type, 'version': response.version, 'payload_bytes': len(response.payload)})
+                                    # Preserve the verified transport keepalive during game-clock traffic.
+                                    keepalive = Frame(20108, 0, crypto.encode_session(b''))
+                                    encoded = keepalive.encode()
+                                    with (output / (session + '.server.bin')).open('ab') as replies:
+                                        replies.write(encoded)
+                                    writer.write(encoded)
+                                    await writer.drain()
+                                    sent.append({'message_type': 20108, 'version': 0, 'payload_bytes': len(keepalive.payload)})
                                 if frame.message_type == 10108 and not plaintext:
                                     response = Frame(20108, 0, crypto.encode_session(b''))
                                     encoded = response.encode()
@@ -144,9 +168,7 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                         framing_error = str(error)
                         reason = 'protocol_error'
                         break
-                if total >= 4 * 1024 * 1024:
-                    reason = 'capture_limit'
-                    break
+
     except (ConnectionError, OSError) as error:
         reason = str(error)
     finally:

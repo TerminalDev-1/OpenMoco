@@ -21,8 +21,8 @@ def package(output, part_size=1024**3):
     base = ROOT / 'build/diagnostic-client/base.apk'
     with zipfile.ZipFile(base) as apk:
         params = json.loads(apk.read('lib/arm64-v8a/libgadget.config.so'))['interaction']['parameters']
-        if not params.get('local_network') or params.get('protocol_diagnostics'):
-            raise ValueError('Publish only a local-network build with protocol probes disabled')
+        if not params.get('local_network') or params.get('protocol_diagnostics') or params.get('connection_diagnostics'):
+            raise ValueError('Publish only a local-network build with research probes disabled')
         if apk.read('lib/arm64-v8a/libgadget.script.so') != (ROOT/'client/loader_diagnostics.js').read_bytes():
             raise ValueError('Rebuild the APK to match the current bootstrap source')
     sources = [(base, 'OpenMoco-13.5.1-localtest.apk')]
