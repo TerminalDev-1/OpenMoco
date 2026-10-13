@@ -1,5 +1,39 @@
 # Project status — 2026-10-13
 
+## Partial checkpoint: visible native player/character
+The user now explicitly accepts verified partial rendering as a checkpoint;
+partial checkpoints do not complete a plan step or justify ending the work.
+Step 1 remains in progress. The full apartment plan is authorized, including
+necessary isolated client test builds/relaunches; keep the server available.
+
+The apartment research probe constructs Player 2009 and a linked Character
+through native 0x7ac630, initializes local guest metadata and SmartBow, and
+serializes a 541-byte scene. The tablet visibly renders Local Hunter with a
+level/health bar, torso and legs. It is at default position (0,0), outside the
+apartment, with missing head/appearance; movement and portal travel are not
+verified. Screenshot: .local/apartment-graph-current.png. Research session
+20261013T163351Z-c3132ea2 remains alive with authenticated clock/frame traffic.
+This is a client-side native construction probe, not Python server spawning.
+
+Important corrections: Frame +b0 needs a runtime scene object initialized by
+0x7affa0, not the serialized SceneConfig. Substituting SceneConfig caused its
+frame pointer to be treated as a callback interface, destroying the frame and
+clearing +a8/+b0/+c0/+c8/+d8. The default RuntimeScene's +28 callback interface
+is initialized by 0x7a27dc. Player initialization 0x735214 needs the frame's
+context (+c8); metadata is +1e8. Both current/original battle-kit pointers are
+at metadata +1c0/+1c8. Spawn flag 0 queues objects in pending vectors and
+produces a 226-byte scene without serializing the player; flag 1 inserts them
+into active vectors and produces the 541-byte body containing Local Hunter.
+
+The research build uses --apartment-probe, disabled by default and blocked
+from release packaging. client/apartment_probe.js is provisioned only into
+the test package's files/apartment-probe.js, then read by the guarded bootstrap.
+Native-generated bodies, account-bound state, snapshots and captures remain
+ignored. The server runner/listener are unchanged (7904/10464). Next: derive
+the home spawn marker and appearance from the supplied map/profile, reproduce
+the scene in Python, verify with the probe disabled, then proceed through
+tutorial persistence, movement, portal travel, and animation/reconnect checks.
+
 ## Current apartment/cutscene investigation
 Screenshot .local/apartment-current.png shows Luna's 'THAT BOW! THAT PORTAL!'
 prompt and the apartment/joystick, but no visible character, bow, or portal.

@@ -64,6 +64,13 @@ Continue with minimum home data. Preserve the working login/session baseline whi
 ## GitHub checkpoints and APK releases
 - The user chose `OpenMoco`. The public source repository is https://github.com/TerminalDev-1/OpenMoco, with default branch `main` and local remote `origin` configured. Use this repository for future checkpoints.
 - Commit and push a checkpoint after each successfully verified change. Use descriptive commit messages, include updated documentation, and report the checkpoint. Do not push failed or unverified work as a successful checkpoint.
+- Verified partial results also count as checkpoints. The user explicitly
+  includes partially rendered players, plants, buildings, and scenes with
+  incomplete or black areas. Commit and push these useful intermediate results
+  once the observed behavior is verified, label them as partial, and document
+  defects and remaining work. A partial checkpoint does not mean a whole plan
+  step is complete and is not a reason to end the turn. Continue implementation
+  after pushing it; mark each full step complete only after its required checks.
 - Before the initial public push and every later checkpoint, inspect the staged contents for the existing exclusions: private signing keys, device/account information, raw captures, extracted proprietary inputs, original archives, and generated builds. Stage intended source/documentation explicitly.
 - The user explicitly instructed us to publish the experimental Android APK publicly and record this requirement. Publish the verified local-test client as GitHub Release assets, including its required matching splits, checksums, and installation instructions. This supersedes the earlier future-possibility wording; no repeat confirmation is needed for this authorized publication.
 - The first APK pre-release is public: https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.1.0-hello. It contains the base APK, three configuration APKs, four asset-pack parts, and four verification/instruction files. All 12 GitHub asset SHA-256 digests matched the local files before publication.

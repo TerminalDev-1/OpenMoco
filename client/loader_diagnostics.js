@@ -41,6 +41,17 @@ rpc.exports = {
         if (localNetwork) {
             let gameDumped = false;
             let gameKeyConfigured = false;
+            let apartmentProbeInstalled = false;
+            function installApartmentProbe(owner) {
+                if (parameters.apartment_probe !== true || apartmentProbeInstalled) return;
+                apartmentProbeInstalled = true;
+                const root = '/data/user/0/com.supercell.moco.localtest/files/diagnostics/';
+                try {
+                    const script = File.readAllText('/data/user/0/com.supercell.moco.localtest/files/apartment-probe.js');
+                    new Function('owner', 'log', script)(owner, log);
+                    return;
+                } catch (error) { log('Apartment external probe unavailable: '+error); }
+            }
             function configureLocalKey(owner) {
                 let publicKey = parameters.server_public_key;
                 const keyPath = '/data/user/0/com.supercell.moco.localtest/files/local-server-public-key.txt';
@@ -91,6 +102,7 @@ rpc.exports = {
                 const oldPort = (address.add(2).readU8() << 8) | address.add(3).readU8();
                 const game = owner !== null && owner.name === 'libg.so' && oldPort === 30000;
                 if (game && !configureLocalKey(owner)) return { allowed: false, address, length };
+                if (game) installApartmentProbe(owner);
                 if (game && !gameDumped && parameters.protocol_diagnostics === true) {
                     gameDumped = true;
                     function dumpGame(prefix) { try {
