@@ -32,10 +32,13 @@ def main():
     android = BUILD_TOOLS.parents[1] / 'platforms' / 'android-35' / 'android.jar'
     def run(*args):
         subprocess.run([str(a) for a in args], check=True)
+    factory_classes = classes / 'com' / 'supercell' / 'moco' / 'localtest'
+    for generated in factory_classes.glob('DiagnosticFactory*.class'):
+        generated.unlink()
     run('javac', '--release', '8', '-cp', android, '-d', classes, ROOT / 'client' / 'DiagnosticFactory.java')
     run('java', '-cp', BUILD_TOOLS / 'lib' / 'd8.jar', 'com.android.tools.r8.D8',
         '--lib', android, '--min-api', '29', '--output', dex,
-        classes / 'com' / 'supercell' / 'moco' / 'localtest' / 'DiagnosticFactory.class')
+        *sorted(factory_classes.glob('DiagnosticFactory*.class')))
     source = ROOT / 'build' / 'offline-client' / 'base.apk'
     unsigned = build / 'base.unsigned.apk'
     aligned = build / 'base.aligned.apk'

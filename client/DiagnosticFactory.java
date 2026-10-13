@@ -11,6 +11,8 @@ import android.content.pm.ApplicationInfo;
 import android.util.Log;
 import java.io.File;
 import android.os.Process;
+import android.os.Bundle;
+import android.view.WindowManager;
 
 /** Loads local diagnostics before the original factory initializes its loader. */
 public final class DiagnosticFactory extends AppComponentFactory {
@@ -48,7 +50,20 @@ public final class DiagnosticFactory extends AppComponentFactory {
     }
     @Override public Application instantiateApplication(ClassLoader cl, String name)
             throws InstantiationException, IllegalAccessException, ClassNotFoundException {
-        return original(cl).instantiateApplication(cl, name);
+        Application application = original(cl).instantiateApplication(cl, name);
+        application.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
+            private void keepTestScreenAwake(Activity activity) {
+                activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            }
+            @Override public void onActivityCreated(Activity activity, Bundle state) { keepTestScreenAwake(activity); }
+            @Override public void onActivityResumed(Activity activity) { keepTestScreenAwake(activity); }
+            @Override public void onActivityStarted(Activity activity) {}
+            @Override public void onActivityPaused(Activity activity) {}
+            @Override public void onActivityStopped(Activity activity) {}
+            @Override public void onActivitySaveInstanceState(Activity activity, Bundle state) {}
+            @Override public void onActivityDestroyed(Activity activity) {}
+        });
+        return application;
     }
     @Override public Activity instantiateActivity(ClassLoader cl, String name, Intent intent)
             throws InstantiationException, IllegalAccessException, ClassNotFoundException {

@@ -150,6 +150,13 @@ Authenticated 541 commands now persist only the native onboarding category in
 the local profile and return home key 7 on reconnect. Native category is 3 below
 default threshold 16, otherwise 2 (0x684e00..10). Do not reverse those categories
 or invent the user's choice. Other tutorial/quest commands remain unpersisted.
+The test client keeps its foreground activity's screen awake through lifecycle
+callbacks. Keep all compiled DiagnosticFactory classes in the generated DEX.
+Screen-off launches can show blackness with no game connection until the tablet
+wakes/unlocks; inspect dumpsys power and focused window before changing protocol.
+Native Sentry crash events may use extensionless filenames in cache/.../outbox.
+Process.setExceptionHandler and broad hooks caused unrelated faults in this build;
+prefer saved native crash records and narrowly scoped, verified probes.
 
 The user confirmed that the apartment and client audio work, while the portal
 itself is missing (the apartment opening/backdrop renders). Do not list audio

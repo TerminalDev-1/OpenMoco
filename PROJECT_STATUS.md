@@ -1,6 +1,29 @@
 # Project status — 2026-10-13
 
 ## Portal rendering and idle-close checkpoint
+Foreground screen-idle fix: DiagnosticFactory registers test-app lifecycle
+callbacks to set FLAG_KEEP_SCREEN_ON on created/resumed activities. Android
+dumpsys window confirms GameApp is mHoldScreenWindow after startup. This avoids
+the tablet's automatic screen sleep while the test app is foreground; it does
+not change device-wide sleep settings or prevent explicit locking/backgrounding.
+The APK builder now sends all freshly compiled DiagnosticFactory classes to D8,
+including the callback class. An initial build omitted the anonymous class and
+failed with ClassNotFoundException; corrected packaging and real startup passed.
+Current installed client has all three research flags false.
+
+The destination crash is now localized: libg+0x486150 dereferenced the empty
+battle-start configuration's selection at +18 -> +0. Real native crash records
+are in cache/sentry/.../outbox with extensionless names, not just *.envelope.
+Broad stage hooks and Process.setExceptionHandler introduced unrelated faults;
+they were removed, and experimental signal-capture code was saved under .local.
+Native 0x766160/0x76622c + 0x77a46c/0x77a54c yields a 65-byte battle-start
+body with the TutorialAreaBasic selection. Python's replacement of the 54-byte
+empty metadata matches native full-message encoding byte for byte. The resulting
+498-byte tutorial response is being tested on the normal client; do not claim
+travel complete until the actual destination renders. The hidden server is now
+launcher/listener 4816/9632, logs captures/user-test-server-portal-selection.log
+and .stderr.log, same ports and --login --apartment. LEAVE RUNNING.
+
 Onboarding reconnect improvement: server executes authenticated 541 age commands
 and stores only the native home key-7 category (2 at/above default threshold 16,
 3 below), preserving local identity isolation. It delivers that raw key/value
