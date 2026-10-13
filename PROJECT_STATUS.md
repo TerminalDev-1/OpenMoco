@@ -1,5 +1,16 @@
 # Project status — 2026-10-13
 
+## Partial checkpoint: head cosmetic and bow rendered
+The loaded asset database assets/assets.scdb is SQLite. Its meta/asset tables
+map cosmetic global IDs to original JSON definitions. cos_head_male_05 is
+2900435, slot 3, enabledForPlayers=true. Applying this loaded data record with
+native 0x6f2624 after character construction fixes the missing head. The tablet
+now visibly renders a complete Local Hunter and SmartBow, still outside the
+apartment at default coordinates. .local/apartment-head-cosmetic.png records
+this partial result (with the tablet's screenshot-preview overlay). The native
+scene body grows from 541 to 545 bytes. Placement, Python delivery, movement,
+and portal travel remain unfinished; this is another partial checkpoint.
+
 ## Partial checkpoint: visible native player/character
 The user now explicitly accepts verified partial rendering as a checkpoint;
 partial checkpoints do not complete a plan step or justify ending the work.

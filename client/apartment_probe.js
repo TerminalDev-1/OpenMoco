@@ -1,4 +1,3 @@
-/* Research-only native construction; default placement and appearance are incomplete. */
 const root='/data/user/0/com.supercell.moco.localtest/files/diagnostics/';
 function save(name, data) { const file=new File(root+name,'wb');file.write(data);file.close(); }
 let own=null;
@@ -19,11 +18,12 @@ Interceptor.attach(owner.base.add(0x5bf784),{onEnter(args){
   const runtimeScene=Memory.alloc(0x58); new NativeFunction(owner.base.add(0x7affa0),'void',['pointer','pointer'])(runtimeScene,registry); frame.add(0xb0).writePointer(runtimeScene);
   log('Apartment external before: frame='+frame+' context='+frame.add(0xc8).readPointer()+' playerFrame='+player.add(0x38).readPointer());
   save('frame-before.bin',frame.readByteArray(0x190));save('spawn-live-code.bin',owner.base.add(0x737bc0).readByteArray(0x140));
-  try{ new NativeFunction(owner.base.add(0x7ac630),'void',['int','int','pointer','int','pointer'])(0,0,frame,1,player); log('Apartment external spawned character '+player.add(0xa8).readPointer()); frame.add(0xb0).writePointer(ptr(0)); new NativeFunction(msg.readPointer().add(0x10).readPointer(),'void',['pointer'])(msg);const size=msg.add(0x1c).readS32();save('apartment-scene-body.bin',msg.add(0x40).readPointer().readByteArray(size));log('Apartment external saved '+size+' bytes'); }
+  try{ new NativeFunction(owner.base.add(0x7ac630),'void',['int','int','pointer','int','pointer'])(0,0,frame,1,player); log('Apartment external spawned character '+player.add(0xa8).readPointer()); const head=new NativeFunction(owner.base.add(0x82ab0c),'pointer',['pointer','uint64'])(registry,2900435); if(head.isNull())throw new Error('Known head cosmetic unavailable'); new NativeFunction(owner.base.add(0x6f2624),'void',['pointer','pointer'])(player.add(0xa8).readPointer(),head.sub(0x18)); log('Apartment applied loaded head cosmetic'); frame.add(0xb0).writePointer(ptr(0)); new NativeFunction(msg.readPointer().add(0x10).readPointer(),'void',['pointer'])(msg);const size=msg.add(0x1c).readS32();save('apartment-scene-body.bin',msg.add(0x40).readPointer().readByteArray(size));log('Apartment external saved '+size+' bytes'); }
   catch(e){log('Apartment external error '+e+' PC='+e.context.pc.sub(owner.base)+' x0='+e.context.x0);}
   log('Apartment external after: context='+frame.add(0xc8).readPointer());save('frame-after.bin',frame.readByteArray(0x190));
  } catch(e){log('Apartment external failed '+e);}
 }});
+
 
 
 
