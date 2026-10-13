@@ -1,5 +1,24 @@
 # Project status — 2026-10-13
 
+## Controller input decoder checkpoint
+movement.py decodes authenticated 18854/v0 using the native decoder chain
+0x76536c -> 0x71ca2c -> 0x7e5898. Two raw frame/sequence integers precede
+a compact controller field and packed stick header. Mode 2 carries compact
+x/y; other present modes carry a signed angular byte. The signed header
+stores strength as (header+128)>>3. Native angular fixed-point conversion
+and authoritative execution remain unfinished. All 2,797 captured inputs
+decode with zero trailing bytes; observed strength/mode are both zero.
+All 39 tests pass in the existing .venv (global Python lacks PyNaCl).
+This is a decoder checkpoint, not verified player movement; continue the plan.
+
+Map research now decodes the bundled home.map_bin with the native asset
+factory 0x65ab3c and reader 0x866e00, without attaching a hook to that reader.
+Hooking it caused SIGBUS and was removed; the manual server stayed running.
+Asset +30 points to RogueMap (vtable 0xec0838, fields 0x7bd02c). It is 50x90.
+Map +50..+90 hold parallel object-tag/x/y/rotation/scale vectors, not entity
+pointer vectors. Runtime spawn-marker collection +130 is empty immediately
+after decoding and requires processing. Raw local map/captures remain ignored.
+
 ## Partial checkpoint: head cosmetic and bow rendered
 The loaded asset database assets/assets.scdb is SQLite. Its meta/asset tables
 map cosmetic global IDs to original JSON definitions. cos_head_male_05 is

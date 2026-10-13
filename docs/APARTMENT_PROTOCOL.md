@@ -88,6 +88,16 @@ the live session, including batches spanning multiple presence-bit bytes.
    acknowledgements in 28851 currently keep the connection alive, but provide
    no authoritative movement or collision simulation.
 
+   Once the native player probe populated the frame, the tablet sent **18854**.
+   Decoder 0x76536c reads raw frame and sequence integers, then 0x71ca2c reads
+   a compact controller field and stick (0x7e5898). Stream slots +110/+f8 are
+   compact signed32/signed byte. The stick header stores strength as
+   (signedHeader+128)>>3, mode in bits 1..2, and presence in bit 0. An absent
+   stick has zero axes; mode 2 reads two compact coordinates; other present
+   modes read a signed angular byte. movement.py decodes this without executing
+   it. 28854 is a different layout: raw frame, raw sequence, length-prefixed
+   byte buffer (limit 900000); do not echo the input payload into it.
+
 4. **Finish weapon pickup and portal interaction.** The tutorial controls
    animation, visibility, and pulse states. Trace the client scene's key-item
    lookup and collision/interaction trigger once a character is present.
