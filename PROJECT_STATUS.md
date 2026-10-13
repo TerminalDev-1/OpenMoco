@@ -1,5 +1,40 @@
 # Project status — 2026-10-13
 
+## Current apartment/cutscene investigation
+Screenshot .local/apartment-current.png shows Luna's 'THAT BOW! THAT PORTAL!'
+prompt and the apartment/joystick, but no visible character, bow, or portal.
+The background session remains connected. A controlled joystick drag produced
+no movement packet in this empty scene; no restart or reinstallation was used.
+
+Local tutorial tables explain the intro movie, phone animation, portal and
+weapon animations, controls guide, and forced TutorialAreaBasic destination.
+Actual 16543 commands report Initial steps 0..3 and completion, then Portal
+steps 4..6. commands.py now decodes all eight observed command layouts with
+persistent presence bits across commands. tools/inspect_client_turns.py decoded
+all 210 turns at verification, with zero unsupported commands and zero trailing
+bytes. It does not print credentials, age values, or account IDs. The parser
+does not execute or persist game commands or change the running server.
+
+Native research found Player type 2009, Character 2001/2002, shared replicated
+position fields, player metadata/character links, and movement event 1214.
+18852/28852 carry structured event vectors; there is no captured movement event
+yet. See docs/APARTMENT_PROTOCOL.md for exact evidence and remaining unknowns.
+All 36 tests pass, including five new command-layout regression tests.
+Next: establish object-manager allocation/reference encoding, insert a properly
+linked local player/character in Frame 1200, then verify visible spawning. Only
+after that implement captured movement, collision, weapon/portal interaction,
+destination scene, and persisted tutorial state. Do not invent these layouts.
+
+Long-session follow-up: the native client later displayed a separate
+'Connection Idle' policy dialog and closed session af493a2a after its long
+inactive run. The listener remained PID 10464. In-process retry made two
+zero-byte connections; force-stopping and relaunching only the test package
+restored encrypted guest login and frame traffic (session
+20261013T160917Z-9f786e4e, tablet PID 31500), without restarting the server,
+clearing data, or reinstalling. Native AFK policy and warm reconnect are still
+unknowns; the earlier repair addresses the 35-second frame-gap disconnect,
+not every possible client-side idle policy. Preserve this distinction.
+
 ## Active repair: persistent onboarding connection
 The previous approximately 35-second disconnection was initiated by the tablet,
 not by the running listener. Connection-only close/shutdown tracing located the

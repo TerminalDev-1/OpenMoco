@@ -2,8 +2,9 @@
 
 An experimental local Python server for the supplied mo.co 13.5.1 Android
 client. The isolated test client connects, completes an encrypted local guest
-login, and exchanges encrypted keepalives. Home data and gameplay remain
-unimplemented; the client cannot yet reach a usable home screen.
+login, and exchanges encrypted keepalives and frame acknowledgements. A minimum
+home profile initializes onboarding and the apartment backdrop. The scene still
+lacks its player/character; movement and portal travel remain unimplemented.
 
 The Git source tree contains research code and build tools. It does not contain
 the original APKs, game assets, extracted libraries, private signing keys,
@@ -202,3 +203,15 @@ Research-only fixture delivery is available through `--login --home-probe PATH
 --profile-probe PATH` on tools/run_local_test.py. Fixture bodies, captures, and
 native diagnostics stay in ignored local directories. Normal login behavior
 retains its verified baseline. Do not distribute protocol-probe APK builds.
+
+The apartment renders and the client reports tutorial advancement, but the
+scene still lacks its player/character. The implementation path for animations,
+movement, and portal travel is documented in [apartment research](docs/APARTMENT_PROTOCOL.md).
+To inspect only the observed commands in a private decrypted session:
+
+```powershell
+python tools/inspect_client_turns.py captures/game/SESSION.session.bin
+```
+
+This reports tutorial references and command counts. It does not execute
+commands or provide movement, portal travel, or gameplay.

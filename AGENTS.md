@@ -118,3 +118,15 @@ Connection tracing is research-only (`--connection-diagnostics`), disabled
 by default, and blocked from release packaging alongside protocol probes.
 Verify real tablet traffic beyond the previous disconnect interval before
 claiming the problem fixed. Leave the hidden background listener running.
+
+## Apartment continuation
+The user requested a tablet screenshot and investigation of the remaining
+animations, cutscenes, portal interaction, and apartment movement. The current
+apartment renders but has no visible player, bow, or portal. Client tutorial
+commands reach GoToPortal; do not confuse dialogue progress with a playable
+scene. Read docs/APARTMENT_PROTOCOL.md for the verified sequence, command
+layouts, native player/character schemas, and ordered implementation work.
+commands.py is a decoder only; it does not execute or persist commands.
+Preserve the working background session while researching. The next concrete
+implementation milestone is a correctly linked local player and character in
+the scene frame, verified visibly on the tablet before movement or portal work.
