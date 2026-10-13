@@ -10,7 +10,7 @@ import time
 from protocol import Frame, FrameDecoder, decode_client_hello, server_hello
 
 
-async def capture(reader, writer, output, handshake=False, server_key=None, accounts=None, transport_probe=False, home_probe=None, profile_probe=None):
+async def capture(reader, writer, output, handshake=False, server_key=None, accounts=None, transport_probe=False, home_probe=None, profile_probe=None, apartment=False):
     session = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ') + '-' + uuid.uuid4().hex[:8]
     peer = writer.get_extra_info('peername')
     total = 0
@@ -107,10 +107,10 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                                      'payload_bytes': len(response.payload)})
                                         state = 'local_login_reply_sent'
                                         print(f'{session}: sent encrypted local login reply (29125/v1); home data pending', flush=True)
-                                        if profile_probe is not None:
+                                        if profile_probe is not None or apartment:
                                             from home import own_home
                                             # Bind the validated starter profile to this local guest.
-                                            profile_body = own_home(account.account_id) if profile_probe == own_home(0) else profile_probe
+                                            profile_body = own_home(account.account_id) if apartment or profile_probe == own_home(0) else profile_probe
                                             response = Frame(24548, 0, crypto.encode_session(profile_body))
                                             encoded = response.encode()
                                             with (output / (session + '.server.bin')).open('ab') as replies:
@@ -118,17 +118,19 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                             writer.write(encoded)
                                             await writer.drain()
                                             sent.append({'message_type': 24548, 'version': 0, 'payload_bytes': len(response.payload)})
-                                            print(f'{session}: sent native-evidenced own-home probe; client acceptance pending', flush=True)
-                                        if home_probe is not None:
-                                            response = Frame(23491, 0, crypto.encode_session(home_probe))
+                                            print(f'{session}: sent account-bound starter profile' if apartment else f'{session}: sent native-evidenced own-home probe; client acceptance pending', flush=True)
+                                        if home_probe is not None or apartment:
+                                            from scene import apartment_scene
+                                            scene_body = apartment_scene(account.account_id) if apartment else home_probe
+                                            response = Frame(23491, 0, crypto.encode_session(scene_body))
                                             encoded = response.encode()
                                             with (output / (session + '.server.bin')).open('ab') as replies:
                                                 replies.write(encoded)
                                             writer.write(encoded)
                                             await writer.drain()
                                             sent.append({'message_type': 23491, 'version': 0, 'payload_bytes': len(response.payload)})
-                                            state = 'home_scene_probe_sent'
-                                            print(f'{session}: sent native-evidenced scene-start probe; client acceptance pending', flush=True)
+                                            state = 'apartment_scene_sent' if apartment else 'home_scene_probe_sent'
+                                            print(f'{session}: sent {len(scene_body)}-byte account-bound apartment' if apartment else f'{session}: sent native-evidenced scene-start probe; client acceptance pending', flush=True)
                             elif crypto is not None and crypto.reply_sent:
                                 plaintext = crypto.decode_session(frame.payload)
                                 record['decrypted_bytes'] = len(plaintext)
@@ -183,18 +185,18 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                     'sent_frames': sent, 'state': state, 'client_hello': hello,
                     'login_prefix': login_prefix,
                     'local_account': local_account,
-                    'note': 'Local login development; home data and gameplay remain unimplemented.' if handshake
+                    'note': 'Starter apartment; portal, progression persistence and authoritative gameplay remain incomplete.' if apartment else 'Local login development; home data and gameplay remain unimplemented.' if handshake
                             else 'Raw incoming TCP bytes. No protocol responses were sent.'}
         (output / (session + '.json')).write_text(json.dumps(metadata, indent=2), encoding='utf-8')
         print(f'Closed: {session}; {total} bytes; {reason}', flush=True)
 
 
-async def run(host, port, output, handshake=False, server_key=None, account_store=None, transport_probe=False, home_probe=None, profile_probe=None):
+async def run(host, port, output, handshake=False, server_key=None, account_store=None, transport_probe=False, home_probe=None, profile_probe=None, apartment=False):
     output.mkdir(parents=True, exist_ok=True)
     if server_key is not None and account_store is None:
         from accounts import AccountStore
         account_store = AccountStore(Path(__file__).resolve().parent/'.local/accounts.sqlite3')
-    server = await asyncio.start_server(lambda r, w: capture(r, w, output, handshake, server_key, account_store, transport_probe, home_probe, profile_probe), host, port)
+    server = await asyncio.start_server(lambda r, w: capture(r, w, output, handshake, server_key, account_store, transport_probe, home_probe, profile_probe, apartment), host, port)
     print(f'Local listener: {host}:{port}; mode={"experimental hello" if handshake else "capture"}', flush=True)
     async with server:
         await server.serve_forever()
@@ -207,13 +209,16 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=Path, default=Path(__file__).resolve().parent / 'captures')
     parser.add_argument('--handshake', action='store_true', help='Send the evidenced 20100 hello; capture the next client message')
     parser.add_argument('--login', action='store_true', help='Verify and decrypt login using a local server key')
+    parser.add_argument('--apartment', action='store_true', help='Send the minimum local player/apartment state; requires --login')
     parser.add_argument('--server-key', type=Path, default=Path(__file__).resolve().parent/'.local/server-key.json')
     args = parser.parse_args()
+    if args.apartment and not args.login:
+        parser.error('--apartment requires --login')
     try:
         key = None
         if args.login:
             from transport import load_key
             key = load_key(args.server_key)
-        asyncio.run(run(args.host, args.port, args.output, args.handshake or args.login, key))
+        asyncio.run(run(args.host, args.port, args.output, args.handshake or args.login, key, apartment=args.apartment))
     except KeyboardInterrupt:
         pass

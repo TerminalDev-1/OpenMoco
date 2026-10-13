@@ -3,9 +3,10 @@
 This mo.co 13.5.1 test build installs as `com.supercell.moco.localtest`, alongside
 the official app. It targets ARM64 devices, Android 10 or later, with the
 English and xxhdpi resource splits used in the verified tablet configuration.
-The local encrypted guest login and keepalives work. Home data and gameplay
-remain incomplete, so the loading screen does not yet lead to a usable home.
-The build is debuggable for research; native protocol probes are disabled.
+The local encrypted guest login and keepalives work. The Python server's
+`--apartment` mode sends a local player and starter bow at the apartment spawn.
+The portal is not rendered and portal travel/progression persistence remain
+unfinished. The build is debuggable; research probes are disabled.
 
 ## Download and assemble
 
@@ -46,7 +47,7 @@ and run from the repository folder:
 ```powershell
 python -m pip install -r requirements.txt
 python tools/create_server_key.py
-python tools/run_local_test.py --login --launch
+python tools/run_local_test.py --login --apartment --launch
 ```
 
 ADB must be on PATH or discoverable through your Android SDK; otherwise add
@@ -57,7 +58,9 @@ Server)**. Local routing is installed before game startup. Keep ADB connected
 while testing. The runner provisions only your server's public key into the
 test client. Keep the private key and `.local/accounts.sqlite3` on your PC; retain
 both across runs to preserve local test identities. The server verifies local
-credentials and sends the compatible encrypted login reply. Home data is pending.
+credentials and sends the compatible encrypted login reply and starter apartment.
+Tutorial and progression persistence are unfinished; onboarding can repeat on
+reconnect. Keep the server process running during manual testing.
 
 These login instructions require the v0.2.0-local-login client or a newer build.
 The earlier v0.1.0-hello client supports the hello milestone only.

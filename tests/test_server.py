@@ -11,6 +11,7 @@ from transport import LoginTransport
 from protocol import Frame, FrameDecoder
 from server import capture
 from home import own_home
+from scene import apartment_scene
 
 
 class ServerTests(unittest.IsolatedAsyncioTestCase):
@@ -25,7 +26,7 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                 finished = asyncio.get_running_loop().create_future()
                 async def connected(reader, writer):
                     try:
-                        await capture(reader, writer, output, True, key, store, profile_probe=own_home(0))
+                        await capture(reader, writer, output, True, key, store, apartment=True)
                         finished.set_result(None)
                     except Exception as error:
                         finished.set_exception(error)
@@ -61,6 +62,10 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                     server_nonce = LoginTransport.advance(server_nonce)
                     profile_body = cipher.decrypt(profile.payload, server_nonce)
                     self.assertEqual(profile_body, own_home(new_id))
+                    scene = await read_frame()
+                    self.assertEqual((scene.message_type, scene.version), (23491, 0))
+                    server_nonce = LoginTransport.advance(server_nonce)
+                    self.assertEqual(cipher.decrypt(scene.payload, server_nonce), apartment_scene(new_id))
                     writer.write(Frame(10108,0,cipher.encrypt(b'',LoginTransport.advance(nonce)).ciphertext).encode())
                     keepalive = await read_frame()
                     self.assertEqual(keepalive.message_type,20108)

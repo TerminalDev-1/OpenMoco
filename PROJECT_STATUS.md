@@ -1,5 +1,49 @@
 # Project status — 2026-10-13
 
+## Verified checkpoint: Python apartment spawning, normal client
+Apartment plan step 1 is complete: the Python server supplies a local Player
+2009 and linked character, head cosmetic 2900435, SmartBow 6700000, and the
+map-derived spawn (tile 22,67, centered in 16.16 units). The normal test client
+visibly renders Local Hunter inside the apartment. Screenshot:
+.local/apartment-python-ready.png. Session 20261013T205421Z-45484d90 continues
+authenticated frame/clock traffic. The user confirms apartment operation and
+working client audio; the portal itself is still absent. Do not list audio as
+a defect. Portal rendering/travel, authoritative movement, and tutorial/quest
+persistence remain unfinished. The broader plan is not complete.
+
+Use `python tools/run_local_test.py --login --apartment --launch`.
+scene.py is a constrained native-derived starter template with both compact
+account identity fields dynamically bound to the authenticated local guest.
+It requires no private scene fixture or client probe. It is not yet a general
+scene serializer. The current profile has no progression persistence, so
+onboarding can repeat after reconnecting.
+
+Important serialization correction: re-encoding a previously decoded native
+message without resetting its stream appended bytes to the old empty scene.
+The 599-byte experiment sent from Python therefore rendered an empty apartment.
+Resetting the stream via 0x8d7b2c before native encoding produces a standalone
+487-byte body. The Python output matches that native body byte for byte. Both
+identity fields are re-bound per account; encrypted new-account and reconnect
+tests verify profile/scene delivery and subsequent nonce ordering.
+
+All 41 tests passed before the stream-reset correction, and the three affected
+scene/encrypted-account integration tests passed again afterward. Full APK
+verification passed all five matching splits: 1457 base and 40015 split payload
+entries unchanged, consistent signing/alignment/package isolation. The installed
+release candidate has protocol_diagnostics, connection_diagnostics, and
+apartment_probe all false. Original mo.co data/package remain untouched.
+
+ADB's daemon stalled during the server transition; restarting only that daemon
+restored the already-paired wireless device. The failed runner was replaced.
+Current hidden background launcher/listener: 16972/24564, ports 9339/9340,
+mode --login --apartment, logs captures/user-test-server-apartment-live.log
+and .stderr.log. .local/user-test-server.json records these details. LEAVE ON.
+
+The user explicitly requested publishing the apartment APK/checkpoint.
+Preparing v0.3.0-apartment with a normal probe-free base, matching splits,
+checksums/reassembly, and corrected installation instructions. Only publish
+after remote asset names/sizes/SHA-256 digests are verified.
+
 ## Controller input decoder checkpoint
 movement.py decodes authenticated 18854/v0 using the native decoder chain
 0x76536c -> 0x71ca2c -> 0x7e5898. Two raw frame/sequence integers precede

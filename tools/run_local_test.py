@@ -23,11 +23,14 @@ def main():
     parser.add_argument('--launch', action='store_true', help='Launch only the isolated test client')
     parser.add_argument('--handshake', action='store_true', help='Enable the experimental server hello response')
     parser.add_argument('--login', action='store_true', help='Verify and decrypt the local-key login')
+    parser.add_argument('--apartment', action='store_true', help='Start the minimum account-bound apartment; requires --login')
     parser.add_argument('--transport-probe', action='store_true', help='Send an encrypted empty keepalive to verify native reply decryption; requires --login')
     parser.add_argument('--home-probe', type=Path, help='Send an evidenced local scene-start body after login, for protocol research')
     parser.add_argument('--profile-probe', type=Path, help='Research own-home body; requires --home-probe')
     parser.add_argument('--server-key', type=Path, default=ROOT/'.local/server-key.json')
     args = parser.parse_args()
+    if args.apartment and (not args.login or args.transport_probe or args.home_probe or args.profile_probe):
+        parser.error('--apartment requires --login without research fixtures/probes')
     if args.transport_probe and not args.login:
         parser.error('--transport-probe requires --login')
     if args.home_probe and (not args.login or args.transport_probe):
@@ -89,7 +92,7 @@ def main():
                 except ConnectionError:
                     pass
         sdk = await asyncio.start_server(sdk_sink, '127.0.0.1', 9340)
-        listener = asyncio.create_task(run('127.0.0.1', 9339, ROOT / 'captures' / 'game', args.handshake or args.login, key, transport_probe=args.transport_probe, home_probe=home_probe, profile_probe=profile_probe))
+        listener = asyncio.create_task(run('127.0.0.1', 9339, ROOT / 'captures' / 'game', args.handshake or args.login, key, transport_probe=args.transport_probe, home_probe=home_probe, profile_probe=profile_probe, apartment=args.apartment))
         # Allow the listener to bind before launching the client.
         await asyncio.sleep(0.1)
         if listener.done():

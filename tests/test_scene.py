@@ -1,0 +1,26 @@
+import unittest
+
+from scene import apartment_scene, HOME_SPAWN
+from stream import Reader
+
+
+class SceneTests(unittest.TestCase):
+    def test_account_binding_and_starter_objects(self):
+        # Native template identities occur before the player metadata and in it.
+        identity = (128 << 32) | 1
+        scene = apartment_scene(identity)
+        self.assertEqual(len(scene), 487)
+        self.assertIn(b'Local Hunter', scene)
+        first = Reader(scene[50:])
+        self.assertEqual(first.compact(64), identity)
+        second = Reader(scene[329:])
+        self.assertEqual(second.compact(64), identity)
+        self.assertEqual(HOME_SPAWN, (22 * 65536 + 32768, 67 * 65536 + 32768))
+
+    def test_local_namespace_boundary_and_large_id(self):
+        for identity in ((255 << 32) | 0xffffffff, (166 << 32) | 4):
+            scene = apartment_scene(identity)
+            self.assertIn(b'Local Hunter', scene)
+        for identity in (0, 1, 128 << 32, (256 << 32) | 1, -1, 'id'):
+            with self.assertRaises(ValueError):
+                apartment_scene(identity)

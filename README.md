@@ -3,15 +3,17 @@
 An experimental local Python server for the supplied mo.co 13.5.1 Android
 client. The isolated test client connects, completes an encrypted local guest
 login, and exchanges encrypted keepalives and frame acknowledgements. A minimum
-home profile initializes onboarding and the apartment backdrop. The scene still
-lacks its player/character; movement and portal travel remain unimplemented.
+home profile initializes onboarding. The minimum apartment scene includes a
+local player, character, head cosmetic, and starter bow at the map's spawn.
+Portal rendering/travel, tutorial persistence, and authoritative movement
+remain unfinished.
 
 The Git source tree contains research code and build tools. It does not contain
 the original APKs, game assets, extracted libraries, private signing keys,
 or device captures. Bring your own client input to reproduce the build.
 
 The experimental local-test client and all required splits are available as
-[release downloads](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.2.0-local-login).
+[release downloads](https://github.com/TerminalDev-1/OpenMoco/releases).
 See [installation instructions](docs/INSTALL.md). The large asset APK is split
 into numbered download parts and reassembled with checksum verification.
 Other projects' distribution approaches are recorded in
@@ -32,6 +34,16 @@ python tools/build_diagnostic_client.py --debuggable --local-network
 python tools/verify_test_client.py --diagnostic --base-only
 python tools/run_local_test.py --install --login --launch
 ```
+
+To test the minimum apartment with the normal client, add `--apartment`:
+
+```powershell
+python tools/run_local_test.py --login --apartment --launch
+```
+
+The server supplies the account-bound scene. No private scene fixture or native
+apartment probe is required. This is a starter checkpoint; tutorial/progression
+state is not persisted yet, so onboarding can repeat after reconnecting.
 
 The private key stays in ignored `.local/server-key.json`. Only the public key
 is provisioned into the test client through ADB. The bootstrap verifies the supplied

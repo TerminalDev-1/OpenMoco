@@ -73,6 +73,8 @@ def package(output, part_size=1024**3):
     manifest = {'package': 'com.supercell.moco.localtest', 'client_version': '13.5.1',
                 'source_commit': commit, 'architecture': 'arm64-v8a',
                 'protocol_diagnostics': False, 'files': files}
+    manifest['connection_diagnostics'] = False
+    manifest['apartment_probe'] = False
     (output/'release-manifest.json').write_text(json.dumps(manifest, indent=2)+'\n', encoding='utf-8')
     shutil.copyfile(ROOT/'tools/assemble_release.py', output/'assemble_release.py')
     shutil.copyfile(ROOT/'docs/INSTALL.md', output/'INSTALL.md')

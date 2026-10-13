@@ -52,6 +52,20 @@ the live session, including batches spanning multiple presence-bit bytes.
 
 ## Implement in this order
 
+The native home.map_bin asset decoder identifies a spawn layer with the UUID
+for logic_assets/spawn. Its sole packed coordinate is 0x00430016 (tile 22,67).
+The native OpenWorld caller centers tiles with `(tile<<16)|0x8000`, giving
+(1474560,4423680). The same map has key-item tags for wardrobe, portal, and
+weapon loadout at (1684275,4502323), (1500774,4561305), (1331761,4538660).
+These are map entries, not proof that the corresponding frame entities exist.
+
+scene.py supplies a constrained native-derived starter template with two
+dynamic local account identities. A decoded message's byte stream must be
+reset before re-encoding: the initial 599-byte probe result retained an empty
+112-byte scene and failed to render the player when sent from Python. Resetting
+the stream with 0x8d7b2c produces the standalone 487-byte scene. All research
+flags remain disabled in release APKs.
+
 1. **Spawn the local player and character in the scene frame.** Scene-start
    23491/v0 contains SceneConfig 1003 and Frame 1200. Inspect the frame's object
    manager (0x72de54), its object collections, and reference allocation before

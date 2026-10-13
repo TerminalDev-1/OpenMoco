@@ -136,6 +136,13 @@ Verify real tablet traffic beyond the previous disconnect interval before
 claiming the problem fixed. Leave the hidden background listener running.
 
 ## Apartment continuation
+The user confirmed that the apartment and client audio work, while the portal
+itself is missing (the apartment opening/backdrop renders). Do not list audio
+as a defect. They requested publishing this apartment checkpoint and its APK.
+Continue recording incomplete portal rendering/travel, tutorial persistence,
+and authoritative simulation accurately. Use `--login --apartment` for the
+normal client/server path; inspect the latest PROJECT_STATUS.md verification.
+
 The user requested a tablet screenshot and investigation of the remaining
 animations, cutscenes, portal interaction, and apartment movement. The current
 apartment renders but has no visible player, bow, or portal. Client tutorial
