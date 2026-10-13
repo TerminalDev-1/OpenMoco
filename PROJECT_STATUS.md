@@ -1,5 +1,35 @@
 # Project status — 2026-10-13
 
+## Portal rendering and idle-close checkpoint
+Python apartment delivery now includes the native HomeItem 2010 portal (type 2),
+prefab sc3d/pf_keyitem_portal, at (1500774,4561305). The 521-byte scene retains
+both authenticated local identity bindings. With all research probes disabled,
+the tablet visibly rendered the portal and its effects (.local/python-portal-normal.png)
+and requested destination 10900001, showing "Entering DOWNTOWN CHAOS".
+13222/v0 decoding matches all 74 previously captured selection messages.
+The initial native-derived destination frame crashes during initialization;
+travel, tutorial persistence, and combat are unfinished. Do not call this a
+completed portal travel implementation. client/portal_probe.js records the
+fixture-generation method and is research-only.
+
+Local-network bootstrap now checks the 13.5.1 instruction signature and replaces
+the specific automatic idle-close method at 0x7fe3d8. Its state 9 produces the
+"Connection Idle" dialog. Genuine transport/error paths remain active. On tablet
+process 7342, explicit invocation on the connected client held state 8 -> 8 at
+22:46:01 BST; encrypted frame/clock traffic continued afterward. Evidence:
+files/diagnostics/idle-policy-verification.json and captures/user-test-server-portal-travel.log.
+All 44 Python tests pass, including a real 31-second silent socket test. A long
+inactive tablet run and final probe-free APK verification remain to be completed.
+The already published v0.3.0-apartment APK does not contain this idle patch.
+
+Current hidden manual server launcher/listener: 26588/23036, ports 9339/9340,
+--login --apartment, logs captures/user-test-server-portal-travel.log and .stderr.log.
+It remains running. Current installed APK has apartment/connection research
+flags enabled for fault diagnosis; disable and verify them before release.
+The original mo.co installation/data and production accounts remain untouched.
+Next: diagnose destination initialization, verify portal travel on the normal
+client, publish verified checkpoints/client update, leave the server running.
+
 ## Verified checkpoint: Python apartment spawning, normal client
 Apartment plan step 1 is complete: the Python server supplies a local Player
 2009 and linked character, head cosmetic 2900435, SmartBow 6700000, and the

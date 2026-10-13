@@ -35,8 +35,17 @@ _SUFFIX = bytes.fromhex(
     "000000000000000000000000000000000000000000000000"
 )
 
+_PORTAL_SUFFIX = bytes.fromhex(
+    "0101020000000c4c6f63616c2048756e7465720000000004acc9e30aaec9e30a"
+    "afc9e30aadc9e30a00040000000000000000000000000000a0efb106a0efb106"
+    "0000fc01018091d8bf0100a699b70199e6ac0414fb5d268a65c3f9f625886b20"
+    "e2b934c3022400000000000000000000017f0000000000000000000000000100"
+    "0000000000000000000000000000000000000000000000000000000000000000"
+    "0000000000000000000000000000000000000000000000000000"
+)
 
-def apartment_scene(account_id):
+
+def apartment_scene(account_id, portal=True):
     """Bind the two evidenced accountId fields to a valid local namespace.
 
     Native metadata serializer 0x73ab98 starts with accountId; the second
@@ -47,4 +56,4 @@ def apartment_scene(account_id):
     if not isinstance(account_id, int) or not 128 <= account_id >> 32 <= 255 or not account_id & 0xffffffff:
         raise ValueError('Apartment requires a nonzero local guest identity')
     identity = Writer().compact(account_id, 64).bytes()
-    return _PREFIX + identity + _MIDDLE + identity + _SUFFIX
+    return _PREFIX + identity + _MIDDLE + identity + (_PORTAL_SUFFIX if portal else _SUFFIX)

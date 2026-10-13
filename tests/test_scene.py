@@ -9,13 +9,15 @@ class SceneTests(unittest.TestCase):
         # Native template identities occur before the player metadata and in it.
         identity = (128 << 32) | 1
         scene = apartment_scene(identity)
-        self.assertEqual(len(scene), 487)
+        self.assertEqual(len(scene), 521)
         self.assertIn(b'Local Hunter', scene)
+        self.assertIn(bytes.fromhex('fb5d268a65c3f9f625886b20e2b934c3'), scene)
         first = Reader(scene[50:])
         self.assertEqual(first.compact(64), identity)
         second = Reader(scene[329:])
         self.assertEqual(second.compact(64), identity)
         self.assertEqual(HOME_SPAWN, (22 * 65536 + 32768, 67 * 65536 + 32768))
+        self.assertEqual(len(apartment_scene(identity, portal=False)), 487)
 
     def test_local_namespace_boundary_and_large_id(self):
         for identity in ((255 << 32) | 0xffffffff, (166 << 32) | 4):

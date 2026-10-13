@@ -42,6 +42,23 @@ rpc.exports = {
             let gameDumped = false;
             let gameKeyConfigured = false;
             let apartmentProbeInstalled = false;
+            let localIdlePolicyInstalled = false;
+            function installLocalIdlePolicy(owner) {
+                if (localIdlePolicyInstalled) return;
+                // 13.5.1's idle-close method sets connection state 9 and
+                // closes TCP. State 9 maps to the auto-disconnect dialog.
+                const address = owner.base.add(0x7fe3d8);
+                const actual = Array.from(new Uint8Array(address.readByteArray(20)))
+                    .map(value => value.toString(16).padStart(2, '0')).join('');
+                if (actual !== 'fd7bbea9f30b00f9fd030091080040f921018052')
+                    throw new Error('Unsupported local idle-close instruction signature');
+                let logged = false;
+                Interceptor.replace(address, new NativeCallback(function () {
+                    if (!logged) { log('Local automatic idle close suppressed'); logged = true; }
+                }, 'void', ['pointer']));
+                localIdlePolicyInstalled = true;
+                log('Local idle-close policy installed');
+            }
             function installApartmentProbe(owner) {
                 if (parameters.apartment_probe !== true || apartmentProbeInstalled) return;
                 apartmentProbeInstalled = true;
@@ -53,6 +70,7 @@ rpc.exports = {
                 } catch (error) { log('Apartment external probe unavailable: '+error); }
             }
             function configureLocalKey(owner) {
+                installLocalIdlePolicy(owner);
                 let publicKey = parameters.server_public_key;
                 const keyPath = '/data/user/0/com.supercell.moco.localtest/files/local-server-public-key.txt';
                 try { publicKey = File.readAllText(keyPath).trim(); } catch (_) {}

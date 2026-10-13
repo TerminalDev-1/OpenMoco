@@ -137,6 +137,16 @@ Verify real tablet traffic beyond the previous disconnect interval before
 claiming the problem fixed. Leave the hidden background listener running.
 
 ## Apartment continuation
+Latest portal checkpoint: Python now sends the native-derived 521-byte apartment
+with HomeItem 2010, type Portal (2), prefab sc3d/pf_keyitem_portal at the map's
+portal marker. A normal client visibly rendered it and requested destination
+10900001 via 13222/v0. Destination initialization is still under investigation;
+the first tutorial frame crashes, so do not claim travel or combat complete.
+The local-network client suppresses only native auto-idle close 0x7fe3d8 after
+checking this build's instruction signature. Forced invocation kept state 8 -> 8
+and authenticated traffic continued. Real network loss is not suppressed.
+Read the latest PROJECT_STATUS.md before the historical apartment notes below.
+
 The user confirmed that the apartment and client audio work, while the portal
 itself is missing (the apartment opening/backdrop renders). Do not list audio
 as a defect. They requested publishing this apartment checkpoint and its APK.
