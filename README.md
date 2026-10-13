@@ -180,3 +180,16 @@ python tools/read_client_table.py build/offline-client/split_install_time_asset_
 The decoded CSV is written under ignored `analysis/`. Its `Home` row identifies
 `scene/home.json` and one player. This establishes client configuration only;
 the server's scene/frame/player payload still needs to be derived.
+
+### Current onboarding research
+The test client now reaches age-onboarding and "Let's Go" with an experimental
+own-home profile and scene frame. Subsequent scene-clock/onboarding responses
+and gameplay remain incomplete. The current manual-testing server runs in the
+background; runtime details are in PROJECT_STATUS.md. Keep it running while the
+user tests. home.py encodes the validated minimum profile; scene serialization
+and authenticated-account integration remain ongoing work.
+
+Research-only fixture delivery is available through `--login --home-probe PATH
+--profile-probe PATH` on tools/run_local_test.py. Fixture bodies, captures, and
+native diagnostics stay in ignored local directories. Normal login behavior
+retains its verified baseline. Do not distribute protocol-probe APK builds.

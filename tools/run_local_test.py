@@ -24,10 +24,22 @@ def main():
     parser.add_argument('--handshake', action='store_true', help='Enable the experimental server hello response')
     parser.add_argument('--login', action='store_true', help='Verify and decrypt the local-key login')
     parser.add_argument('--transport-probe', action='store_true', help='Send an encrypted empty keepalive to verify native reply decryption; requires --login')
+    parser.add_argument('--home-probe', type=Path, help='Send an evidenced local scene-start body after login, for protocol research')
+    parser.add_argument('--profile-probe', type=Path, help='Research own-home body; requires --home-probe')
     parser.add_argument('--server-key', type=Path, default=ROOT/'.local/server-key.json')
     args = parser.parse_args()
     if args.transport_probe and not args.login:
         parser.error('--transport-probe requires --login')
+    if args.home_probe and (not args.login or args.transport_probe):
+        parser.error('--home-probe requires --login without --transport-probe')
+    if args.profile_probe and not args.home_probe:
+        parser.error('--profile-probe requires --home-probe')
+    profile_probe = args.profile_probe.read_bytes() if args.profile_probe else None
+    if profile_probe is not None and not 0 < len(profile_probe) <= 65536:
+        parser.error('Profile-probe body must contain 1..65536 bytes')
+    home_probe = args.home_probe.read_bytes() if args.home_probe else None
+    if home_probe is not None and not 0 < len(home_probe) <= 65536:
+        parser.error('Home-probe body must contain 1..65536 bytes')
     if not args.adb.is_file():
         parser.error('adb not found; provide --adb with its installed path')
     serial = args.serial
@@ -77,7 +89,7 @@ def main():
                 except ConnectionError:
                     pass
         sdk = await asyncio.start_server(sdk_sink, '127.0.0.1', 9340)
-        listener = asyncio.create_task(run('127.0.0.1', 9339, ROOT / 'captures' / 'game', args.handshake or args.login, key, transport_probe=args.transport_probe))
+        listener = asyncio.create_task(run('127.0.0.1', 9339, ROOT / 'captures' / 'game', args.handshake or args.login, key, transport_probe=args.transport_probe, home_probe=home_probe, profile_probe=profile_probe))
         # Allow the listener to bind before launching the client.
         await asyncio.sleep(0.1)
         if listener.done():

@@ -89,3 +89,15 @@ Continue with minimum home data. Preserve the working login/session baseline whi
 
 ## Home investigation continuation
 The corrected typed Home references allow native scene-start handler completion, but the default frame crashes during copying at libg+0x725714 because primary+0xd8 has no handler. This is not a usable home. Type 1240 is an evidenced OpenWorld handler candidate awaiting verification. Keep experimental scene bodies opt-in and do not run fixture-generation probes concurrently with real scene startup. See the active section at the top of PROJECT_STATUS.md before interpreting historical entries.
+
+## Manual testing and onboarding checkpoint
+The user explicitly requires leaving the server running while they test. Use
+a hidden background process with file-backed logs, and keep its current PID,
+command line, mode, and paths in PROJECT_STATUS.md/.local/user-test-server.json.
+Do not stop the manual server, reinstall, or cold-launch the test client merely
+to continue research while the user is testing. Check listener and actual client
+traffic separately: a client can time out while the listener is still running.
+Onboarding and "Let's Go" are now observed, but subsequent responses/gameplay
+are unfinished. home.py's 156-byte starter profile encoder has golden validation;
+its authenticated-account integration is pending. Current research fixtures are
+isolated local data. See the latest status section before historical findings.

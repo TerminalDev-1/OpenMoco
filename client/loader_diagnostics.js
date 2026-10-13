@@ -148,6 +148,53 @@ rpc.exports = {
                         }
                     });
                     let factorySampled = false;
+                    let sceneStarting = false;
+                    let primitiveTarget=null;
+                    let primitiveTrace=[];
+                    let primitiveDepth=0;
+                    for(const [offset,kind] of [[0x8d7034,'bool'],[0x8d7160,'flag'],[0x8d7294,'int'],[0x8d7bd8,'vint'],[0x8d80ac,'vlong'],[0x8d7778,'long'],[0x8d6bec,'string'],[0x8d6a70,'floatbits']]) {
+                        Interceptor.attach(owner.base.add(offset),{onEnter(args){
+                            this.primitiveActive=primitiveTarget!==null && args[0].equals(primitiveTarget);
+                            if(!this.primitiveActive)return;
+                            if(primitiveDepth++>0)return;
+                            let value;
+                            if(kind==='long'||kind==='vlong')value=args[1].toString();
+                            else if(kind==='string'){
+                                const text=args[1];const length=text.add(4).readS32();
+                                value=length<8?text.add(8).readUtf8String(length):text.add(8).readPointer().readUtf8String(length);
+                            }else value=args[1].toInt32();
+                            primitiveTrace.push({kind,value});
+                        },onLeave(){if(this.primitiveActive)primitiveDepth--;}});
+                    }
+
+                    for (const descriptor of [{name:'unlink', index:0}, {name:'unlinkat', index:1}]) {
+                        const address = Module.findGlobalExportByName(descriptor.name);
+                        if (address === null) continue;
+                        Interceptor.attach(address, {
+                            onEnter(args) {
+                                try {
+                                    const path = args[descriptor.index].readUtf8String();
+                                    if (path.includes('com.supercell.moco.localtest/cache/sentry/') && path.endsWith('.envelope')) {
+                                        File.writeAllText('/data/user/0/com.supercell.moco.localtest/files/diagnostics/home-crash-envelope.txt', File.readAllText(path));
+                                        log('Preserved test-client native crash envelope before local cleanup');
+                                    }
+                                } catch (_) {}
+                            }
+                        });
+                    }
+                    Interceptor.attach(owner.base.add(0x5bf784), {
+                        onEnter() { sceneStarting = true; log('Native scene-start handler entered'); },
+                        onLeave() { log('Native scene-start handler completed'); }
+                    });
+                    for (const offset of [0x7b1584, 0x762a10, 0x404fe4, 0x5c21e4, 0x5c3904, 0x5c3a68, 0x5c49e8, 0x5bf55c, 0x7f1364, 0x64213c, 0x6b7b14, 0x6b7b1c, 0x77841c, 0x4f4560, 0x5bdee8, 0x755e34, 0x77e0b8, 0x77c010]) {
+                        Interceptor.attach(owner.base.add(offset), {
+                            onEnter() { log('Scene stage enter: ' + offset.toString(16)); },
+                            onLeave() { log('Scene stage leave: ' + offset.toString(16)); }
+                        });
+                    }
+                    Interceptor.attach(owner.base.add(0x8d8adc), {
+                        onEnter(args) { try { log('Native diagnostic: ' + args[0].readUtf8String()); } catch (_) {} }
+                    });
                     Interceptor.attach(owner.base.add(0xa39800), {
                         onEnter(args) { if (args[1].isNull()) log('Null SCString assignment caller=' + this.returnAddress.sub(owner.base)); }
                     });
@@ -188,6 +235,7 @@ rpc.exports = {
                     Interceptor.attach(owner.base.add(0xa35d2c), {
                         onEnter(args) {
                             try {
+                                if(args[1].toInt32()===24548) sceneStarting=true;
                                 const factory = args[0].add(0x118).readPointer();
                                 const table = factory.readPointer();
                                 const file = new File('/data/user/0/com.supercell.moco.localtest/files/diagnostics/incoming-factory.json', 'w');
@@ -199,7 +247,149 @@ rpc.exports = {
                                     factorySampled = true;
                                     setTimeout(() => {
                                         try {
+                                            if (sceneStarting) { log('Skipped factory probes during scene startup'); return; }
                                             const create = new NativeFunction(table.add(0x18).readPointer(), 'pointer', ['pointer','int']);
+                                            const structured = new NativeFunction(owner.base.add(0x8f0610), 'pointer', ['int']);
+                                            const makeStream = new NativeFunction(owner.base.add(0x8d6600), 'void', ['pointer','int']);
+                                            const makeWriter = new NativeFunction(owner.base.add(0x8ee5c0), 'void', ['pointer','pointer']);
+                                            const scRegistry = owner.base.add(0xfbac88).readPointer();
+                                            log('SC registry pointer='+scRegistry);
+                                            if (!scRegistry.isNull()) {
+                                                const count = scRegistry.add(0x14).readS32();
+                                                const entries = scRegistry.add(8).readPointer();
+                                                const factories=[];
+                                                for (let i=0;i<count && i<128;i++) {
+                                                    const entry=entries.add(i*8).readPointer();
+                                                    factories.push(entry.readPointer().add(0x18).readPointer().sub(owner.base).toString());
+                                                }
+                                                File.writeAllText('/data/user/0/com.supercell.moco.localtest/files/diagnostics/scdata-factories.json',JSON.stringify(factories));
+                                                log('SC registry factories='+factories.join(','));
+                                            }
+                                            const typeRows=[];
+                                            for (const id of [1201,1210,1211,1212,1213,1214,1215,1216,1217,1218,1219,1220,1221,1230,1231,1232,1234,1235,1236,1240,1241,1242,1243,1244,1245]) {
+                                                const ref=structured(id);
+                                                if(ref.isNull()) continue;
+                                                const primary=ref.sub(8);const vt=primary.readPointer();
+                                                typeRows.push({id,table:vt.sub(owner.base).toString(),methods:Array.from({length:16},(_,i)=>vt.add(i*8).readPointer().sub(owner.base).toString()),serializer:ref.readPointer().add(0x28).readPointer().sub(owner.base).toString()});
+                                            }
+                                            File.writeAllText('/data/user/0/com.supercell.moco.localtest/files/diagnostics/scene-types.json',JSON.stringify(typeRows));
+                                            for (const type of [1003, 1200, 1004]) {
+                                                const value = structured(type);
+                                                if (value.isNull()) continue;
+                                                const stream = Memory.alloc(0x90); makeStream(stream, 0);
+                                                const writer = Memory.alloc(0x18); makeWriter(writer, stream);
+                                                const vt = value.readPointer();
+                                                new NativeFunction(vt.add(0x28).readPointer(), 'void', ['pointer','pointer'])(value, writer);
+                                                const size = stream.add(0x14).readS32();
+                                                if (size > 0 && size < 65536) {
+                                                    const file = new File('/data/user/0/com.supercell.moco.localtest/files/diagnostics/structured-default-' + type + '.bin', 'wb');
+                                                    file.write(stream.add(0x30).readPointer().readByteArray(size)); file.close();
+                                                }
+                                                log('Structured native sample type=' + type + ' bytes=' + size);
+                                            }
+                                            try {
+                                                const registry = owner.base.add(0xeefa08).readPointer().readPointer();
+                                                const getData = new NativeFunction(registry.readPointer().add(0x18).readPointer(), 'pointer', ['pointer','uint64']);
+                                                const names = [];
+                                                const headers = [];
+                                                for (let type=1; type<=4096; type++) {
+                                                  for (let row=0; row<4; row++) {
+                                                    const id = type * 100000 + row;
+                                                    const value = getData(registry, id);
+                                                    if (value.isNull()) continue;
+                                                    if (headers.length < 100) headers.push({id, bytes: Array.from(new Uint8Array(value.readByteArray(128))).map(v=>v.toString(16).padStart(2,'0')).join('')});
+                                                    for (let offset=0; offset<96; offset+=8) {
+                                                    try {
+                                                        const member = value.add(offset);
+                                                        const length = member.add(4).readS32();
+                                                        if (length < 1 || length > 128) continue;
+                                                        const start = length < 8 ? member.add(8) : member.add(8).readPointer();
+                                                        const name = start.readUtf8String(length);
+                                                        if (/^[A-Za-z0-9_ .-]+$/.test(name)) names.push({id, offset, name});
+                                                    } catch (_) {}
+                                                    }
+                                                  }
+                                                }
+                                                File.writeAllText('/data/user/0/com.supercell.moco.localtest/files/diagnostics/data-reference-first-rows.json', JSON.stringify(names));
+                                                File.writeAllText('/data/user/0/com.supercell.moco.localtest/files/diagnostics/data-reference-headers.json', JSON.stringify(headers));
+                                                log('Saved first-row data-reference names: ' + names.length);
+                                                const linked=[];
+                                                for(const id of [7500000,6700000,11301483,1300000,11300000,10800000,10900000]) {
+                                                    const value=getData(registry,id);
+                                                    if(value.isNull())continue;
+                                                    const primary=value.sub(0x18);const fields=[];
+                                                    for(let off=0x100;off<0x190;off+=8) {
+                                                        try{
+                                                            const target=primary.add(off).readPointer();
+                                                            const text=target.add(0x28);const len=text.add(4).readS32();
+                                                            if(len<1||len>100)continue;
+                                                            const name=len<8?text.add(8).readUtf8String(len):text.add(8).readPointer().readUtf8String(len);
+                                                            if(/^[A-Za-z0-9_ .-]+$/.test(name))fields.push({offset:off,name});
+                                                        }catch(_){}
+                                                    }
+                                                    linked.push({id,fields});
+                                                }
+                                                File.writeAllText('/data/user/0/com.supercell.moco.localtest/files/diagnostics/starter-data-links.json',JSON.stringify(linked));
+                                                const homeData = getData(registry, 10900000);
+                                                if (homeData.isNull()) throw new Error('Verified typed Home data reference is unavailable');
+                                                const scene = structured(1003);
+                                                const frame = structured(1200);
+                                                scene.add(0x10).writePointer(homeData.sub(0x18));
+                                                scene.add(0x20).writePointer(frame.sub(8));
+                                                frame.add(0xa0).writePointer(homeData.sub(0x18));
+                                                frame.add(0xd0).writePointer(structured(1240).sub(8));
+                                                const message = create(factory, 23491);
+                                                message.add(0xa0).writePointer(scene.sub(8));
+                                                const profileRegistry=message.add(0x90).readPointer();
+                                                const lookupProfile=new NativeFunction(owner.base.add(0x82ab0c),'pointer',['pointer','uint64']);
+                                                const resolved=[];
+                                                for(const id of [1300000,11300000,11301483,6700000,7500000,2147483648+11301483]) {
+                                                    const value=lookupProfile(profileRegistry,id);const globalValue=getData(registry,id);
+                                                    let at108='null',name108='';
+                                                    try{const target=value.sub(0x18).add(0x108).readPointer();at108=target.toString();
+                                                        const text=target.add(0x28);const length=text.add(4).readS32();
+                                                        if(length>0&&length<100)name108=length<8?text.add(8).readUtf8String(length):text.add(8).readPointer().readUtf8String(length);
+                                                    }catch(_){}
+                                                    resolved.push({id,exists:!value.isNull(),same:globalValue.equals(value),at108,name108});
+                                                }
+                                                File.writeAllText('/data/user/0/com.supercell.moco.localtest/files/diagnostics/profile-data-resolution.json',JSON.stringify(resolved));
+                                                const zero = Memory.alloc(4096);
+                                                zero.writeByteArray(new Uint8Array(4096));
+                                                const stream = Memory.alloc(0x90); makeStream(stream, 0);
+                                                new NativeFunction(owner.base.add(0x8d7b2c), 'void', ['pointer','pointer','int'])(stream, zero, 4096);
+                                                const state = Memory.alloc(0xb0);
+                                                new NativeFunction(owner.base.add(0x761c60), 'void', ['pointer','pointer','pointer'])(state, stream, message.add(0x90).readPointer());
+                                                message.add(0xb0).writePointer(state);
+                                                message.add(0xb8).writePointer(Memory.alloc(1));
+                                                message.add(0xc0).writeS32(0);
+                                                new NativeFunction(message.readPointer().add(0x10).readPointer(), 'void', ['pointer'])(message);
+                                                const size = message.add(0x1c).readS32();
+                                                if (size <= 0 || size > 65536) throw new Error('Unexpected native home-probe body size');
+                                                const file = new File('/data/user/0/com.supercell.moco.localtest/files/diagnostics/home-scene-probe-body.bin', 'wb');
+                                                file.write(message.add(0x40).readPointer().readByteArray(size)); file.close();
+                                                log('Saved native scene-start probe body: ' + size + ' bytes');
+                                                const ownMessage=create(factory,24548);
+                                                const own=Memory.alloc(0x70);
+                                                new NativeFunction(owner.base.add(0x755a34),'void',['pointer'])(own);
+                                                const ownStream=Memory.alloc(0x90);makeStream(ownStream,0);
+                                                new NativeFunction(owner.base.add(0x8d7b2c),'void',['pointer','pointer','int'])(ownStream,zero,4096);
+                                                new NativeFunction(owner.base.add(0x755e34),'void',['pointer','pointer','pointer'])(own,ownStream,message.add(0x90).readPointer());
+                                                const requiredHomeList=Memory.alloc(16);requiredHomeList.writeByteArray(new Uint8Array(16));
+                                                own.add(0x18).readPointer().add(0xe0).writePointer(requiredHomeList);
+                                                const starter=getData(registry,11300000);
+                                                if(starter.isNull())throw new Error('Typed StartingWeapon reference unavailable');
+                                                own.add(0x18).readPointer().add(0x88).readPointer().add(0x18).writePointer(starter.sub(0x18));
+                                                ownMessage.add(0xa0).writePointer(own);
+                                                primitiveTrace=[];primitiveTarget=ownMessage.add(8);
+                                                new NativeFunction(ownMessage.readPointer().add(0x10).readPointer(),'void',['pointer'])(ownMessage);
+                                                primitiveTarget=null;File.writeAllText('/data/user/0/com.supercell.moco.localtest/files/diagnostics/own-home-primitive-trace.json',JSON.stringify(primitiveTrace));
+                                                const ownSize=ownMessage.add(0x1c).readS32();
+                                                if(ownSize<1 || ownSize>65536)throw new Error('Own-home body limit');
+                                                const ownFile=new File('/data/user/0/com.supercell.moco.localtest/files/diagnostics/own-home-probe-body.bin','wb');
+                                                ownFile.write(ownMessage.add(0x40).readPointer().readByteArray(ownSize));ownFile.close();
+                                                log('Saved native own-home sample: '+ownSize+' bytes');
+
+                                            } catch (error) { log('Data-reference inspection failed: ' + error); }
                                             const rows = [];
                                             for (let type = 1; type <= 65535; type++) {
                                                 const object = create(factory,type);

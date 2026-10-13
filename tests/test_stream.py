@@ -34,3 +34,13 @@ class StreamTests(unittest.TestCase):
             Reader(bytes.fromhex('00000004')+b'xx').string()
         with self.assertRaises(ValueError):
             Writer().compact(1 << 31)
+
+    def test_adjacent_booleans_end_at_integer_fields(self):
+        writer = Writer().bit_boolean(True).bit_boolean(False).compact(64).bit_boolean(True)
+        self.assertEqual(writer.bytes(), bytes.fromhex('01800101'))
+        reader = Reader(writer.bytes())
+        self.assertTrue(reader.bit_boolean())
+        self.assertFalse(reader.bit_boolean())
+        self.assertEqual(reader.compact(), 64)
+        self.assertTrue(reader.bit_boolean())
+        self.assertEqual(reader.remaining, 0)

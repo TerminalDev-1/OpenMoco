@@ -1,5 +1,44 @@
 # Project status — 2026-10-12
 
+## Latest checkpoint: onboarding/profile initialization
+home.py implements a named Python encoder for 24548/v0 own-home data. Its
+zero-ID encoding matches the corrected native-based 156-byte research profile
+byte for byte; identity placement and invalid-input tests also pass. All 27
+tests pass. Integration of this encoder with the authenticated account is still
+pending; the current research server serves a zero-ID fixture within the
+isolated test package/local session. Real Supercell accounts remain untouched.
+
+Native own-home decoder: 0x786fdc -> 0x755e34, client-home 0x77e0b8, avatar
+0x77c010. Required empty conditional collections are at client-home +e0, +120,
++18, +20, +28, +30; omitting them caused native UI null dereferences. The
+selected collection reference must be BattleKit SmartBow 6700000, whose native
++108 link is ArcherWeapon. Attempts with StartingWeapon 11300000, ArcherWeapon
+11301483, and metadata record 7500000 were wrong for this field. A direct native
+lookup proved both registries resolve these IDs identically; the earlier theory
+that a separate profile-data registry needed populating was incorrect.
+
+The native stream has two boolean modes: persistent packed flags (0x8d7160 /
+0x8d724c) and adjacent booleans, reset by scalar fields (0x8d7034 / 0x8d711c).
+stream.py now supports both. Trace nesting must suppress primitive subcalls;
+the previously labelled standalone float word was a string-length field.
+
+Adding an evidenced OpenWorld handler 1240 to the native frame fixed the frame
+copy crash, but the home profile was still necessary before scene startup.
+Protocol probes affected one protected-code crash report; probe-free tests gave
+useful native null-dereference sites. The installed client has probes disabled.
+Ignored native crash envelopes were preserved by a bounded run-as shell watcher.
+No private captures, keys, or asset tables are included in the checkpoint.
+
+With the corrected profile and scene fixture, capture
+20261013T151038Z-ccb391ad reached the age-onboarding UI and remained alive,
+sending authenticated 18851/18853 events. The user completed onboarding and
+confirmed the "Let's Go" screen. This is UI initialization, not playable home
+or gameplay. 10110 is a device/GPU telemetry report, not a confirmed error.
+The next concrete work is to decode and implement the evidenced scene-clock/
+onboarding messages (18851/18852/18853 and supported server 28851/28852/28853),
+then integrate persistent account/home state and add the required player frame.
+Preserve the running manual test server during that investigation.
+
 ## Active home investigation (supersedes historical next steps below)
 Terminology checkpoint c9e04f5 was pushed. OpenMoco is a private server; the
 Android application is the test client. Both public releases' INSTALL.md assets
@@ -62,16 +101,20 @@ the 23491 scene-start message/handler described below, preserving the working
 login baseline. Error replies and broader gameplay also remain future work.
 
 ## Current manual testing server
-The probe-free local-network APK was rebuilt, installed, and cold-launched.
-Capture 20261012T194719Z-fa0d4b2a verifies login-token validation and authenticated
-session keepalives with native protocol probes disabled. A hidden background
-runner is active in --login mode, PID 13576 as last checked. Its current private
-metadata is .local/user-test-server.json and logs are
-captures/user-test-server.log / captures/user-test-server.stderr.log.
-This supersedes the older foreground research and handshake-only process
-entries below. Recheck the PID command line before stopping or reusing it.
-Leave the server running for manual testing. The screen remains at loading
-while home data is missing.
+The server is running in a hidden background process with file-backed logs,
+so it is independent of the foreground tool session. Launcher PID 21720;
+listener PID 24368, verified on ports 9339 and 9340. Private runtime metadata:
+.local/user-test-server.json. Logs: captures/user-test-server.log and
+captures/user-test-server.stderr.log. Mode: login-home-onboarding, using the
+ignored native scene fixture and the corrected 156-byte profile fixture.
+Capture 20261013T151353Z-85fa64b4 verifies the tablet's authenticated login,
+profile/scene replies, and subsequent client events. The user confirms reaching
+"Let's Go" after age-onboarding. The client subsequently closes its connection;
+the listener remains active. Required scene/onboarding responses are not yet
+implemented, so "Let's Go" can stall or show a connection error. Do not equate
+listener availability with a completed game session. Do not stop this server
+or reinstall/cold-launch the test client while the user is testing.
+
 
 ## Current milestone: native login acceptance and encrypted session
 Further home research identified the SceneConfig type getter at 0x7b17bc

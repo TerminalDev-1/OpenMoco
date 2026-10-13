@@ -12,8 +12,10 @@ class Writer:
         self.data = bytearray()
         self.bit_count = 0
         self.bit_index = None
+        self.sequential_bits = 0
 
     def boolean(self, value):
+        self.sequential_bits = 0
         if self.bit_count == 0:
             self.bit_index = len(self.data)
             self.data.append(0)
@@ -22,7 +24,17 @@ class Writer:
         self.bit_count = (self.bit_count + 1) % 8
         return self
 
+    def bit_boolean(self, value):
+        """Native 0x8d7034: share a byte only with adjacent booleans."""
+        if self.sequential_bits == 0:
+            self.data.append(0)
+        if value:
+            self.data[-1] |= 1 << self.sequential_bits
+        self.sequential_bits = (self.sequential_bits + 1) % 8
+        return self
+
     def raw(self, value):
+        self.sequential_bits = 0
         self.data.extend(value)
         return self
 
@@ -58,8 +70,11 @@ class Reader:
         self.position = 0
         self.bit_count = 0
         self.bit_value = 0
+        self.sequential_bits = 0
+        self.sequential_value = 0
 
     def _read(self, size):
+        self.sequential_bits = 0
         if size < 0 or self.position + size > len(self.data):
             raise ValueError('Truncated byte stream')
         value = self.data[self.position:self.position+size]
@@ -67,10 +82,19 @@ class Reader:
         return bytes(value)
 
     def boolean(self):
+        self.sequential_bits = 0
         if self.bit_count == 0:
             self.bit_value = self._read(1)[0]
         result = bool(self.bit_value & (1 << self.bit_count))
         self.bit_count = (self.bit_count + 1) % 8
+        return result
+
+    def bit_boolean(self):
+        """Native 0x8d711c: integer/string operations end the current byte."""
+        if self.sequential_bits == 0:
+            self.sequential_value = self._read(1)[0]
+        result = bool(self.sequential_value & (1 << self.sequential_bits))
+        self.sequential_bits = (self.sequential_bits + 1) % 8
         return result
 
     def raw(self, size):
