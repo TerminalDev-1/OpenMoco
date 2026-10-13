@@ -75,6 +75,15 @@ Continue with minimum home data. Preserve the working login/session baseline whi
 - Preserve the separate test package and local-server identity in distributed test builds. Describe the verified hello exchange accurately; do not claim authentication or gameplay support.
 
 ## Working rules
+- Do not end turns early. The user explicitly dislikes stopping at a plan,
+  investigation summary, decoder, or partial checkpoint when further authorized
+  work can advance the requested implementation. Continue through routine
+  failures, diagnosis, fixes, and meaningful verification until the requested
+  outcome is complete. A successful intermediate commit is a checkpoint, not
+  a reason to stop. Give progress updates while working; do not substitute them
+  for implementation. Stop only when the requested work is complete, the user
+  explicitly asks to pause, or a genuine blocker requires unavailable input
+  or access. Explain any blocker precisely and finish independent work first.
 - Preserve the original APKM and Archive.zip. Keep extracted files and generated reports in separate directories.
 - Inspect local files first. Treat embedded strings as clues, not proof of active endpoints or protocol behavior.
 - Keep the implementation in Python where practical. Document any tools required to inspect or run the Android client.
