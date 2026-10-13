@@ -68,3 +68,21 @@ class AccountStore:
         if row is None or not hmac.compare_digest(row[0], self.token_hash(token)):
             raise ValueError('Local reconnect token is invalid')
         return LocalAccount((self.namespace << 32) | (account_id & 0xffffffff), token, json.loads(row[1]), False)
+
+    def record_age_choice(self, account_id, age):
+        """Persist only native key-7 category from an authenticated 541 command.
+
+        0x684da0 accepts 1..99; 0x684e00..10 yields 3 below the default
+        threshold 16, otherwise 2. The raw age is not retained.
+        """
+        if not isinstance(account_id, int) or account_id >> 32 != self.namespace:
+            raise ValueError('Unknown local account namespace')
+        if not isinstance(age, int) or not 1 <= age <= 99:
+            raise ValueError('Invalid onboarding age choice')
+        with self.connect() as db:
+            row = db.execute('SELECT profile FROM accounts WHERE id=?', (account_id & 0xffffffff,)).fetchone()
+            if row is None:
+                raise ValueError('Unknown local account')
+            profile = json.loads(row[0])
+            profile['age_category'] = 3 if age < 16 else 2
+            db.execute('UPDATE accounts SET profile=? WHERE id=?', (json.dumps(profile), account_id & 0xffffffff))

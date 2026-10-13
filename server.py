@@ -110,7 +110,7 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                         if profile_probe is not None or apartment:
                                             from home import own_home
                                             # Bind the validated starter profile to this local guest.
-                                            profile_body = own_home(account.account_id) if apartment or profile_probe == own_home(0) else profile_probe
+                                            profile_body = own_home(account.account_id, age_category=account.profile.get('age_category', 0)) if apartment or profile_probe == own_home(0) else profile_probe
                                             response = Frame(24548, 0, crypto.encode_session(profile_body))
                                             encoded = response.encode()
                                             with (output / (session + '.server.bin')).open('ab') as replies:
@@ -137,6 +137,16 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                 with (output / (session + '.session.bin')).open('ab') as clear:
                                     clear.write(Frame(frame.message_type, frame.version, plaintext).encode())
                                 print(f'{session}: verified session frame {frame.message_type}, {len(plaintext)} decrypted bytes', flush=True)
+                                if apartment and frame.message_type == 16543 and frame.version == 0:
+                                    from commands import decode_client_turn
+                                    try:
+                                        turn = decode_client_turn(plaintext)
+                                        for command in turn.commands:
+                                            if command.command_type == 541 and command.account_id in (0, account.account_id):
+                                                accounts.record_age_choice(account.account_id, command.fields['age'])
+                                                print(f'{session}: persisted local onboarding category', flush=True)
+                                    except ValueError as error:
+                                        print(f'{session}: turn unsupported: {error}', flush=True)
                                 if frame.message_type == 18853:
                                     from protocol import decode_frame_ready
                                     confirmed_frame = max(confirmed_frame, decode_frame_ready(plaintext))

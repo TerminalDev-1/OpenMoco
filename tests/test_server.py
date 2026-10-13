@@ -61,7 +61,7 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(profile.message_type, 24548)
                     server_nonce = LoginTransport.advance(server_nonce)
                     profile_body = cipher.decrypt(profile.payload, server_nonce)
-                    self.assertEqual(profile_body, own_home(new_id))
+                    self.assertEqual(profile_body, own_home(new_id, age_category=2 if identity else 0))
                     scene = await read_frame()
                     self.assertEqual((scene.message_type, scene.version), (23491, 0))
                     server_nonce = LoginTransport.advance(server_nonce)
@@ -72,6 +72,12 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(cipher.decrypt(keepalive.payload,LoginTransport.advance(server_nonce)),b'')
                     send_nonce = LoginTransport.advance(nonce)
                     receive_nonce = LoginTransport.advance(server_nonce)
+                    if not identity:
+                        from stream import Writer
+                        choice = Writer().compact(0).raw(bytes(8)).compact(1).integer(541)
+                        choice.boolean(False).boolean(False).boolean(False).integer(16)
+                        send_nonce = LoginTransport.advance(send_nonce)
+                        writer.write(Frame(16543, 0, cipher.encrypt(choice.bytes(), send_nonce).ciphertext).encode())
                     for client_frame in (1234, 1200):
                         send_nonce = LoginTransport.advance(send_nonce)
                         frame_ready = client_frame.to_bytes(4, 'big') + b'\x00'

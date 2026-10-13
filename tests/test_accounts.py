@@ -5,6 +5,23 @@ from accounts import AccountStore
 
 
 class AccountTests(unittest.TestCase):
+    def test_onboarding_is_bound_and_survives_reopen(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'accounts.sqlite3'
+            store = AccountStore(path)
+            first, other = store.authenticate(0, None), store.authenticate(0, None)
+            store.record_age_choice(first.account_id, 15)
+            reopened = AccountStore(path)
+            self.assertEqual(reopened.authenticate(first.account_id, first.token).profile['age_category'], 3)
+            self.assertNotIn('age_category', reopened.authenticate(other.account_id, other.token).profile)
+            reopened.record_age_choice(first.account_id, 16)
+            self.assertEqual(reopened.authenticate(first.account_id, first.token).profile['age_category'], 2)
+            for age in (0, 100, '16'):
+                with self.assertRaises(ValueError):
+                    reopened.record_age_choice(first.account_id, age)
+            with self.assertRaises(ValueError):
+                reopened.record_age_choice(1, 16)
+
     def test_create_and_reconnect_after_reopening(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder)/'accounts.sqlite3'

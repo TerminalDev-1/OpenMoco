@@ -146,6 +146,10 @@ The local-network client suppresses only native auto-idle close 0x7fe3d8 after
 checking this build's instruction signature. Forced invocation kept state 8 -> 8
 and authenticated traffic continued. Real network loss is not suppressed.
 Read the latest PROJECT_STATUS.md before the historical apartment notes below.
+Authenticated 541 commands now persist only the native onboarding category in
+the local profile and return home key 7 on reconnect. Native category is 3 below
+default threshold 16, otherwise 2 (0x684e00..10). Do not reverse those categories
+or invent the user's choice. Other tutorial/quest commands remain unpersisted.
 
 The user confirmed that the apartment and client audio work, while the portal
 itself is missing (the apartment opening/backdrop renders). Do not list audio

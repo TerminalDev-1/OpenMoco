@@ -1,6 +1,18 @@
 # Project status — 2026-10-13
 
 ## Portal rendering and idle-close checkpoint
+Onboarding reconnect improvement: server executes authenticated 541 age commands
+and stores only the native home key-7 category (2 at/above default threshold 16,
+3 below), preserving local identity isolation. It delivers that raw key/value
+entry on reconnect. Previously submitted choices were recovered from local
+authenticated captures for the existing test account, with a local DB backup;
+the tablet bypassed SetAge and proceeded to the intro/apartment. No age was
+invented or entered on behalf of the user, and raw ages are not stored in profile.
+Account isolation/reopen tests and encrypted command-to-reconnect verification
+pass. Other tutorial/quest state remains unpersisted.
+Current hidden launcher/listener 19888/22980, same ports, logs
+captures/user-test-server-portal-profile.log and .stderr.log. LEAVE RUNNING.
+
 Python apartment delivery now includes the native HomeItem 2010 portal (type 2),
 prefab sc3d/pf_keyitem_portal, at (1500774,4561305). The 521-byte scene retains
 both authenticated local identity bindings. With all research probes disabled,

@@ -3,6 +3,16 @@ from home import own_home
 
 
 class HomeTests(unittest.TestCase):
+    def test_native_onboarding_setting_position(self):
+        from stream import Reader
+        for category in (2, 3):
+            body = own_home(1, age_category=category)
+            reader = Reader(body[42:])
+            self.assertEqual([reader.compact() for _ in range(3)], [0, 0, 0])
+            self.assertEqual(reader.compact(), 1)
+            self.assertEqual((reader.integer(), reader.integer()), (7, category))
+            self.assertEqual(len(body), len(own_home(1)) + 8)
+
     def test_native_starter_profile_sample(self):
         # Native encoder sample, with all required empty conditional collections
         # present and the evidenced SmartBow selection. No account secrets.
