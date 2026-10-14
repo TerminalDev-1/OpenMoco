@@ -72,6 +72,15 @@ rpc.exports = {
                     .map(value => value.toString(16).padStart(2, '0')).join('');
                 if (actual !== 'fd7bbea9f30b00f9fd030091080040f921018052')
                     throw new Error('Unsupported local idle-close instruction signature');
+                // Background resume can exceed the prediction-gap allowance
+                // before a fresh acknowledgement is processed. The caller
+                // otherwise stops simulation even though idle close is suppressed.
+                // Skip only that local-test policy branch; real socket loss
+                // still uses the connection's ordinary error/reconnect handling.
+                const gapBranch = owner.base.add(0x60e7fc);
+                if (gapBranch.readU32() !== 0x540003ad)
+                    throw new Error('Unsupported local frame-gap instruction signature');
+                Memory.patchCode(gapBranch, 4, code => code.writeU32(0x1400001d));
                 let logged = false;
                 Interceptor.replace(address, new NativeCallback(function () {
                     if (!logged) { log('Local automatic idle close suppressed'); logged = true; }
@@ -487,14 +496,20 @@ rpc.exports = {
             for (const name of ['connect', 'sendto']) {
                 const address = Module.getGlobalExportByName(name);
                 const types = name === 'connect' ? ['int', 'pointer', 'uint'] : ['int', 'pointer', 'ulong', 'int', 'pointer', 'uint'];
-                const original = new NativeFunction(address, name === 'connect' ? 'int' : 'long', types);
+                const original = new SystemFunction(address, name === 'connect' ? 'int' : 'long', types);
                 Interceptor.replace(address, new NativeCallback(function (...args) {
                     const index = name === 'connect' ? 1 : 4;
                     const routed = route(args[index], args[index + 1], this.returnAddress);
-                    if (!routed.allowed) { errno().writeS32(113); return -1; }
+                    if (!routed.allowed) { this.errno = 113; return -1; }
                     args[index] = routed.address;
                     if (parameters.connection_diagnostics === true && name === 'connect' && routed.game) gameSockets.add(args[0]);
-                    return original(...args);
+                    const result = original(...args);
+                    // Nonblocking connect relies on EINPROGRESS surviving
+                    // the JavaScript bridge, including warm reconnects.
+                    this.errno = result.errno;
+                    if (name === 'connect' && routed.game)
+                        log('Local game socket result=' + result.value + ' errno=' + result.errno);
+                    return result.value;
                 }, name === 'connect' ? 'int' : 'long', types));
             }
             if (parameters.connection_diagnostics === true) {

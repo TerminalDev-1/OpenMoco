@@ -235,6 +235,9 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                     # Actual client scene-loaded notification: old-scene
                                     # clock/ready messages precede this boundary.
                                     confirmed_frame = 0
+                                    # Loading can pause while the app is backgrounded.
+                                    # Start time at the loaded boundary, not TCP login.
+                                    clock_started = time.monotonic()
                                     awaiting_scene_loaded = False
                                     first_scene_ready = True
                                 if frame.message_type == 18853:
@@ -252,6 +255,9 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                         scene_ready = True
                                     if not awaiting_scene_loaded:
                                         confirmed_frame = max(confirmed_frame, ready_frame)
+                                        # Resume can exhaust prediction before the next
+                                        # clock poll too. Confirm every ready report.
+                                        scene_ready = True
                                 if frame.message_type == 18851:
                                     last_clock_request = plaintext
                                 if frame.message_type == 18851 or (scene_ready and last_clock_request is not None):

@@ -1,5 +1,52 @@
 # Project status — 2026-10-14
 
+## Reconnect repair: preserve native socket error status
+The server and ADB reverse mappings were running when the user saw Connection
+Error. The client opened and immediately closed several zero-byte connections
+(including 20261014T162123Z-5c5a21d5), before any 10100 hello. A trial server-first
+hello did not run before those immediate closes and was removed.
+
+The local connect/sendto replacement now uses Frida SystemFunction and restores
+the captured errno through the callback context. Android nonblocking connect
+returns -1/EINPROGRESS (115); losing that status across the JavaScript bridge
+can make the client treat an ongoing connection as failed. Only game connect
+results are logged; per-packet temporary logging was removed. Reference:
+https://frida.re/docs/javascript-api/#systemfunction.
+
+After updating only the isolated base APK, a deliberate server restart plus
+background/foreground test reconnected the same tablet process (29978) without
+force-stop, reinstall or tapping Try Again. Capture 20261014T162613Z-5b21a027
+contains 10100, encrypted 10101, validated saved credentials and continued
+authenticated frame traffic. The final normal base passes verification with
+1457 unchanged payload entries and all diagnostic probes disabled. The original
+mo.co app and both applications' data were preserved.
+
+The longer background test then exposed a prediction stall: an 18851 reply
+confirmed the previous ready frame, the resumed client sent a newer 18853, and
+stopped polling clocks. Python now acknowledges every ready report through the
+existing 28851 layout, without requiring another clock poll. Scene time also
+starts at empty 13224 so loading pauses cannot age a fresh snapshot. All 52
+tests pass, covering monotonic acknowledgements, loaded boundaries and repeats.
+Acknowledgements alone did not prevent the native foreground-resume race:
+0x60e7fc compares predicted/confirmed frames and 0x60e868 sets simulation flag
++0x2944 before the server reply is processed. The normal private-server client
+now verifies instruction 0x540003ad and changes that one branch to 0x1400001d,
+continuing at 0x60e870. This removes the local prediction-gap timeout policy;
+ordinary socket errors and reconnect remain intact. Never reuse the offset for
+another client version without checking its instruction and behavior.
+The final client passed a 42-second background/foreground test: authenticated
+frame traffic continued and joystick movement worked in rejoin-gap-before/after.png
+(capture 20261014T163727Z-61fe4968). After the usage-limit interruption, the
+server was restarted and wireless forwarding restored. The already-displayed
+error required one Try Again tap; this is not a claim of automatic retry while
+an error dialog remains open. Same-process saved-account login and apartment
+movement then worked again in capture 20261014T182109Z-a5d77dbc, screenshots
+.local/rejoin-now-before/after.png. Account progress was preserved.
+Current hidden server launcher/listener: 24640/12796, --login --apartment, logs
+captures/user-test-server-rejoin.log and .stderr.log. Keep it running.
+The updated client will be published as v0.6.0-reconnect with matching unchanged
+splits linked from v0.3.0-apartment; check the release completion entry below.
+
 ## Project identity and full implementation goal
 The user clarified that OpenMoco is a mo.co private server written in Python,
 with a goal of 100% server feature coverage. Connection/login milestones are

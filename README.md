@@ -17,6 +17,7 @@ The current client version is **13.5.1**.
 - Movement and player animation across repeated scene changes.
 - Five monster types, spirits, human civilians, and recurring spawns.
 - Connections stay open while you take a break.
+- The client reconnects when you return to the app with the server available.
 
 XP, earned quest progress, Luna's progression prompts, rewards, inventory,
 COOL-zone access, multiplayer, and combat controlled by the Python server still
@@ -26,7 +27,7 @@ by the server.
 ## Get the client
 
 Download the private-server client from
-[GitHub Releases](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.5.0-return-home).
+[GitHub Releases](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.6.0-reconnect).
 Follow the [installation guide](docs/INSTALL.md) to assemble and install all the
 required APK splits. A fresh install also needs the unchanged splits and asset
 parts linked from the apartment release.
@@ -56,8 +57,8 @@ Your accounts are saved in `.local/accounts.sqlite3`, and the server key is in
 `.local/server-key.json`. Keep these files between runs to retain your progress
 and server identity. Private keys and account files stay out of Git.
 
-The current scene fixes work with the v0.5.0 client; you don't need to reinstall
-it for server-only updates.
+Use the v0.6.0 client for the reconnect fix. Existing installations can update
+just the base APK with the matching splits already installed; see the guide.
 
 ## Build the Android client
 

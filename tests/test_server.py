@@ -104,6 +104,14 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(transport_keepalive.message_type, 20108)
                         receive_nonce = LoginTransport.advance(receive_nonce)
                         self.assertEqual(cipher.decrypt(transport_keepalive.payload, receive_nonce), b'')
+                        if client_frame == 1200:
+                            acknowledgement = await read_frame()
+                            self.assertEqual(acknowledgement.message_type, 28851)
+                            receive_nonce = LoginTransport.advance(receive_nonce)
+                            self.assertEqual(int.from_bytes(cipher.decrypt(acknowledgement.payload, receive_nonce)[16:20], 'big'), 1234)
+                            keepalive = await read_frame()
+                            receive_nonce = LoginTransport.advance(receive_nonce)
+                            self.assertEqual(cipher.decrypt(keepalive.payload, receive_nonce), b'')
                     selection = bytes.fromhex('000000000000a65221000000000000000000000000000000000000000000')
                     if not identity:
                         send_nonce = LoginTransport.advance(send_nonce)
@@ -151,7 +159,7 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                         send_nonce = LoginTransport.advance(send_nonce)
                         ready = ready_frame.to_bytes(4, 'big') + b'\x00'
                         writer.write(Frame(18853, 0, cipher.encrypt(ready, send_nonce).ciphertext).encode())
-                        if ready_frame != 14:
+                        if ready_frame == 1300:
                             send_nonce = LoginTransport.advance(send_nonce)
                             writer.write(Frame(18851, 0, cipher.encrypt(request_clock, send_nonce).ciphertext).encode())
                         await writer.drain()

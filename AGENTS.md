@@ -4,6 +4,20 @@
 OpenMoco is a private server. Always call the project a private server and the Android application a test client or private-server client. Never use "clone" to describe this project or its client. This user preference applies to all future explanations, code comments, documentation, and release notes.
 
 ## Current scene-transition priority
+Warm reconnect was also repaired in the client routing hook: preserve native
+errno with SystemFunction and callback this.errno for connect/sendto. Android's
+nonblocking connect returns EINPROGRESS (115); the previous hook could lose it
+and immediately close a zero-byte connection. A same-process foreground resume
+now completes saved-account login without restarting the app or server. Verify
+actual encrypted login/frame traffic, not only Get-NetTCPConnection. Leave the
+manual server running; see latest PROJECT_STATUS.md for logs and current PIDs.
+Background resume can stall prediction after the client reports a new frame
+but before its next clock poll. Acknowledge every valid current-scene 18853
+through 28851, and reset simulation time at loaded notification 13224.
+The isolated 13.5.1 client also skips only the prediction-gap timeout at
+0x60e7fc after verifying 0x540003ad. Its parent otherwise sets simulation
++0x2944 on resume before acknowledgements arrive, freezing actors even with
+idle-close suppressed. Ordinary socket errors/reconnect must remain enabled.
 Repair both warm return-home and the frozen/T-posed battle player before further
 progression work. Do not claim a scene is playable from a socket or screenshot
 alone: verify joystick movement in battle and apartment over repeated travel.
