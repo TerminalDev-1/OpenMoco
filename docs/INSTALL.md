@@ -14,7 +14,7 @@ remain unfinished. The build is debuggable; research probes are disabled.
 ## Download and assemble
 
 Download the updated base APK, manifest, assembler and checksums from
-[v0.6.0-reconnect](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.6.0-reconnect).
+[v0.7.0-kill-xp](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.7.0-kill-xp).
 For a fresh installation, also download the three configuration APKs and four
 asset-pack parts from
 [v0.3.0-apartment](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.3.0-apartment).
@@ -74,8 +74,10 @@ With the return-home client update, tap the minimap, then **Leave Battle** to
 return to the apartment. Quest execution and authoritative combat remain unfinished.
 Keep the server process running during manual testing. The local-network client
 now preserves the native socket status on reconnect, so bringing it back to the
-foreground can complete login without restarting the app. Update to v0.6.0 for
-this repair; it uses the same saved local account and matching configuration splits.
+foreground can complete login without restarting the app. v0.7.0 also fixes a
+battle freeze after re-entering through the portal, and reports kills/rescues
+so the server (commit acacacd or newer) credits XP per kill. It uses the same
+saved local account and matching configuration splits.
 The client
 suppresses automatic idle closure and keeps its foreground screen awake. Keep
 wireless debugging connected: losing ADB forwarding can still cause a connection
