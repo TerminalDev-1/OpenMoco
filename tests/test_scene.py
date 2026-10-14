@@ -5,6 +5,23 @@ from stream import Reader
 
 
 class SceneTests(unittest.TestCase):
+    def test_progression_snapshot_native_golden_and_account_binding(self):
+        import hashlib
+        from stream import Writer
+        from scene import progression_tutorial_scene
+        identity = (128 << 32) | 1
+        body = progression_tutorial_scene(identity)
+        self.assertEqual(len(body), 4946)
+        self.assertEqual(hashlib.sha256(body).hexdigest(), '0dbc514f5e365f7287c11bfdca59922274d39df80a9900f8bfee65c263862b72')
+        for offset in (50, 4776):
+            self.assertEqual(Reader(body[offset:]).compact(64), identity)
+        other = (255 << 32) | 0xffffffff
+        changed = progression_tutorial_scene(other)
+        self.assertEqual(Reader(changed[50:]).compact(64), other)
+        self.assertEqual(changed.count(Writer().compact(other, 64).bytes()), 2)
+        for invalid in (0, 1, True, 'local'):
+            with self.assertRaises(ValueError):
+                progression_tutorial_scene(invalid)
     def test_native_recurring_encounters_and_identity(self):
         import hashlib
         from stream import Writer
