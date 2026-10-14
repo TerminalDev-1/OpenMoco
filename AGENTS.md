@@ -4,6 +4,10 @@
 OpenMoco is a private server. Always call the project a private server and the Android application a test client or private-server client. Never use "clone" to describe this project or its client. This user preference applies to all future explanations, code comments, documentation, and release notes.
 
 ## Current scene-transition priority
+The verified reconnect/background-resume APK is published as v0.6.0-reconnect:
+https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.6.0-reconnect.
+Source bed4164; six new asset digests/sizes and seven linked unchanged split/part
+dependencies are verified. The current tablet has this normal client installed.
 Warm reconnect was also repaired in the client routing hook: preserve native
 errno with SystemFunction and callback this.errno for connect/sendto. Android's
 nonblocking connect returns EINPROGRESS (115); the previous hook could lose it

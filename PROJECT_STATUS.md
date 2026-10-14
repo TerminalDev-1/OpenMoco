@@ -44,8 +44,12 @@ movement then worked again in capture 20261014T182109Z-a5d77dbc, screenshots
 .local/rejoin-now-before/after.png. Account progress was preserved.
 Current hidden server launcher/listener: 24640/12796, --login --apartment, logs
 captures/user-test-server-rejoin.log and .stderr.log. Keep it running.
-The updated client will be published as v0.6.0-reconnect with matching unchanged
-splits linked from v0.3.0-apartment; check the release completion entry below.
+Published v0.6.0-reconnect at
+https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.6.0-reconnect,
+targeting bed4164. All six new assets passed remote size/SHA-256 checks; all
+seven linked unchanged dependencies from v0.3.0-apartment also matched.
+The final normal base is installed on the tablet with probes disabled.
+The server remains running and actual authenticated frame traffic continues.
 
 ## Project identity and full implementation goal
 The user clarified that OpenMoco is a mo.co private server written in Python,
