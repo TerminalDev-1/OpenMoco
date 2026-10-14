@@ -6,13 +6,15 @@ English and xxhdpi resource splits used in the verified tablet configuration.
 The local encrypted guest login and keepalives work. The Python server's
 `--apartment` mode sends a local player and starter bow at the apartment spawn.
 The portal renders and travel into Downtown Chaos is verified. Age-onboarding
-categories persist; full quest progression and authoritative gameplay remain
-unfinished. The build is debuggable; research probes are disabled.
+categories, reported tutorial steps and the last scene persist. Tap the minimap,
+then Leave Battle to return home. The first monster renders and takes damage;
+it currently flees quickly. Full quest progression and authoritative gameplay
+remain unfinished. The build is debuggable; research probes are disabled.
 
 ## Download and assemble
 
 Download the updated base APK, manifest, assembler and checksums from
-[v0.4.0-portal](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.4.0-portal).
+[v0.5.0-return-home](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.5.0-return-home).
 For a fresh installation, also download the three configuration APKs and four
 asset-pack parts from
 [v0.3.0-apartment](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.3.0-apartment).

@@ -11,9 +11,9 @@ class SceneTests(unittest.TestCase):
         body = monster_tutorial_scene(identity)
         # Native serializer golden rebound to a synthetic identity, never a
         # private capture identity. Includes the extra character and bit flags.
-        self.assertEqual(hashlib.sha256(body).hexdigest(), '1f3ce676f648d9c910dd6daa39b5941a03b269b5761e1b99dbdafadf85b69718')
-        self.assertEqual(len(body), 629)
-        for offset in (50, 459):
+        self.assertEqual(hashlib.sha256(body).hexdigest(), 'de824bed3661cbe4a620754408e30d56e54f6233a3e16b7e7dda8413bb215356')
+        self.assertEqual(len(body), 650)
+        for offset in (50, 480):
             self.assertEqual(Reader(body[offset:]).compact(64), identity)
         other = (255 << 32) | 0xffffffff
         changed = monster_tutorial_scene(other)

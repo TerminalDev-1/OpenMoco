@@ -171,3 +171,21 @@ opened zero-byte sockets; relaunching only the test package restored encrypted
 login. Investigate the native AFK policy and warm reconnect separately from
 the already-fixed 35-second confirmed-frame gap. Do not claim that keeping the
 listener open disables the client's inactivity policy.
+
+## Initialized monster checkpoint (October 14)
+
+The native-derived tutorial frame now contains one DragonlingWeakMeleeTutorial
+(character data 10800020), initialized with five default gear entries and
+health/base health 624. Helpers 0x696d20, 0x6f1148, 0x6f0ec8, 0x6f18a0 and
+0x703c60 fill the gear and health fields after factory/placement. The initial
+position (3964928,4882432) is two tiles south of the player spawn. The resulting
+650-byte body binds two account references dynamically at offsets 50 and 480;
+the synthetic-account SHA-256 is
+`de824bed3661cbe4a620754408e30d56e54f6233a3e16b7e7dda8413bb215356`.
+
+The user verified that the monster renders and takes damage, but flees quickly.
+Native client simulation currently drives that behavior. Python supplies the
+initial snapshot and frame acknowledgements; authoritative combat, repeated
+spawns, death rewards and inventory changes are still to implement. A regular
+dragonling experiment loaded but did not verify a better fight, so it is not
+used in the normal server snapshot. Tutorial completion is not fabricated.

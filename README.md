@@ -9,16 +9,17 @@ The apartment portal renders and takes the player into Downtown Chaos.
 The user verified travel on the tablet. Tap the minimap, then **Leave Battle**
 to return to the apartment. Age choices, reported tutorial steps and the last
 scene persist across reconnects, so completed intro steps do not replay.
-Full quest progression and authoritative gameplay remain unfinished. The first
-enemy snapshot is implemented; visible monster combat is still under investigation.
+The first monster renders and can take damage, as verified on the tablet.
+It currently runs away quickly. Full quest progression, server-authoritative
+combat, enemy waves and rewards remain unfinished.
 
 The Git source tree contains research code and build tools. It does not contain
 the original APKs, game assets, extracted libraries, private signing keys,
 or device captures. Bring your own client input to reproduce the build.
 
 The experimental local-test client and all required splits are available as
-[release downloads](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.4.0-portal).
-See [installation instructions](docs/INSTALL.md). The portal release contains
+[release downloads](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.5.0-return-home).
+See [installation instructions](docs/INSTALL.md). The return-home release contains
 the updated base APK; fresh installations also need the unchanged configuration
 splits and asset parts linked from the previous apartment release. The large asset APK is split
 into numbered download parts and reassembled with checksum verification.

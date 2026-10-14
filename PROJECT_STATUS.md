@@ -19,17 +19,37 @@ and tutorial completion are unchanged. Tap the minimap, then Leave Battle.
 Normal installed client has all research probes disabled. All 50 tests passed;
 updated normal base APK identity/signature/alignment/preserved entries passed.
 
-Monster work is a partial checkpoint: Python supplies a native-derived 629-byte
-tutorial snapshot containing DragonlingWeakMeleeTutorial, character data 10800020,
-health 624 at (4161536,4620288). Two account fields remain dynamically bound.
-The normal client accepts the scene; a visible attackable monster is not yet
-verified. This does not implement enemy AI, damage, death, loot or rewards.
+On October 14 the user explicitly verified one visible monster and a successful
+hit that damaged it. They reported that it then ran away too quickly. Python now
+supplies a native-derived 650-byte tutorial snapshot containing
+DragonlingWeakMeleeTutorial, character data 10800020, health/base health 624 and
+the five native default gear entries. Position (3964928,4882432) is two tiles
+south of the player spawn. The client scales its live health to 437 in the
+observed scene. Two account fields remain dynamically bound at offsets 50/480.
+The earlier 629-byte snapshot omitted gear/base health and produced live health
+1/max health 0. This checkpoint corrects initialization; it does not implement
+Python-authoritative enemy AI, damage, death, waves, loot or rewards.
 Native factory 0x728294, placement 0x6dfea0 and frame add 0x728284 generated the
-fixture. Wrong research data IDs initially returned null; correct table IDs use
-type * 100000 plus instance, not * 1000000. These failed probes stay private.
+fixture. Gear helpers 0x696d20/0x6f1148/0x6f0ec8, recalculation 0x6f18a0 and
+base-health copy 0x703c60 complete initialization. Wrong research data IDs
+initially returned null; correct table IDs use type * 100000 plus instance,
+not * 1000000. Failed probes stay private.
 
-Current hidden server launcher/listener: 4920/18176, ports 9339/9340, mode
-`--login --apartment`, logs `captures/user-test-server-home.log` and `.stderr.log`.
+A research-only substitution of DragonlingWeakMeleeSmall (10800021) produced
+a 650-byte native snapshot, five gear entries and health/base health 1890.
+It loaded, but improved chase/attack behavior was not verified; the normal
+checkpoint retains the user-verified tutorial monster. Its Tutorial_1 event
+may explain fleeing, but that remains a hypothesis. Broad scene observers
+caused unrelated startup faults and were removed. The normal base was rebuilt,
+verified and installed with all research flags disabled. A plain base install
+was rejected for missing splits; the documented partial install-multiple update
+succeeded without clearing test data or touching the original app.
+The normal reconnect capture 20261014T140329Z-e3efa881 continues authenticated
+18851/18853/18854 traffic. All 50 tests passed after the final snapshot change.
+
+Current hidden server launcher/listener: 4532/18484, ports 9339/9340, mode
+`--login --apartment`, logs `captures/user-test-server-near-monster.log` and
+`captures/user-test-server-near-monster.stderr.log`.
 Keep this server running. The previous listener IDs below are historical.
 
 ## Previous checkpoint: Downtown Chaos portal travel

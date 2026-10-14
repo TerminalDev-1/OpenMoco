@@ -146,8 +146,12 @@ Normal-client reconnect now resumes saved scene/step without the completed intro
 Return home is verified through minimap -> Leave Battle, observed 13223/v0 body
 00. Python responds with saved own-home plus apartment and saves scene 10900000.
 The local-network map hook changes only the tutorial map-hide UI call site;
-never mark tutorial completion just to expose controls. Monsters currently have
-an accepted native-derived initial snapshot but no verified visible combat.
+never mark tutorial completion just to expose controls. The user has now verified
+that the first monster renders and can take damage, but flees quickly. The
+650-byte initial snapshot includes native default gear and base health, with
+two dynamically bound account references. Full server-authoritative combat,
+enemy waves and rewards remain unfinished. A regular dragonling research probe
+loaded but did not verify improved behavior; keep it out of the normal checkpoint.
 Use tools/recover_local_progress.py only with matching private local login/session
 captures and an existing validated account; keep its SQLite backup private.
 Do not mark an unfinished tutorial complete just to hide a UI problem.
@@ -188,8 +192,8 @@ apartment now renders its player, bow and portal. Client tutorial
 commands reach GoToPortal; do not confuse dialogue progress with a playable
 scene. Read docs/APARTMENT_PROTOCOL.md for the verified sequence, command
 layouts, native player/character schemas, and ordered implementation work.
-commands.py decodes commands; the server executes authenticated age choice 541
-and persists its category. Other quest/tutorial commands are not persisted.
+commands.py decodes commands; the server persists authenticated age choice 541
+and tutorial transition 574. Quest execution and inventory remain unfinished.
 Preserve the working background session while researching. The next concrete
 implementation milestones for player placement and portal travel are verified.
 Further gameplay work follows the latest PROJECT_STATUS.md rather than these
