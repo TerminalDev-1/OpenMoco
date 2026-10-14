@@ -1,10 +1,26 @@
 import unittest
 
-from scene import apartment_scene, tutorial_scene, monster_tutorial_scene, populated_tutorial_scene, HOME_SPAWN
+from scene import apartment_scene, tutorial_scene, monster_tutorial_scene, populated_tutorial_scene, encounter_tutorial_scene, HOME_SPAWN
 from stream import Reader
 
 
 class SceneTests(unittest.TestCase):
+    def test_native_recurring_encounters_and_identity(self):
+        import hashlib
+        from stream import Writer
+        identity = (128 << 32) | 1
+        body = encounter_tutorial_scene(identity)
+        self.assertEqual(len(body), 4395)
+        self.assertEqual(hashlib.sha256(body).hexdigest(), '902ad777eb1bcbcffed49d12747867e210dd86f38471d5585451206c2fa55e14')
+        for offset in (50, 4225):
+            self.assertEqual(Reader(body[offset:]).compact(64), identity)
+        other = (255 << 32) | 0xffffffff
+        self.assertEqual(encounter_tutorial_scene(other), body.replace(
+            Writer().compact(identity, 64).bytes(), Writer().compact(other, 64).bytes()))
+        self.assertIn(tutorial_scene(other)[-69:-4], encounter_tutorial_scene(other))
+        with self.assertRaises(ValueError):
+            encounter_tutorial_scene(1)
+
     def test_native_population_snapshot_and_account_rebinding(self):
         import hashlib
         from stream import Writer

@@ -9,12 +9,12 @@ The apartment portal renders and takes the player into Downtown Chaos.
 The user verified travel on the tablet. Tap the minimap, then **Leave Battle**
 to return to the apartment. Age choices, reported tutorial steps and the last
 scene persist across reconnects, so completed intro steps do not replay.
-Downtown Chaos now starts with twelve initialized monsters and six civilians.
-The client renders Spirit civilians and simulates movement and combat;
-monster attacks reduce civilian health in the verified street encounter.
-The initial population refreshes on entry/reconnect and can clear quickly.
-Full quest progression, server-authoritative combat, sustained enemy waves
-and rewards remain unfinished.
+Downtown Chaos starts with fifteen enemies across five monster types, six
+spirits and five human civilians. Native spawn zones replenish monsters and
+human civilians; a two-minute test kept enemies available as others died.
+The normal client renders humans and spirits separately and simulates combat.
+XP, earned quest progression, server-authoritative combat, rewards and COOL-zone
+access remain unfinished.
 
 The Git source tree contains research code and build tools. It does not contain
 the original APKs, game assets, extracted libraries, private signing keys,

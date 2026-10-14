@@ -137,6 +137,16 @@ Verify real tablet traffic beyond the previous disconnect interval before
 claiming the problem fixed. Leave the hidden background listener running.
 
 ## Apartment continuation
+Terminology correction: RunningNpc 10800092 is a Spirit model, not a human
+civilian. Preserve those spirits. Human tutorial civilians are 10800309..313
+with pf_civilian_01..05, Civilian event type and health 1000. The user requested
+varied recurring monsters, then earned progression/Luna's home prompt and the
+COOL zone. Python now sends the encounter scene with spirits, human civilians,
+five initial enemy types and native recurring zones. XP, main-quest execution,
+Luna's completion prompt and COOL-zone access are still under investigation.
+The user confirmed COOL zone is a separate area, not the wardrobe. Supplied
+battle data identifies SocialHub 10900005 with w00_cool_zone_v2.json and
+SocialHub_FTUE 10900309 with home.json. Do not fabricate completion to unlock it.
 Current continuation: the user requested abundant initialized monsters and
 the civilians they attack after verifying all prior changes were committed.
 Python's populated tutorial scene now has twelve enemies and six RunningNpc

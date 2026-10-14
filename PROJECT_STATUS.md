@@ -1,5 +1,46 @@
 # Project status — 2026-10-14
 
+## Active checkpoint: human civilians, spirits and recurring encounters
+The user corrected the earlier terminology: 10800092 is a Spirit. Keep the
+six spirits; human civilians use 10800309..10800313, pf_civilian_01..05,
+Civilian event type and native health 1000. The normal client screenshot
+.local/encounter-normal-0.png shows both Helpless Civilian and Spirit models
+with a Bug enemy nearby. The new initial snapshot has fifteen enemies across
+five records: 10800020/21/26 and 10800117/120 (tutorial/melee/ranged dragonlings,
+melee/ranged beetles), plus the spirits and five human civilians.
+
+Python now sends the native-derived 4395-byte encounter frame on entry and
+reconnect. It contains four native spawner entities (type 2008), Zone data
+1700114/115/133/134. Native factory 0x728294 and registration 0x728284 suffice;
+zone tick 0x74ea90 initializes map indices/counts/point arrays through
+0x74ec60 and 0x7507c8. Melee zone finds index 9 with 48 points; RunningNpc
+human zone index 8 with 32 points; ProtectNpc human zone index 7 with 13.
+Ranged zone 115 has no matching points in this map and stays inactive. Initial
+ranged enemies/beetles remain included; recurring beetle/ranged zones are not
+yet configured. A 120-second native observation stayed at 25..63 enemies,
+with 44 increases after decreases, verifying replenishment rather than a
+one-time pack. No scene reset or client respawn patch is used.
+
+The attempted extra mixed zones needed map context before scene-start setup;
+the probe hit a null-context access violation, caught and logged. That failed
+extension is not included. Evidence stays private in analysis/variety-live.json.
+Dynamic identities are at offsets 50/4225; synthetic golden SHA-256:
+902ad777eb1bcbcffed49d12747867e210dd86f38471d5585451206c2fa55e14.
+52 tests and normal APK verification pass. The normal Python-fed reconnect is
+capture 20261014T150551Z-329a5abb; authenticated traffic continues. Current
+hidden launcher/listener: 18680/12952, ports 9339/9340, --login --apartment;
+logs captures/user-test-server-encounters.log and .stderr.log. Leave it running.
+The installed normal client has research probes disabled.
+
+Remaining requested work: real XP and persisted main-quest progress, Luna's
+earned completion prompt, and COOL-zone access. The first Intro_3 quest records
+have QuestType 1 targets 50 and 3; the latter requires Civilian events. Resolve
+the native quest semantics before presenting these as an XP threshold. The
+user confirmed COOL zone is a separate area, not wardrobe. Battle data identifies
+SocialHub 10900005 (scene/w00_cool_zone_v2.json) and SocialHub_FTUE 10900309
+(home.json with CoolZone music); tutorial ToHQ later selects the social hub.
+Do not fake XP, completed quests or tutorial state to expose that area.
+
 ## Active checkpoint: multiple monsters and civilians
 All previous intended source/docs were committed and pushed: local and remote
 main matched 047d427 with a clean working tree before this work began. Private
