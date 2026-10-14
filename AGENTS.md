@@ -142,6 +142,12 @@ gameplay in Downtown Chaos, and persistent progress so reconnects do not replay
 the intro/tutorial. Python now persists authenticated 574 tutorial transitions
 and the last supported scene, restores home +0x118 raw reference pairs, and
 resumes the saved scene. Tests pass; inspect latest status for tablet verification.
+Normal-client reconnect now resumes saved scene/step without the completed intro.
+Return home is verified through minimap -> Leave Battle, observed 13223/v0 body
+00. Python responds with saved own-home plus apartment and saves scene 10900000.
+The local-network map hook changes only the tutorial map-hide UI call site;
+never mark tutorial completion just to expose controls. Monsters currently have
+an accepted native-derived initial snapshot but no verified visible combat.
 Use tools/recover_local_progress.py only with matching private local login/session
 captures and an existing validated account; keep its SQLite backup private.
 Do not mark an unfinished tutorial complete just to hide a UI problem.

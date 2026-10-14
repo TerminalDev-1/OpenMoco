@@ -1,22 +1,56 @@
 # Project status — 2026-10-14
 
 
-## Latest verified checkpoint: Downtown Chaos portal travel
+## Latest verified checkpoint: saved progress and return home
+The normal client now opens its minimap and exposes the native Leave Battle
+button. Its observed authenticated request is 13223/v0 with body `00` (decoder
+0x764214: two flags and optional selection). Python sends the latest saved
+24548 profile followed by the account-bound 23491 apartment, resets the frame
+confirmation, and persists scene 10900000. Repeated requests in home are ignored;
+unsupported options are logged without closing the session. Encrypted integration
+tests cover return, duplicate requests, nonces and subsequent portal re-entry.
+Real tablet capture `20261014T132054Z-89f86471` and screenshot
+`.local/returned-home.png` verify the apartment return without replaying the intro.
+
+The native battlehud constructor normally hides its map hit target for tutorial
+scenes. A signature-checked local-network bootstrap hook changes only the return
+value of 0x6c2884 when called from 0x499b0c (return address 0x499b10). Other calls
+and tutorial completion are unchanged. Tap the minimap, then Leave Battle.
+Normal installed client has all research probes disabled. All 50 tests passed;
+updated normal base APK identity/signature/alignment/preserved entries passed.
+
+Monster work is a partial checkpoint: Python supplies a native-derived 629-byte
+tutorial snapshot containing DragonlingWeakMeleeTutorial, character data 10800020,
+health 624 at (4161536,4620288). Two account fields remain dynamically bound.
+The normal client accepts the scene; a visible attackable monster is not yet
+verified. This does not implement enemy AI, damage, death, loot or rewards.
+Native factory 0x728294, placement 0x6dfea0 and frame add 0x728284 generated the
+fixture. Wrong research data IDs initially returned null; correct table IDs use
+type * 100000 plus instance, not * 1000000. These failed probes stay private.
+
+Current hidden server launcher/listener: 4920/18176, ports 9339/9340, mode
+`--login --apartment`, logs `captures/user-test-server-home.log` and `.stderr.log`.
+Keep this server running. The previous listener IDs below are historical.
+
+## Previous checkpoint: Downtown Chaos portal travel
 Progress-saving implementation checkpoint: authenticated 574 tutorial transitions
 now persist in SQLite by local account, alongside the last supported scene. New
 accounts initialize empty tutorial state; reconnect sends native home +0x118
 entries and resumes Downtown Chaos when that was the last selected scene. The
 native collection/entry encoders 0x7966e8/0x7969a0 write tutorial then step as
 raw 64-bit references. Completed tutorials use step zero and resist stale replay.
-Twelve targeted account/profile/encrypted reconnect tests passed. Tablet UI
-verification is pending; do not yet claim the video is suppressed on-device.
+Targeted account/profile/encrypted reconnect tests passed. Tablet verification
+now confirms a direct Downtown Chaos reconnect and return home at GoToPortal,
+without the age screen, intro video or earlier phone/weapon sequence. The native
+re-encoded 196-byte restored profile matches Python byte for byte. Unfinished
+tutorials resume their saved step; do not pretend quests/combat were completed.
 The user's previous eight authenticated transitions were recovered into the
 existing account with tools/recover_local_progress.py; a private SQLite backup
 was retained. No invented completion or account reset was used.
 The user clarified that Downtown Chaos has no return-home button beside its map.
 Investigate HUD visibility and the native return path before claiming it works.
 Monster spawning/combat is now requested; the server still supplies no enemies.
-The old listener is kept running until a tested replacement is ready.
+The listener has been replaced with the tested return-home server described above.
 
 On October 14 the user explicitly confirmed: “I'm in downtown chaos. The portal
 is verified.” Normal-client screenshots and authenticated captures independently

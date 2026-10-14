@@ -1,10 +1,26 @@
 import unittest
 
-from scene import apartment_scene, tutorial_scene, HOME_SPAWN
+from scene import apartment_scene, tutorial_scene, monster_tutorial_scene, HOME_SPAWN
 from stream import Reader
 
 
 class SceneTests(unittest.TestCase):
+    def test_native_monster_snapshot_and_account_rebinding(self):
+        import hashlib
+        identity = (128 << 32) | 1
+        body = monster_tutorial_scene(identity)
+        # Native serializer golden rebound to a synthetic identity, never a
+        # private capture identity. Includes the extra character and bit flags.
+        self.assertEqual(hashlib.sha256(body).hexdigest(), '1f3ce676f648d9c910dd6daa39b5941a03b269b5761e1b99dbdafadf85b69718')
+        self.assertEqual(len(body), 629)
+        for offset in (50, 459):
+            self.assertEqual(Reader(body[offset:]).compact(64), identity)
+        other = (255 << 32) | 0xffffffff
+        changed = monster_tutorial_scene(other)
+        self.assertEqual(Reader(changed[50:]).compact(64), other)
+        with self.assertRaises(ValueError):
+            monster_tutorial_scene(1)
+
     def test_tutorial_identity_and_native_selection_metadata(self):
         identity = (128 << 32) | 1
         body = tutorial_scene(identity)

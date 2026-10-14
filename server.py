@@ -121,10 +121,10 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                             sent.append({'message_type': 24548, 'version': 0, 'payload_bytes': len(response.payload)})
                                             print(f'{session}: sent account-bound starter profile' if apartment else f'{session}: sent native-evidenced own-home probe; client acceptance pending', flush=True)
                                         if home_probe is not None or apartment:
-                                            from scene import apartment_scene, tutorial_scene
+                                            from scene import apartment_scene, monster_tutorial_scene
                                             if apartment:
                                                 current_scene = account.profile.get('scene_id', 10900000)
-                                                scene_body = tutorial_scene(account.account_id) if current_scene == 10900001 else apartment_scene(account.account_id)
+                                                scene_body = monster_tutorial_scene(account.account_id) if current_scene == 10900001 else apartment_scene(account.account_id)
                                             else:
                                                 scene_body = home_probe
                                             response = Frame(23491, 0, crypto.encode_session(scene_body))
@@ -165,8 +165,8 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                         print(f'{session}: scene selection unsupported: {error}', flush=True)
                                     else:
                                         if selection.scene_id == 10900001 and current_scene != 10900001:
-                                            from scene import tutorial_scene
-                                            response = Frame(23491, 0, crypto.encode_session(tutorial_scene(account.account_id)))
+                                            from scene import monster_tutorial_scene
+                                            response = Frame(23491, 0, crypto.encode_session(monster_tutorial_scene(account.account_id)))
                                             encoded = response.encode()
                                             with (output / (session + '.server.bin')).open('ab') as replies:
                                                 replies.write(encoded)
@@ -178,6 +178,32 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                             confirmed_frame = 0
                                             state = 'tutorial_scene_sent'
                                             print(f'{session}: sent account-bound TutorialAreaBasic after portal selection', flush=True)
+                                if apartment and frame.message_type == 13223 and frame.version == 0:
+                                    # Native 0x764214: two flags and optional selection.
+                                    # The actual map's Leave Battle button sent 00.
+                                    if plaintext != b'\x00':
+                                        print(f'{session}: unsupported leave-battle options', flush=True)
+                                    elif current_scene != 10900000:
+                                        from home import own_home
+                                        from scene import apartment_scene
+                                        saved = accounts.authenticate(account.account_id, account.token).profile
+                                        responses = [
+                                            (24548, own_home(account.account_id, age_category=saved.get('age_category', 0), tutorials=saved.get('tutorials', {}))),
+                                            (23491, apartment_scene(account.account_id)),
+                                        ]
+                                        for message_type, body in responses:
+                                            response = Frame(message_type, 0, crypto.encode_session(body))
+                                            encoded = response.encode()
+                                            with (output / (session + '.server.bin')).open('ab') as replies:
+                                                replies.write(encoded)
+                                            writer.write(encoded)
+                                            sent.append({'message_type': message_type, 'version': 0, 'payload_bytes': len(response.payload)})
+                                        await writer.drain()
+                                        current_scene = 10900000
+                                        accounts.record_scene(account.account_id, current_scene)
+                                        confirmed_frame = 0
+                                        state = 'apartment_scene_sent'
+                                        print(f'{session}: returned to account-bound apartment after Leave Battle', flush=True)
                                 if frame.message_type == 18853:
                                     from protocol import decode_frame_ready
                                     confirmed_frame = max(confirmed_frame, decode_frame_ready(plaintext))

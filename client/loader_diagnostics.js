@@ -43,6 +43,26 @@ rpc.exports = {
             let gameKeyConfigured = false;
             let apartmentProbeInstalled = false;
             let localIdlePolicyInstalled = false;
+            let localMapControlInstalled = false;
+            function installLocalMapControl(owner) {
+                if (localMapControlInstalled) return;
+                // Native battlehud hides its map hit target in tutorial scenes.
+                // Only this UI decision changes; tutorial completion is untouched.
+                const predicate = owner.base.add(0x6c2884);
+                const actual = Array.from(new Uint8Array(predicate.readByteArray(8)))
+                    .map(value => value.toString(16).padStart(2, '0')).join('');
+                const caller = owner.base.add(0x499b10);
+                const callBytes = Array.from(new Uint8Array(caller.sub(8).readByteArray(12)))
+                    .map(value => value.toString(16).padStart(2, '0')).join('');
+                if (actual !== '00204439c0035fd6' || callBytes !== '000440f95ea30894c0000036')
+                    throw new Error('Unsupported local map-control instruction signature');
+                Interceptor.attach(predicate, {
+                    onEnter() { this.mapCaller = this.returnAddress.equals(caller); },
+                    onLeave(value) { if (this.mapCaller) value.replace(0); }
+                });
+                localMapControlInstalled = true;
+                log('Local tutorial map control enabled');
+            }
             function installLocalIdlePolicy(owner) {
                 if (localIdlePolicyInstalled) return;
                 // 13.5.1's idle-close method sets connection state 9 and
@@ -71,6 +91,7 @@ rpc.exports = {
             }
             function configureLocalKey(owner) {
                 installLocalIdlePolicy(owner);
+                installLocalMapControl(owner);
                 let publicKey = parameters.server_public_key;
                 const keyPath = '/data/user/0/com.supercell.moco.localtest/files/local-server-public-key.txt';
                 try { publicKey = File.readAllText(keyPath).trim(); } catch (_) {}

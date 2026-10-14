@@ -1,6 +1,15 @@
 # Apartment implementation research — 13.5.1
 
 ## Verified portal checkpoint — October 14, 2026
+Continuation: authenticated 574 updates persist home +0x118 tutorial/step pairs,
+encoded as raw 64-bit references by 0x7969a0. Reconnect restores these entries
+and the last supported scene. Native re-encoding of the restored 196-byte profile
+matches Python exactly, and the tablet resumes without replaying its intro.
+The map hit target is hidden in tutorial scenes by battlehud 0x499b0c; the local
+bootstrap overrides that predicate only at this UI call site. The actual map
+Leave Battle control emits 13223/v0 with `00`; Python returns saved 24548 plus
+23491 apartment and persists the home scene. Real return-home travel is verified.
+
 The normal client now renders the apartment player, bow and HomeItem 2010 portal.
 The user confirmed entering Downtown Chaos, with screenshots showing the player
 and recruits and captures showing subsequent movement. The older ordered plan

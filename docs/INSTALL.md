@@ -66,8 +66,11 @@ while testing. The runner provisions only your server's public key into the
 test client. Keep the private key and `.local/accounts.sqlite3` on your PC; retain
 both across runs to preserve local test identities. The server verifies local
 credentials and sends the compatible encrypted login reply and starter apartment.
-Authenticated age choices persist as a category. Other tutorial and quest
-progression persistence remains unfinished. Keep the server process running during manual testing. The local-network client
+Authenticated age choices and reported tutorial steps persist. Reconnect resumes
+the saved scene and unfinished step without replaying completed intro steps.
+With the return-home client update, tap the minimap, then **Leave Battle** to
+return to the apartment. Quest execution and authoritative combat remain unfinished.
+Keep the server process running during manual testing. The local-network client
 suppresses automatic idle closure and keeps its foreground screen awake. Keep
 wireless debugging connected: losing ADB forwarding can still cause a connection
 error. With duplicate wireless device aliases, select the active one using

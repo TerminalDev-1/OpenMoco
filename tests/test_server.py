@@ -11,7 +11,7 @@ from transport import LoginTransport
 from protocol import Frame, FrameDecoder
 from server import capture
 from home import own_home
-from scene import apartment_scene, tutorial_scene
+from scene import apartment_scene, monster_tutorial_scene as tutorial_scene
 
 
 class ServerTests(unittest.IsolatedAsyncioTestCase):
@@ -122,12 +122,43 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(keepalive.message_type, 20108)
                     receive_nonce = LoginTransport.advance(receive_nonce)
                     self.assertEqual(cipher.decrypt(keepalive.payload, receive_nonce), b'')
+                    send_nonce = LoginTransport.advance(send_nonce)
+                    writer.write(Frame(13223, 0, cipher.encrypt(b'\x00', send_nonce).ciphertext).encode())
+                    await writer.drain()
+                    returned_profile, returned_scene = await read_frame(), await read_frame()
+                    self.assertEqual(returned_profile.message_type, 24548)
+                    receive_nonce = LoginTransport.advance(receive_nonce)
+                    self.assertEqual(cipher.decrypt(returned_profile.payload, receive_nonce), own_home(new_id, age_category=2, tutorials={'15600000': 0, '15600001': 14200006}))
+                    self.assertEqual(returned_scene.message_type, 23491)
+                    receive_nonce = LoginTransport.advance(receive_nonce)
+                    self.assertEqual(cipher.decrypt(returned_scene.payload, receive_nonce), apartment_scene(new_id))
+                    self.assertEqual(store.authenticate(new_id, new_token).profile['scene_id'], 10900000)
+                    # A duplicate leave and unsupported options cannot alter
+                    # the encrypted response order or disconnect the session.
+                    for options in (b'\x00', b'\x04'):
+                        send_nonce = LoginTransport.advance(send_nonce)
+                        writer.write(Frame(13223, 0, cipher.encrypt(options, send_nonce).ciphertext).encode())
+                    send_nonce = LoginTransport.advance(send_nonce)
+                    writer.write(Frame(10108, 0, cipher.encrypt(b'', send_nonce).ciphertext).encode())
+                    await writer.drain()
+                    keepalive = await read_frame()
+                    self.assertEqual(keepalive.message_type, 20108)
+                    receive_nonce = LoginTransport.advance(receive_nonce)
+                    self.assertEqual(cipher.decrypt(keepalive.payload, receive_nonce), b'')
+                    # End in the tutorial to exercise saved-scene restoration
+                    # during the next authenticated reconnect.
+                    send_nonce = LoginTransport.advance(send_nonce)
+                    writer.write(Frame(13222, 0, cipher.encrypt(selection, send_nonce).ciphertext).encode())
+                    await writer.drain()
+                    destination = await read_frame()
+                    receive_nonce = LoginTransport.advance(receive_nonce)
+                    self.assertEqual(cipher.decrypt(destination.payload, receive_nonce), tutorial_scene(new_id))
                     writer.close()
                     await writer.wait_closed()
                     await asyncio.wait_for(finished,2)
                     metadata = json.loads(next(output.glob('*.json')).read_text())
                     self.assertNotIn(new_token,json.dumps(metadata))
-                    self.assertEqual(metadata['frames'][-1]['decrypted_bytes'], 0)
+                    self.assertEqual(metadata['frames'][-1]['decrypted_bytes'], len(selection))
                     self.assertEqual(metadata['state'], 'tutorial_scene_sent')
                     return new_id,new_token,metadata['local_account']['created']
                 finally:

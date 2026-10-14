@@ -6,9 +6,11 @@ login, and exchanges encrypted keepalives and frame acknowledgements. A minimum
 home profile initializes onboarding. The minimum apartment scene includes a
 local player, character, head cosmetic, and starter bow at the map's spawn.
 The apartment portal renders and takes the player into Downtown Chaos.
-The user verified travel on the tablet. Age-onboarding categories persist across
-reconnects; full tutorial/quest persistence and authoritative gameplay remain
-unfinished.
+The user verified travel on the tablet. Tap the minimap, then **Leave Battle**
+to return to the apartment. Age choices, reported tutorial steps and the last
+scene persist across reconnects, so completed intro steps do not replay.
+Full quest progression and authoritative gameplay remain unfinished. The first
+enemy snapshot is implemented; visible monster combat is still under investigation.
 
 The Git source tree contains research code and build tools. It does not contain
 the original APKs, game assets, extracted libraries, private signing keys,
@@ -47,8 +49,9 @@ python tools/run_local_test.py --login --apartment --launch
 
 The server supplies the account-bound scene. No private scene fixture or native
 apartment probe is required. The server responds to portal scene requests with a native-derived tutorial
-frame. Authenticated age choices persist as a category; other tutorial/quest
-state remains unfinished. Keep the local account database and server key.
+frame. Authenticated age choices and tutorial transitions persist in SQLite.
+Reconnect resumes the last supported scene and unfinished tutorial step. Keep
+the local account database and server key; quest execution remains unfinished.
 
 The private key stays in ignored `.local/server-key.json`. Only the public key
 is provisioned into the test client through ADB. The bootstrap verifies the supplied
