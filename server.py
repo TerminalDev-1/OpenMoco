@@ -26,6 +26,7 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
     local_account = None
     clock_started = time.monotonic()
     confirmed_frame = 0
+    current_scene = 10900000 if apartment else None
     print(f'Connected: {peer}; capture {session}', flush=True)
     try:
         with (output / (session + '.bin')).open('wb') as stream:
@@ -147,6 +148,26 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                                 print(f'{session}: persisted local onboarding category', flush=True)
                                     except ValueError as error:
                                         print(f'{session}: turn unsupported: {error}', flush=True)
+                                if apartment and frame.message_type == 13222 and frame.version == 0:
+                                    from scene_requests import decode_scene_request
+                                    try:
+                                        selection = decode_scene_request(plaintext)
+                                    except ValueError as error:
+                                        print(f'{session}: scene selection unsupported: {error}', flush=True)
+                                    else:
+                                        if selection.scene_id == 10900001 and current_scene != 10900001:
+                                            from scene import tutorial_scene
+                                            response = Frame(23491, 0, crypto.encode_session(tutorial_scene(account.account_id)))
+                                            encoded = response.encode()
+                                            with (output / (session + '.server.bin')).open('ab') as replies:
+                                                replies.write(encoded)
+                                            writer.write(encoded)
+                                            await writer.drain()
+                                            sent.append({'message_type': 23491, 'version': 0, 'payload_bytes': len(response.payload)})
+                                            current_scene = 10900001
+                                            confirmed_frame = 0
+                                            state = 'tutorial_scene_sent'
+                                            print(f'{session}: sent account-bound TutorialAreaBasic after portal selection', flush=True)
                                 if frame.message_type == 18853:
                                     from protocol import decode_frame_ready
                                     confirmed_frame = max(confirmed_frame, decode_frame_ready(plaintext))
@@ -195,7 +216,7 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                     'sent_frames': sent, 'state': state, 'client_hello': hello,
                     'login_prefix': login_prefix,
                     'local_account': local_account,
-                    'note': 'Starter apartment; portal, progression persistence and authoritative gameplay remain incomplete.' if apartment else 'Local login development; home data and gameplay remain unimplemented.' if handshake
+                    'note': 'Apartment and portal travel verified; full progression persistence and authoritative gameplay remain incomplete.' if apartment else 'Local login development; home data and gameplay remain unimplemented.' if handshake
                             else 'Raw incoming TCP bytes. No protocol responses were sent.'}
         (output / (session + '.json')).write_text(json.dumps(metadata, indent=2), encoding='utf-8')
         print(f'Closed: {session}; {total} bytes; {reason}', flush=True)

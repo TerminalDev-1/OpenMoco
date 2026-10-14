@@ -140,8 +140,12 @@ claiming the problem fixed. Leave the hidden background listener running.
 Latest portal checkpoint: Python now sends the native-derived 521-byte apartment
 with HomeItem 2010, type Portal (2), prefab sc3d/pf_keyitem_portal at the map's
 portal marker. A normal client visibly rendered it and requested destination
-10900001 via 13222/v0. Destination initialization is still under investigation;
-the first tutorial frame crashes, so do not claim travel or combat complete.
+10900001 via 13222/v0. Portal travel is verified: the normal client accepted
+Python's 498-byte tutorial scene and entered Downtown Chaos on October 14, 2026.
+The user explicitly confirmed the destination, and screenshots show the player,
+bow, recruits and movement. Battle-start metadata must include the destination
+selection; replace the apartment template's final 58 bytes, preserving its final
+four bytes. Full authoritative combat and progression remain unfinished.
 The local-network client suppresses only native auto-idle close 0x7fe3d8 after
 checking this build's instruction signature. Forced invocation kept state 8 -> 8
 and authenticated traffic continued. Real network loss is not suppressed.
@@ -158,20 +162,21 @@ Native Sentry crash events may use extensionless filenames in cache/.../outbox.
 Process.setExceptionHandler and broad hooks caused unrelated faults in this build;
 prefer saved native crash records and narrowly scoped, verified probes.
 
-The user confirmed that the apartment and client audio work, while the portal
-itself is missing (the apartment opening/backdrop renders). Do not list audio
-as a defect. They requested publishing this apartment checkpoint and its APK.
-Continue recording incomplete portal rendering/travel, tutorial persistence,
-and authoritative simulation accurately. Use `--login --apartment` for the
+The user confirmed that the apartment, client audio and portal travel work.
+Do not list audio as a defect. They requested publishing the portal checkpoint
+and its APK. Continue recording incomplete tutorial/quest persistence and
+authoritative simulation accurately. Use `--login --apartment` for the
 normal client/server path; inspect the latest PROJECT_STATUS.md verification.
 
 The user requested a tablet screenshot and investigation of the remaining
 animations, cutscenes, portal interaction, and apartment movement. The current
-apartment renders but has no visible player, bow, or portal. Client tutorial
+apartment now renders its player, bow and portal. Client tutorial
 commands reach GoToPortal; do not confuse dialogue progress with a playable
 scene. Read docs/APARTMENT_PROTOCOL.md for the verified sequence, command
 layouts, native player/character schemas, and ordered implementation work.
-commands.py is a decoder only; it does not execute or persist commands.
+commands.py decodes commands; the server executes authenticated age choice 541
+and persists its category. Other quest/tutorial commands are not persisted.
 Preserve the working background session while researching. The next concrete
-implementation milestone is a correctly linked local player and character in
-the scene frame, verified visibly on the tablet before movement or portal work.
+implementation milestones for player placement and portal travel are verified.
+Further gameplay work follows the latest PROJECT_STATUS.md rather than these
+historical research notes. Publish requested APK checkpoints as GitHub releases.

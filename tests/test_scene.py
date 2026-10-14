@@ -1,10 +1,21 @@
 import unittest
 
-from scene import apartment_scene, HOME_SPAWN
+from scene import apartment_scene, tutorial_scene, HOME_SPAWN
 from stream import Reader
 
 
 class SceneTests(unittest.TestCase):
+    def test_tutorial_identity_and_native_selection_metadata(self):
+        identity = (128 << 32) | 1
+        body = tutorial_scene(identity)
+        self.assertEqual(len(body), 498)
+        self.assertEqual(Reader(body[50:]).compact(64), identity)
+        self.assertEqual(Reader(body[329:]).compact(64), identity)
+        native_metadata = bytes.fromhex('000000010000000000a652210000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000')
+        self.assertEqual(body[-69:-4], native_metadata)
+        with self.assertRaises(ValueError):
+            tutorial_scene(1)
+
     def test_account_binding_and_starter_objects(self):
         # Native template identities occur before the player metadata and in it.
         identity = (128 << 32) | 1

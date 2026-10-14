@@ -1,4 +1,4 @@
-"""Minimum 13.5.1 apartment scene, derived from the native encoder.
+"""Minimum 13.5.1 apartment and tutorial scenes, derived from native encoders.
 
 23491/v0: SceneConfig 1003, Frame 1200, OpenWorld handler 1240,
 Player 2009 and linked character. The fixed starter template preserves
@@ -57,3 +57,45 @@ def apartment_scene(account_id, portal=True):
         raise ValueError('Apartment requires a nonzero local guest identity')
     identity = Writer().compact(account_id, 64).bytes()
     return _PREFIX + identity + _MIDDLE + identity + (_PORTAL_SUFFIX if portal else _SUFFIX)
+
+
+_TUTORIAL_PREFIX = bytes.fromhex(
+    "e9a1c8b20aa1c8b20a9813007f907f01f80101a0a2eabe0180aea60a8080e403"
+    "8080c4043480aea60a80aea60a0000000000"
+)
+
+_TUTORIAL_MIDDLE = bytes.fromhex(
+    "020000028080e4038080c4047f7f020000000f80801ca0b802a0b8027f0000c1"
+    "020300c07f7f060101027f01017f008080801419a4010a0a6205abc9e30abfff"
+    "ffff0f01880500007f237f7facc9e30a96bfffffff0f0101053800007f7f7f62"
+    "aec9e30abfffffff0f0189020500007f237f7fafc9e30a96bfffffff0f010305"
+    "3800007f7f7f62adc9e30abfffffff0f0189040500007f237f7f00a0f6cbbf01"
+    "000200000200000000000f918ada03918aba04aff5ed03aff5cd04127f038080"
+    "e4038080c40400019387e202000000e000000000000101a0f6cbbf0100000200"
+    "01a0efb1060000000000000000000000a0a2eabe0100208080501fa0b8028080"
+    "e4038080c4048080e4038080c404000049"
+)
+
+_TUTORIAL_SUFFIX = bytes.fromhex(
+    "0101020000000c4c6f63616c2048756e7465720000000004acc9e30aaec9e30a"
+    "afc9e30aadc9e30a00040000000000000000000000000000a0efb106a0efb106"
+    "000044000000000000000000000001027f000000000000000000000000010000"
+    "0000000000000000000000000000000000000000000000000000000000000000"
+    "000000000000000000000000000000000000000000000000"
+)
+
+
+def tutorial_scene(account_id):
+    """Native-derived TutorialAreaBasic 10900001 starter frame, without mobs."""
+    if not isinstance(account_id, int) or not 128 <= account_id >> 32 <= 255 or not account_id & 0xffffffff:
+        raise ValueError('Tutorial requires a nonzero local guest identity')
+    identity = Writer().compact(account_id, 64).bytes()
+    body = _TUTORIAL_PREFIX + identity + _TUTORIAL_MIDDLE + identity + _TUTORIAL_SUFFIX
+    # Battle-start 0x761c60/0x762244 configuration +18 must contain a
+    # selection. The battle UI dereferences it at 0x486148..150.
+    # Native 0x766160/0x76622c -> 0x77a46c/0x77a54c golden body: 65 bytes.
+    selection = Writer().raw(bytes(3)).bit_boolean(True)
+    selection.raw((10900001).to_bytes(8, 'big'))
+    selection.bit_boolean(False).bit_boolean(False).bit_boolean(False)
+    selection.compact(0).compact(0).raw(bytes(50))
+    return body[:-58] + selection.bytes() + body[-4:]

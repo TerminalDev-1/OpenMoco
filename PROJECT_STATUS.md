@@ -1,4 +1,46 @@
-# Project status — 2026-10-13
+# Project status — 2026-10-14
+
+
+## Latest verified checkpoint: Downtown Chaos portal travel
+On October 14 the user explicitly confirmed: “I'm in downtown chaos. The portal
+is verified.” Normal-client screenshots and authenticated captures independently
+verify travel from the apartment to TutorialAreaBasic (scene 10900001), displayed
+as Downtown Chaos. The destination shows the local player, bow and recruits;
+movement inputs continue afterward. Evidence remains private in
+`.local/portal-corrected-destination.png`, `.local/portal-reconnected.png` and
+captures `20261013T222744Z-4ba2ca50` / `20261014T082434Z-dc190141`.
+
+The server decodes authenticated 13222/v0 requests and sends encrypted 23491/v0
+with the 498-byte account-bound tutorial frame, deduplicating repeated requests.
+Its complete payload matches native encoding. The previous destination crash
+required a populated battle-start selection: 65 bytes replace the empty 54-byte
+metadata. In the 487-byte template, use `body[:-58] + metadata + body[-4:]`.
+The portal apartment remains 521 bytes. Full authoritative combat/collision,
+return travel, and tutorial/quest persistence remain future work; native movement
+and recruits do not prove those server systems exist.
+
+Verification: all 47 unit/integration tests passed after the corrected boundary;
+encrypted scene requests, account binding, response nonces and repeated-request
+deduplication are covered. The five APK splits passed signing/package/alignment
+and preserved-entry checks. Current installed normal APK has protocol,
+connection and apartment research probes disabled. Age category persistence,
+native automatic-idle suppression and foreground screen-awake fixes are included.
+
+The manual server remains running: hidden launcher PID 25732, listener PID 11844,
+ports 9339/9340, `--login --apartment`. Logs are
+`captures/user-test-server-portal-corrected.log` and `.stderr.log`; runtime record
+is `.local/user-test-server.json`. Do not stop it while the user tests. Wireless
+ADB forwarding was restored after the physical debugging connection disappeared;
+explicit `--serial` selects an active alias when multiple aliases appear. Real
+network/ADB loss remains possible; the idle fix does not prevent it.
+
+The user requested publishing the updated APK, README and all source checkpoints.
+Release preparation targets v0.4.0-portal, with the updated normal base APK and
+verified unchanged dependency downloads from v0.3.0-apartment.
+
+## Historical investigation notes (superseded by the checkpoint above)
+The process IDs, research flags, crashes and pending milestones below describe
+earlier sessions, not the current manual-testing server or verified destination.
 
 ## Portal rendering and idle-close checkpoint
 Foreground screen-idle fix: DiagnosticFactory registers test-app lifecycle

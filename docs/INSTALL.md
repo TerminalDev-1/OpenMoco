@@ -5,12 +5,19 @@ the official app. It targets ARM64 devices, Android 10 or later, with the
 English and xxhdpi resource splits used in the verified tablet configuration.
 The local encrypted guest login and keepalives work. The Python server's
 `--apartment` mode sends a local player and starter bow at the apartment spawn.
-The portal is not rendered and portal travel/progression persistence remain
+The portal renders and travel into Downtown Chaos is verified. Age-onboarding
+categories persist; full quest progression and authoritative gameplay remain
 unfinished. The build is debuggable; research probes are disabled.
 
 ## Download and assemble
 
-Download all release assets into one folder. You need the base APK, the three
+Download the updated base APK, manifest, assembler and checksums from
+[v0.4.0-portal](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.4.0-portal).
+For a fresh installation, also download the three configuration APKs and four
+asset-pack parts from
+[v0.3.0-apartment](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.3.0-apartment).
+These seven files are unchanged and checked by the new manifest. Put all files
+in one folder; use the new manifest and assembler. You need the base APK, the three
 small configuration APKs, all four numbered asset-pack parts,
 `release-manifest.json`, and `assemble_release.py`. `SHA256SUMS.txt` provides
 download checksums. The asset pack is split because each GitHub release asset
@@ -59,8 +66,12 @@ while testing. The runner provisions only your server's public key into the
 test client. Keep the private key and `.local/accounts.sqlite3` on your PC; retain
 both across runs to preserve local test identities. The server verifies local
 credentials and sends the compatible encrypted login reply and starter apartment.
-Tutorial and progression persistence are unfinished; onboarding can repeat on
-reconnect. Keep the server process running during manual testing.
+Authenticated age choices persist as a category. Other tutorial and quest
+progression persistence remains unfinished. Keep the server process running during manual testing. The local-network client
+suppresses automatic idle closure and keeps its foreground screen awake. Keep
+wireless debugging connected: losing ADB forwarding can still cause a connection
+error. With duplicate wireless device aliases, select the active one using
+`--serial` as with multiple devices.
 
 These login instructions require the v0.2.0-local-login client or a newer build.
 The earlier v0.1.0-hello client supports the hello milestone only.

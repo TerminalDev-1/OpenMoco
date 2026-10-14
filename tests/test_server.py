@@ -11,7 +11,7 @@ from transport import LoginTransport
 from protocol import Frame, FrameDecoder
 from server import capture
 from home import own_home
-from scene import apartment_scene
+from scene import apartment_scene, tutorial_scene
 
 
 class ServerTests(unittest.IsolatedAsyncioTestCase):
@@ -96,12 +96,32 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(transport_keepalive.message_type, 20108)
                         receive_nonce = LoginTransport.advance(receive_nonce)
                         self.assertEqual(cipher.decrypt(transport_keepalive.payload, receive_nonce), b'')
+                    send_nonce = LoginTransport.advance(send_nonce)
+                    selection = bytes.fromhex('000000000000a65221000000000000000000000000000000000000000000')
+                    writer.write(Frame(13222, 0, cipher.encrypt(selection, send_nonce).ciphertext).encode())
+                    await writer.drain()
+                    destination = await read_frame()
+                    self.assertEqual((destination.message_type, destination.version), (23491, 0))
+                    receive_nonce = LoginTransport.advance(receive_nonce)
+                    self.assertEqual(cipher.decrypt(destination.payload, receive_nonce), tutorial_scene(new_id))
+                    # Repeated selections must not insert a second scene into
+                    # the encrypted stream or disrupt the following keepalive.
+                    send_nonce = LoginTransport.advance(send_nonce)
+                    writer.write(Frame(13222, 0, cipher.encrypt(selection, send_nonce).ciphertext).encode())
+                    send_nonce = LoginTransport.advance(send_nonce)
+                    writer.write(Frame(10108, 0, cipher.encrypt(b'', send_nonce).ciphertext).encode())
+                    await writer.drain()
+                    keepalive = await read_frame()
+                    self.assertEqual(keepalive.message_type, 20108)
+                    receive_nonce = LoginTransport.advance(receive_nonce)
+                    self.assertEqual(cipher.decrypt(keepalive.payload, receive_nonce), b'')
                     writer.close()
                     await writer.wait_closed()
                     await asyncio.wait_for(finished,2)
                     metadata = json.loads(next(output.glob('*.json')).read_text())
                     self.assertNotIn(new_token,json.dumps(metadata))
-                    self.assertEqual(metadata['frames'][-1]['decrypted_bytes'],9)
+                    self.assertEqual(metadata['frames'][-1]['decrypted_bytes'], 0)
+                    self.assertEqual(metadata['state'], 'tutorial_scene_sent')
                     return new_id,new_token,metadata['local_account']['created']
                 finally:
                     listener.close()

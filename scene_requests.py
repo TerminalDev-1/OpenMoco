@@ -14,7 +14,7 @@ class SceneRequest:
 
 
 def decode_scene_request(payload):
-    """0x778560 -> selection 0x77a46c; only empty optional objects verified.
+    """0x778560 -> selection decoder 0x77a54c (encoder 0x77a46c); only empty optional objects verified.
 
     Data references use raw uint64 (0x83c16c), not reflection compact64.
     Selection has three adjacent object-presence bits and two compact ints.

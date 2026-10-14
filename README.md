@@ -5,16 +5,20 @@ client. The isolated test client connects, completes an encrypted local guest
 login, and exchanges encrypted keepalives and frame acknowledgements. A minimum
 home profile initializes onboarding. The minimum apartment scene includes a
 local player, character, head cosmetic, and starter bow at the map's spawn.
-Portal rendering/travel, tutorial persistence, and authoritative movement
-remain unfinished.
+The apartment portal renders and takes the player into Downtown Chaos.
+The user verified travel on the tablet. Age-onboarding categories persist across
+reconnects; full tutorial/quest persistence and authoritative gameplay remain
+unfinished.
 
 The Git source tree contains research code and build tools. It does not contain
 the original APKs, game assets, extracted libraries, private signing keys,
 or device captures. Bring your own client input to reproduce the build.
 
 The experimental local-test client and all required splits are available as
-[release downloads](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.3.0-apartment).
-See [installation instructions](docs/INSTALL.md). The large asset APK is split
+[release downloads](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.4.0-portal).
+See [installation instructions](docs/INSTALL.md). The portal release contains
+the updated base APK; fresh installations also need the unchanged configuration
+splits and asset parts linked from the previous apartment release. The large asset APK is split
 into numbered download parts and reassembled with checksum verification.
 Other projects' distribution approaches are recorded in
 [related projects](docs/RELATED_PROJECTS.md).
@@ -42,8 +46,9 @@ python tools/run_local_test.py --login --apartment --launch
 ```
 
 The server supplies the account-bound scene. No private scene fixture or native
-apartment probe is required. This is a starter checkpoint; tutorial/progression
-state is not persisted yet, so onboarding can repeat after reconnecting.
+apartment probe is required. The server responds to portal scene requests with a native-derived tutorial
+frame. Authenticated age choices persist as a category; other tutorial/quest
+state remains unfinished. Keep the local account database and server key.
 
 The private key stays in ignored `.local/server-key.json`. Only the public key
 is provisioned into the test client through ADB. The bootstrap verifies the supplied
@@ -153,8 +158,7 @@ To test the implemented initial hello exchange:
 python tools/run_local_test.py --handshake --launch
 ```
 The tablet has accepted the 20100 response and sent an encrypted 10101 login
-envelope. This verifies the first hello exchange; login authentication and a
-login reply are still pending. Incoming `.bin` and outgoing `.server.bin`
+envelope. This verifies the first hello exchange; the subsequent encrypted guest login is also implemented in `--login` mode. Incoming `.bin` and outgoing `.server.bin`
 captures and session metadata are saved under `captures/game/`.
 
 Run the protocol and TCP integration checks with:
@@ -175,7 +179,7 @@ without a separate Frida server on the tablet.
 
 `--login` verifies the tablet's encrypted request, creates or validates a
 separate guest in `.local/accounts.sqlite3`, and sends its encrypted login reply.
-The client accepts it and sends encrypted keepalives. Home data is pending.
+The client accepts it and sends encrypted keepalives. The starter home profile, apartment and portal destination are implemented.
 Reconnect tokens are hashed in storage.
 
 For transport research, add `--transport-probe` to `tools/run_local_test.py
@@ -183,7 +187,9 @@ For transport research, add `--transport-probe` to `tools/run_local_test.py
 native Box verifier accepted it. This verifies reply encryption, not login.
 Research probes must be disabled in published client builds.
 
-The server keeps quiet connections open. During onboarding it answers game-clock
+The server keeps quiet connections open. The local-network client suppresses its automatic idle-close policy and keeps
+the foreground activity screen awake. Physical network or ADB loss can still
+interrupt routing. During onboarding the server answers game-clock
 18851 with 28851, including the latest received frame-ready 18853 confirmation.
 This prevents the client's frame-gap disconnect; it does not supply gameplay.
 For socket-close investigation, `--connection-diagnostics` enables passive
@@ -216,8 +222,8 @@ Research-only fixture delivery is available through `--login --home-probe PATH
 native diagnostics stay in ignored local directories. Normal login behavior
 retains its verified baseline. Do not distribute protocol-probe APK builds.
 
-The apartment renders and the client reports tutorial advancement, but the
-scene still lacks its player/character. The implementation path for animations,
+The apartment renders its player, bow and portal, and travel to Downtown Chaos
+is verified. The implementation path for animations,
 movement, and portal travel is documented in [apartment research](docs/APARTMENT_PROTOCOL.md).
 To inspect only the observed commands in a private decrypted session:
 

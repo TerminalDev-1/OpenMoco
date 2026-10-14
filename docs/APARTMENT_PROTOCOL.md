@@ -1,5 +1,30 @@
 # Apartment implementation research — 13.5.1
 
+## Verified portal checkpoint — October 14, 2026
+The normal client now renders the apartment player, bow and HomeItem 2010 portal.
+The user confirmed entering Downtown Chaos, with screenshots showing the player
+and recruits and captures showing subsequent movement. The older ordered plan
+below records the research sequence; its player/portal milestones are complete.
+13222/v0 selection 10900001 triggers an encrypted 23491/v0 tutorial frame of 498
+bytes. Both player identities are bound to the authenticated local account.
+Repeated requests do not duplicate scene-start responses.
+
+The native tutorial map is `server_scene/tutorial_oa00_basic_v3.map_bin`, with
+spawn tile (60,72), centered coordinates (3964928,4751360). A selected battle-start
+configuration replaces the empty default: 65 bytes rather than 54. The original
+487-byte template keeps its last four bytes; the metadata begins 58 bytes from
+the end. Python's full result matches the native encoder byte for byte. The
+selection decoder is 0x77a54c; 0x77a46c is its encoder. The empty selection caused
+the earlier 0x486150 crash; the corrected normal path enters the destination.
+
+The local-network client suppresses signature-checked automatic idle closure
+at 0x7fe3d8 and keeps its foreground screen awake. Neither prevents physical
+network/ADB loss. The Python server acknowledges received frames and decodes
+movement; authoritative simulation, full quest persistence and return travel
+remain unfinished. Native animation and NPC behavior are not proof of those
+server implementations. Current evidence and tests are in PROJECT_STATUS.md.
+
+
 The test client renders the apartment, plays the intro movie and dialogue, and
 reports tutorial advancement. The current frame has no player or character;
 the screenshot shows Luna's portal prompt over an empty apartment. Movement,
