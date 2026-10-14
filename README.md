@@ -55,7 +55,7 @@ is provisioned into the test client through ADB. The bootstrap verifies the supp
 13.5.1 key layout and configures the native peer key before connection. Python
 has verified and decrypted login on the tablet using this configuration.
 The tablet's native login-success handler completed with a separate local ID.
-Saved local tokens are accepted on reconnect. Home state is still under implementation.
+Saved local tokens are accepted on reconnect. The starter home profile and portal destination are implemented.
 The published v0.2.0-local-login APK includes this feature with probes disabled.
 The older v0.1.0-hello APK supports only the hello milestone.
 The optional builder `--server-key` flag can embed a public key as a fallback;
@@ -213,8 +213,8 @@ own-home profile and scene frame. Game-clock replies and frame acknowledgements
 are implemented; subsequent onboarding commands and gameplay remain incomplete.
 The current manual-testing server runs in the
 background; runtime details are in PROJECT_STATUS.md. Keep it running while the
-user tests. home.py encodes the validated minimum profile; scene serialization
-remains ongoing work. The known zero-ID starter fixture is encoded with the
+user tests. home.py encodes the validated minimum profile; scene.py supplies the apartment
+and tutorial destination. Broader scene serialization remains ongoing work. The known zero-ID starter fixture is encoded with the
 authenticated local guest's ID before delivery.
 
 Research-only fixture delivery is available through `--login --home-probe PATH

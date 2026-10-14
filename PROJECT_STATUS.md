@@ -35,8 +35,18 @@ explicit `--serial` selects an active alias when multiple aliases appear. Real
 network/ADB loss remains possible; the idle fix does not prevent it.
 
 The user requested publishing the updated APK, README and all source checkpoints.
-Release preparation targets v0.4.0-portal, with the updated normal base APK and
-verified unchanged dependency downloads from v0.3.0-apartment.
+Published public prerelease:
+https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.4.0-portal
+Source checkpoint a43b54e is pushed to main. All six new release assets were
+verified against GitHub's uploaded state, sizes and SHA256 digests before
+publication; the release is confirmed public. The updated normal base APK is
+included with manifest, assembler, installation instructions, dependency links
+and checksums. Seven unchanged configuration/asset-part dependencies remain
+public on v0.3.0-apartment and their remote sizes/digests match the new manifest.
+Fresh installation needs those dependencies; matching existing installations
+can update only the base. Neither archives, private keys nor device captures
+were added to Git. Ports 9339/9340 remain listening under PID 11844, with actual
+authenticated 18851/18853 traffic after publication.
 
 ## Historical investigation notes (superseded by the checkpoint above)
 The process IDs, research flags, crashes and pending milestones below describe
