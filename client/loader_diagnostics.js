@@ -98,7 +98,7 @@ rpc.exports = {
                 if (!/^[0-9a-f]{64}$/.test(token)) throw new Error('Invalid battle bridge token');
                 for (const [offset, signature] of [[0x5bf784,'ffc301d1fd7b01a9fc6f02a9fa6703a9'],
                     [0x738e58,'fd7bbca9f85f01a9f65702a9f44f03a9'],
-                    [0x74a0e4,'ff4302d1fd7b03a9fc6f04a9fa6705a9'],[0x6c2894,'00e04b39c0035fd6']]) {
+                    [0x74a0e4,'ff4302d1fd7b03a9fc6f04a9fa6705a9']]) {
                     const bytes = Array.from(new Uint8Array(owner.base.add(offset).readByteArray(signature.length / 2)))
                         .map(v => v.toString(16).padStart(2,'0')).join('');
                     if (bytes !== signature) throw new Error('Unsupported battle bridge signature');
@@ -172,14 +172,12 @@ rpc.exports = {
                         const player = players.readPointer().readPointer();
                         battle = {account:player.add(0x1e8).readPointer().readU64().toString(),epoch:null,
                             counts:counts(player),xp:0,initialXp:player.add(0x19c).readS32(),savedXp:-1};
-                        // The supplied tutorial disables loot. Enable its native XP math only
-                        // for this private-server battle, with a provisioned bridge token.
                         log('Private-server battle progress bridge active');
                     } catch (error) { battle = null; log('Battle bridge scene rejected: '+error); }
                 }});
-                Interceptor.attach(owner.base.add(0x6c2894),{onLeave(value) {
-                    if (battle !== null) value.replace(0);
-                }});
+                // Do not force the tutorial's loot-disabled setting (6c2894): enabled
+                // XP drops froze Mainloop after warm battle reentry. The server
+                // credits XP from reported kills instead.
                 Interceptor.attach(owner.base.add(0x738e58),{onEnter(args) { this.player = args[0]; },onLeave() {
                     try { if (belongs(this.player)) battle.counts = counts(this.player); }
                     catch (error) { log('Battle outcome rejected: '+error); }

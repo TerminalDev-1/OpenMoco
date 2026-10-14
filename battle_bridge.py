@@ -3,14 +3,22 @@
 Combat still runs in the private-server client. Reports are trusted local input,
 not proof of server-authoritative kills. A battle epoch and cumulative high-water
 marks make retries and replayed prediction events harmless.
+
+XP is credited per reported kill, not per collected drop. Enabling the client's
+XP drops in the tutorial area froze its game thread after battle reentry.
 """
 import asyncio
 import hmac
 import json
 import secrets
 
-MONSTERS = frozenset((10800020, 10800021, 10800026, 10800117, 10800120,
-                      10800138, 10800036, 10800268))
+# characters.csv LootProfile -> loot_profiles.csv XP (Weak 2000, WeakMedium
+# 4000, Strong 10000). Native 6a58c8 scales that value and divides by 10000;
+# loot XP / 1000 matches the observed ~1.6 collected XP per kill. Daily-budget
+# multipliers, level adjustment and randomized rounding are not reproduced.
+KILL_XP = {10800020: 2, 10800021: 2, 10800026: 2, 10800117: 2, 10800120: 2,
+           10800138: 4, 10800036: 10, 10800268: 10}
+MONSTERS = frozenset(KILL_XP)
 CIVILIANS = frozenset(range(10800309, 10800314))
 KILL_TARGET, RESCUE_TARGET = 50, 3
 
@@ -63,12 +71,13 @@ class BattleBridge:
                 raise ValueError('Unknown battle epoch')
             previous = json.loads(row[1])
             merged = dict(previous)
-            kills = rescues = 0
+            kills = rescues = kill_xp = 0
             for key, count in clean.items():
                 delta = max(0, count - previous.get(key, 0))
                 merged[key] = max(count, previous.get(key, 0))
                 if int(key) in MONSTERS:
                     kills += delta
+                    kill_xp += delta * KILL_XP[int(key)]
                 else:
                     rescues += delta
             saved_row = db.execute('SELECT profile FROM accounts WHERE id=?', (account_id & 0xffffffff,)).fetchone()
@@ -76,14 +85,15 @@ class BattleBridge:
                 raise ValueError('Unknown account')
             profile = json.loads(saved_row[0])
             progress = profile.setdefault('battle_progress', {})
-            progress['xp'] = progress.get('xp', 0) + max(0, xp - row[2])
+            # Client-collected XP stays in battle_reports for comparison only.
+            progress['xp'] = progress.get('xp', 0) + kill_xp
             progress['kills'] = progress.get('kills', 0) + kills
             progress['rescues'] = progress.get('rescues', 0) + rescues
             progress['tutorial_ready'] = progress['kills'] >= KILL_TARGET and progress['rescues'] >= RESCUE_TARGET
             db.execute('UPDATE accounts SET profile=? WHERE id=?', (json.dumps(profile), account_id & 0xffffffff))
             db.execute('UPDATE battle_reports SET counts=?,xp=? WHERE epoch=?', (json.dumps(merged), max(xp, row[2]), epoch))
-        if kills or rescues or xp > row[2]:
-            print(f'Battle progress: +{kills} kills, +{rescues} rescues, +{max(0, xp-row[2])} XP; tutorial_ready={progress["tutorial_ready"]}', flush=True)
+        if kills or rescues:
+            print(f'Battle progress: +{kills} kills, +{rescues} rescues, +{kill_xp} kill XP; tutorial_ready={progress["tutorial_ready"]}', flush=True)
         return dict(epoch=epoch, **progress)
 
     async def handle(self, reader, writer):

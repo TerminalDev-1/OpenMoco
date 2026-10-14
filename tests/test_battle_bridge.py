@@ -25,17 +25,18 @@ class BattleBridgeTests(unittest.TestCase):
         self.report({'10800021': 2, '10800309': 1}, 3)
         self.report({'10800021': 1}, 1)
         state = self.report({'10800021': 3}, 5)
-        self.assertEqual((state['kills'], state['rescues'], state['xp']), (3, 1, 5))
+        self.assertEqual((state['kills'], state['rescues'], state['xp']), (3, 1, 6))
         self.assertFalse(state['tutorial_ready'])
 
-    def test_collected_xp_is_independent_of_kills_and_survives_reopen(self):
+    def test_kill_xp_uses_loot_profiles_and_survives_reopen(self):
         state = self.report({'10800021': 50, '10800309': 3})
-        self.assertEqual(state['xp'], 0)  # Uncollected drops award nothing.
+        self.assertEqual(state['xp'], 100)  # Weak loot profile: 2 per kill.
         self.assertTrue(state['tutorial_ready'])
-        self.report({'10800021': 50, '10800309': 3}, 7)
+        state = self.report({'10800021': 50, '10800138': 1, '10800268': 2, '10800309': 3}, 7)
+        self.assertEqual(state['xp'], 124)  # WeakMedium 4, Strong 10; collected XP ignored.
         reopened = AccountStore(self.store.path)
         profile = reopened.authenticate(self.account.account_id, self.account.token).profile
-        self.assertEqual(profile['battle_progress']['xp'], 7)
+        self.assertEqual(profile['battle_progress']['xp'], 124)
         self.assertEqual(profile['tutorials'], {})  # Readiness does not fake completion.
 
     def test_epoch_account_and_character_isolation(self):
@@ -71,7 +72,7 @@ class BattleBridgeTests(unittest.TestCase):
                     return result
                 self.assertIn(b'403', await send('wrong'))
                 self.assertIn(b'200', await send('a'*64))
-                self.assertEqual(self.bridge.state(self.account.account_id)['xp'], 2)
+                self.assertEqual(self.bridge.state(self.account.account_id)['xp'], 2)  # One weak kill.
             finally:
                 listener.close()
                 await listener.wait_closed()

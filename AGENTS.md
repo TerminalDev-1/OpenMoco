@@ -3,13 +3,30 @@
 ## Terminology
 OpenMoco is a private server. Always call the project a private server and the Android application a test client or private-server client. Never use "clone" to describe this project or its client. This user preference applies to all future explanations, code comments, documentation, and release notes.
 
+## Battle stability (resolved 2026-10-14)
+Two Codex client hooks broke battle play; both are removed. Do not restore them:
+- Encounter cap (5bf784 enemy-vector compaction + 752514 spawn-batch writes)
+  crashed on joystick input; it shrank a native actor vector without
+  unregistering the omitted actors.
+- Forcing the tutorial loot-disabled setting 6c2894 to false (globally or only
+  at the 705d98 XP call) froze Mainloop at 100% CPU after warm battle reentry.
+  It froze in 3 of 3 runs; v0.6.0 and the bridge without it passed 10 cycles.
+Verify stability with repeated leave-battle/portal-reentry cycles plus combat,
+not brief movement. Frida Process.enumerateThreads() returns no threads in this
+client, and a tgkill signal sampler crashed it: do not reuse those probes.
+Never leave a diagnostic or failed probe build installed for manual play, and
+never publish one. A caught native abort does not mean the client can continue.
+
 ## Current progression work
-The user approved a client-reporting bridge first. Credit XP at collectible
-application, not monster death. The nearby battle badge and top XP bar are
-separate displays; the user observed level 243/247 without top-bar progress.
-New native-derived snapshot initializes three extra monsters and level 1.
-Python journals outcomes/collected XP by authenticated battle epoch, with
-cumulative high-water marks. Combat remains simulated by the client.
+The user approved a client-reporting bridge. The user then chose kill-based XP
+(2026-10-14) because collected XP needed the freezing 6c2894 override. Python
+credits XP per newly reported kill from the native loot profiles: Weak 2,
+WeakMedium 4, Strong 10 (loot XP / 1000). This is an approximation: daily-budget
+multipliers, level adjustment and randomized rounding are not reproduced, and
+counts are trusted client reports. Client-collected XP is recorded per battle
+epoch for comparison only. The in-game XP bar is not updated by server XP yet.
+Python journals outcomes by authenticated battle epoch with cumulative
+high-water marks. Combat remains simulated by the client.
 Do not mark tutorial complete from readiness alone: native quest state, Luna
 and XP UI binding still need implementation. Read the latest status section.
 

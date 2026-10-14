@@ -1,5 +1,83 @@
 # Project status — 2026-10-14
 
+## Battle crash and freeze fixed; XP now credited per kill
+Both battle stability problems from the Codex handoff are diagnosed and fixed in
+client/loader_diagnostics.js. The fixed normal client (all diagnostic flags
+false) is installed on the tablet; no APK release has been published yet.
+
+Joystick crash: Codex's uncommitted encounter-cap hook compacted the native
+enemy vector at SceneStart 5bf784 from 18 to 8 entries without unregistering
+the other actors, and rewrote Zone +e4 spawn batches at 752514. Several native
+SIGSEGV/SIGBUS crashes followed login. The hook is removed, not repaired.
+
+Freeze: the battle bridge forced the tutorial loot-disabled flag 6c2894
+(ldrb [x0,#0x2f8]) to false so native XP drops would spawn. Disassembly confirms
+705d94 moves the SCPlayer into x22 before the 705d98 call, so Codex's narrowed
+override targeted the right call, but it still froze. After warm battle reentry,
+the main Mainloop thread spun at 100% CPU (state R, no futex) while the Frida JS
+thread stayed alive; server frame traffic stopped and the screen stayed static.
+The process did not crash. Bisection on the tablet, each run made of
+leave-battle -> apartment -> portal reentry cycles plus about 8 combat rounds:
+- bridge with the 6c2894 override: froze in 3 of 3 runs, within 1-5 cycles;
+- published v0.6.0 (no bridge): 10 cycles, no freeze;
+- bridge without the override: 10 cycles, no freeze.
+The exact native loop address is unknown. Frida Process.enumerateThreads()
+returns zero threads in this client, and a tgkill/CModule signal sampler
+crashed the already frozen process. simpleperf needs security.perf_harden=0,
+which was not changed.
+
+XP: the user chose kill-based XP as a workaround. battle_bridge.py credits each
+newly reported kill using characters.csv LootProfile and loot_profiles.csv XP:
+Weak 2000, WeakMedium 4000, Strong 10000, divided by 1000 (2/4/10). Native
+6a58c8 multiplies base XP by runtime factors, divides by 10000 and rounds
+randomly; loot XP / 1000 matches the ~1.6 collected XP per kill observed through
+the bridge. Daily-budget multipliers (MONSTER_XP_*), level adjustment and random
+rounding are not reproduced. Kill counts are trusted client reports. Collected
+XP is still recorded in battle_reports for comparison but no longer awarded.
+Existing saved XP (collected under the old bridge) was kept. The in-game XP bar
+does not show server XP yet. Verified: 57 tests pass, and the server log shows
+"+1 kills, +0 rescues, +2 kill XP" from real tablet play. The final normal
+build then passed 10 reentry cycles with combat (22:19-22:33 local): no freeze
+or crash, and 81 kill-XP reports, including mixed types such as
+"+4 kills, +1 rescues, +16 kill XP".
+
+Manual server restarted hidden to load the change: see .local/user-test-server.json
+(mode local-kill-xp-bridge, log captures/user-test-server-kill-xp.log).
+
+## Priority: restore normal client after diagnostic battle freeze
+The user reported battle freezing after movement and asked whether the installed
+APK was diagnostic. It was: a temporary --apartment-probe build used for native
+quest/profile inspection. The later profile-layout probe caught a native abort;
+do not assume the process remains safe after that exception. Broad decoder
+hooks also prevented login and were removed. These builds were not published.
+The first Python quest-bearing own-home trial crashed before session traffic;
+its integration was removed. Saved XP, account and tutorial records were kept.
+
+The verified normal bridge base (build/xp-normal-base.apk) was reinstalled with
+protocol_diagnostics, connection_diagnostics and apartment_probe all false.
+Capture 20261014T192943Z-66446738 completes saved-account login and encrypted
+frame/input traffic. Joystick movement, actor animation and XP collection work
+again in .local/freeze-normal-before/after.png. Return-home restored the portal
+(.local/freeze-map.png), followed by warm portal reentry and animated combat
+(.local/freeze-normal-reentry-moved.png and moved2.png). Further native quest
+experiments must not leave a failed diagnostic client installed for the user.
+No new APK release has been published during this work.
+
+Native isolated inspection confirmed XpDropSmall data ID 300021, hence the
+XpPoint instance 20 is 300020. Intro_3_1/2 runtime quest objects have fields
+[0,1,0,50] / [0,1,0,3], Civilian event filter for the latter, and reference
+15500000/15500001. Their native encoder samples are recorded privately in
+analysis/progress-layout.json; full own-home integration remains unverified.
+A standalone native profile encoder probe aborted after decoding: its input
+was allocated through Frida Memory.alloc, while stream reset 8d7b2c frees the
+previous buffer through native e77200. Use native allocation for owned buffers
+before attempting that isolated round trip again; verify this hypothesis.
+
+Current hidden manual launcher/listener: see .local/user-test-server.json;
+listener 17512, --login --apartment, logs
+captures/user-test-server-quest-layout.log and .stderr.log. Keep it running.
+
+
 ## Active work: collected XP and native tutorial progression
 The user approved a private-client outcome bridge first; combat remains client
 simulated. Checkpoint 29f84e4 adds a native-derived 4946-byte snapshot with
