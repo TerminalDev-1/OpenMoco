@@ -189,3 +189,27 @@ initial snapshot and frame acknowledgements; authoritative combat, repeated
 spawns, death rewards and inventory changes are still to implement. A regular
 dragonling experiment loaded but did not verify a better fight, so it is not
 used in the normal server snapshot. Tutorial completion is not fabricated.
+
+## Populated street checkpoint
+
+`populated_tutorial_scene` replaces the single-enemy body on normal portal
+entry and saved-scene reconnect. The final native-derived frame is 3104 bytes:
+twelve enemies (one 10800020, eleven 10800021) and six civilians (10800092).
+`0x63be18` initializes gear, health/base health, initial spawn IDs and frame
+registration; its native caller selects faction 1 for character types >16,
+otherwise 0. Enemies start at 624/1890 health, civilians at 5000.
+
+The first groups were behind the starting truck/buildings. Moving down the
+screen decreases world Y. Corrected groups follow the open street at X
+57.5..63.5 and Y 57.5..70.5, with civilians interspersed at X 58.5/62.5.
+Native placement `0x6dfea0`, recalculation and base-health copy normalize their
+state before encoding. Dynamic account references are at 50/2934 for the
+synthetic test identity. The full native golden SHA-256 is
+`a1d45249710edf1c43aaa6b9f6926016d6d13a98b6b048dd59a848558d5007a2`.
+
+Hands-off native observation shows civilian health falling from 5000 through
+4040/3080/2120/200, verifying monster attacks. The normal client renders Spirit
+civilians and dialogue from Python's final snapshot. Client simulation drives
+combat and recruit behavior; Python does not yet maintain authoritative kills,
+rescues or rewards. These are initial encounters refreshed on entry/reconnect,
+with continuous spawning still to implement.

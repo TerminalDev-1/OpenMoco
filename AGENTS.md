@@ -141,8 +141,11 @@ Current continuation: the user requested abundant initialized monsters and
 the civilians they attack after verifying all prior changes were committed.
 Python's populated tutorial scene now has twelve enemies and six RunningNpc
 civilians, with native gear/base health/factions and dynamic account binding.
-51 tests and actual Python-scene decoding pass. Placement and civilian attack
-behavior remain under verification; read the latest PROJECT_STATUS.md. Keep
+51 tests and actual Python-scene decoding pass. Street placement is corrected;
+hands-off native observation verifies civilian health decreasing under monster
+attacks, and normal-client screenshots show Spirit civilians. This is an initial
+population refreshed on entry/reconnect; continuous respawns, saved kills/rescues
+and rewards remain unfinished. Read the latest PROJECT_STATUS.md. Keep
 the old single-monster fixture as a regression baseline. Do not describe native
 client simulation as Python-authoritative combat or persistent kill rewards.
 The return-home APK checkpoint is published at
@@ -163,8 +166,10 @@ never mark tutorial completion just to expose controls. The user has now verifie
 that the first monster renders and can take damage, but flees quickly. The
 650-byte initial snapshot includes native default gear and base health, with
 two dynamically bound account references. Full server-authoritative combat,
-enemy waves and rewards remain unfinished. A regular dragonling research probe
-loaded but did not verify improved behavior; keep it out of the normal checkpoint.
+enemy waves and rewards remain unfinished. The first regular-dragonling probe
+did not verify improved behavior. Subsequent populated-street work now includes
+eleven regular dragonlings and verifies monster damage against civilians; use
+the latest populated scene rather than treating that first probe as the final state.
 Use tools/recover_local_progress.py only with matching private local login/session
 captures and an existing validated account; keep its SQLite backup private.
 Do not mark an unfinished tutorial complete just to hide a UI problem.

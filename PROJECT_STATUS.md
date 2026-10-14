@@ -6,7 +6,7 @@ main matched 047d427 with a clean working tree before this work began. Private
 captures/accounts/keys, generated research and APK build outputs remain ignored;
 the verified APK is distributed through releases rather than Git history.
 
-Python now sends a 3308-byte native-derived populated tutorial frame on both
+Python now sends a 3104-byte native-derived populated tutorial frame on both
 portal entry and saved-scene reconnect. It contains twelve enemies (one
 10800020 tutorial dragonling and eleven 10800021 regular small dragonlings)
 and six RunningNpc civilians (10800092), in addition to the local player.
@@ -15,8 +15,8 @@ faction and registration. The native caller 0x63c8ac selects faction 1 for
 CharacterType >16 and faction 0 otherwise; do not guess these affiliations.
 Regular enemies start with health/base 1890 and civilians with 5000. Live
 client difficulty scales nearby enemy health. Two account references stay
-dynamic at offsets 50/3138; the synthetic golden SHA-256 is
-20608d7ec0dde0394edaf387a5b0deb03e178d731f94021106a29d8b0b47f47c.
+dynamic at offsets 50/2934; the synthetic golden SHA-256 is
+a1d45249710edf1c43aaa6b9f6926016d6d13a98b6b048dd59a848558d5007a2.
 The old single-monster fixture remains available for regression/research.
 
 Native encoding and Python account rebinding pass all 51 tests. The normal
@@ -24,16 +24,31 @@ client accepted this Python scene in capture 20261014T141636Z-1213cc51 and
 continued authenticated traffic. Read-only HUD observation after another
 Python reconnect confirms twelve enemy and six civilian entities, movement,
 enemy health changes and decreasing enemy counts during client simulation.
-Civilian health remained 5000 in the observed window; monster attacks against
-civilians are not yet verified. Actor placement/visibility is being checked;
-streets become sparse as native recruits fight and enemies move away. Do not
-claim sustained waves or Python-authoritative combat/rewards from this fixture.
+That first 3308-byte placement was checkpointed as 231f016. Several actors
+were behind the camp truck/buildings. Joystick observation established that
+moving down the screen decreases world Y; the first placement used the wrong
+side of the camp. The final groups are on the open street: enemies at X
+57.5..63.5, Y 57.5..70.5; civilians at X 58.5/62.5, Y 59.5..68.5. Native
+placement helper 0x6dfea0 resets the position/state before recalculation and
+base-health copy. The resulting frame is 3104 bytes.
 
-Current hidden server launcher/listener: 852/19704, ports 9339/9340,
-`--login --apartment`, logs captures/user-test-server-population.log and
-captures/user-test-server-population.stderr.log. Leave it running. A temporary
-read-only apartment observer is currently installed for placement verification;
-restore the normal probe-free client before finishing manual testing.
+The hands-off street test verified monsters damaging civilians: health fell
+from 5000 to 4040, 3080, 2120 and 200 before civilians disappeared. Native
+recruits also fight enemies. Private evidence: analysis/street-population-live.json.
+The normal probe-free client accepted the final Python frame in capture
+20261014T142722Z-88c51c2e, and screenshots .local/street-normal-0.png through
+-5.png show Spirit civilians, their dialogue and the recruits. All 51 tests
+passed after the final placement. This is an initial encounter population,
+refreshed on scene entry/reconnect. Encounters can clear quickly; continuous
+respawning, saved kills/rescues and Python-authoritative rewards remain future
+work. Do not claim those features from the client simulation.
+
+Current hidden server launcher/listener: 13468/21764, ports 9339/9340,
+`--login --apartment`, logs captures/user-test-server-street.log and
+captures/user-test-server-street.stderr.log. Leave it running. The installed
+normal client has all research probes disabled; keep the local account/progress
+database intact. This is server-only behavior and works with the existing
+v0.5.0-return-home client release.
 
 ## Published return-home APK checkpoint
 [v0.5.0-return-home](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.5.0-return-home)

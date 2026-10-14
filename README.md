@@ -10,8 +10,9 @@ The user verified travel on the tablet. Tap the minimap, then **Leave Battle**
 to return to the apartment. Age choices, reported tutorial steps and the last
 scene persist across reconnects, so completed intro steps do not replay.
 Downtown Chaos now starts with twelve initialized monsters and six civilians.
-The client accepts the populated scene and simulates movement and combat;
-placement and monster attacks against civilians are still being verified.
+The client renders Spirit civilians and simulates movement and combat;
+monster attacks reduce civilian health in the verified street encounter.
+The initial population refreshes on entry/reconnect and can clear quickly.
 Full quest progression, server-authoritative combat, sustained enemy waves
 and rewards remain unfinished.
 

@@ -12,9 +12,9 @@ class SceneTests(unittest.TestCase):
         body = populated_tutorial_scene(identity)
         # Full native-encoder golden: twelve enemies and six RunningNpc
         # civilians, with health/gear/faction and initial spawn IDs preserved.
-        self.assertEqual(len(body), 3308)
-        self.assertEqual(hashlib.sha256(body).hexdigest(), '20608d7ec0dde0394edaf387a5b0deb03e178d731f94021106a29d8b0b47f47c')
-        for offset in (50, 3138):
+        self.assertEqual(len(body), 3104)
+        self.assertEqual(hashlib.sha256(body).hexdigest(), 'a1d45249710edf1c43aaa6b9f6926016d6d13a98b6b048dd59a848558d5007a2')
+        for offset in (50, 2934):
             self.assertEqual(Reader(body[offset:]).compact(64), identity)
         other = (255 << 32) | 0xffffffff
         changed = populated_tutorial_scene(other)
