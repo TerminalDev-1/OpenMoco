@@ -26,6 +26,10 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
     local_account = None
     clock_started = time.monotonic()
     confirmed_frame = 0
+    awaiting_scene_loaded = False
+    first_scene_ready = False
+    pending_home_scene = False
+    last_clock_request = None
     current_scene = 10900000 if apartment else None
     print(f'Connected: {peer}; capture {session}', flush=True)
     try:
@@ -164,6 +168,25 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                     except ValueError as error:
                                         print(f'{session}: scene selection unsupported: {error}', flush=True)
                                     else:
+                                        if pending_home_scene and selection.flag and selection.scene_id == 10900005:
+                                            from scene import apartment_scene
+                                            response = Frame(23491, 0, crypto.encode_session(apartment_scene(account.account_id)))
+                                            encoded = response.encode()
+                                            with (output / (session + '.server.bin')).open('ab') as replies:
+                                                replies.write(encoded)
+                                            writer.write(encoded)
+                                            await writer.drain()
+                                            sent.append({'message_type': 23491, 'version': 0, 'payload_bytes': len(response.payload)})
+                                            pending_home_scene = False
+                                            current_scene = 10900000
+                                            accounts.record_scene(account.account_id, current_scene)
+                                            confirmed_frame = 0
+                                            awaiting_scene_loaded = True
+                                            # This snapshot starts at frame zero, not at
+                                            # the elapsed age of the TCP connection.
+                                            clock_started = time.monotonic()
+                                            state = 'apartment_scene_sent'
+                                            print(f'{session}: returned to apartment after client home-scene request', flush=True)
                                         if selection.scene_id == 10900001 and current_scene != 10900001:
                                             from scene import encounter_tutorial_scene
                                             response = Frame(23491, 0, crypto.encode_session(encounter_tutorial_scene(account.account_id)))
@@ -176,6 +199,9 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                             current_scene = 10900001
                                             accounts.record_scene(account.account_id, current_scene)
                                             confirmed_frame = 0
+                                            awaiting_scene_loaded = True
+                                            # A fresh battle has its own simulation clock.
+                                            clock_started = time.monotonic()
                                             state = 'tutorial_scene_sent'
                                             print(f'{session}: sent account-bound TutorialAreaBasic after portal selection', flush=True)
                                 if apartment and frame.message_type == 13223 and frame.version == 0:
@@ -183,13 +209,11 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                     # The actual map's Leave Battle button sent 00.
                                     if plaintext != b'\x00':
                                         print(f'{session}: unsupported leave-battle options', flush=True)
-                                    elif current_scene != 10900000:
+                                    elif current_scene != 10900000 and not pending_home_scene:
                                         from home import own_home
-                                        from scene import apartment_scene
                                         saved = accounts.authenticate(account.account_id, account.token).profile
                                         responses = [
                                             (24548, own_home(account.account_id, age_category=saved.get('age_category', 0), tutorials=saved.get('tutorials', {}))),
-                                            (23491, apartment_scene(account.account_id)),
                                         ]
                                         for message_type, body in responses:
                                             response = Frame(message_type, 0, crypto.encode_session(body))
@@ -199,17 +223,40 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                             writer.write(encoded)
                                             sent.append({'message_type': message_type, 'version': 0, 'payload_bytes': len(response.payload)})
                                         await writer.drain()
-                                        current_scene = 10900000
-                                        accounts.record_scene(account.account_id, current_scene)
-                                        confirmed_frame = 0
-                                        state = 'apartment_scene_sent'
-                                        print(f'{session}: returned to account-bound apartment after Leave Battle', flush=True)
+                                        # OwnHome prompts the native asynchronous exit.
+                                        # The client then sends a flagged SocialHub selection.
+                                        # Wait for that request before starting Home, rather
+                                        # than racing teardown with an unsolicited scene.
+                                        pending_home_scene = True
+                                        state = 'awaiting_home_scene_request'
+                                        print(f'{session}: sent home profile; awaiting client home-scene request', flush=True)
+                                scene_ready = False
+                                if frame.message_type == 13224 and frame.version == 0 and not plaintext:
+                                    # Actual client scene-loaded notification: old-scene
+                                    # clock/ready messages precede this boundary.
+                                    confirmed_frame = 0
+                                    awaiting_scene_loaded = False
+                                    first_scene_ready = True
                                 if frame.message_type == 18853:
                                     from protocol import decode_frame_ready
-                                    confirmed_frame = max(confirmed_frame, decode_frame_ready(plaintext))
+                                    ready_frame = decode_frame_ready(plaintext)
+                                    # Scene starts use frame zero. Old-scene ready
+                                    # messages can still be in flight after travel;
+                                    # acknowledging them advances the new simulation
+                                    # by thousands of frames and can freeze its actors.
+                                    if first_scene_ready and not awaiting_scene_loaded:
+                                        first_scene_ready = False
+                                        # The client can hit its prediction limit here
+                                        # before another clock request; acknowledge this
+                                        # reset immediately using the latest clock echo.
+                                        scene_ready = True
+                                    if not awaiting_scene_loaded:
+                                        confirmed_frame = max(confirmed_frame, ready_frame)
                                 if frame.message_type == 18851:
+                                    last_clock_request = plaintext
+                                if frame.message_type == 18851 or (scene_ready and last_clock_request is not None):
                                     from protocol import game_clock_reply
-                                    response = game_clock_reply(plaintext, int((time.monotonic() - clock_started) * 1000), confirmed_frame)
+                                    response = game_clock_reply(last_clock_request, int((time.monotonic() - clock_started) * 1000), confirmed_frame)
                                     response = Frame(response.message_type, response.version, crypto.encode_session(response.payload))
                                     encoded = response.encode()
                                     with (output / (session + '.server.bin')).open('ab') as replies:

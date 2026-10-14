@@ -9,6 +9,10 @@ The apartment portal renders and takes the player into Downtown Chaos.
 The user verified travel on the tablet. Tap the minimap, then **Leave Battle**
 to return to the apartment. Age choices, reported tutorial steps and the last
 scene persist across reconnects, so completed intro steps do not replay.
+Warm travel waits for the client's home-scene request and resets simulation
+time and frame acknowledgements for the new scene, fixing frozen players and
+the missing portal after returning. This server update works with the existing
+v0.5.0 test client.
 Downtown Chaos starts with fifteen enemies across five monster types, six
 spirits and five human civilians. Native spawn zones replenish monsters and
 human civilians; a two-minute test kept enemies available as others died.

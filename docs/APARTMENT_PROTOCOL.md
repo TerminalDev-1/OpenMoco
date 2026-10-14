@@ -1,5 +1,24 @@
 # Apartment implementation research — 13.5.1
 
+## Warm transition repair — October 14, 2026
+13223/v0 `00` must first receive 24548 own-home. The normal client then sends
+13222/v0 with flag true, scene 10900005, auxiliary 0/0, references 0/6700000.
+Only then send the existing Home apartment snapshot; this restricted mapping
+does not implement the SocialHub/COOL scene or its unlock requirements.
+Sending both responses immediately froze warm transitions; a one-second delay
+was inconsistent, and omitting the home profile caused a native null crash.
+
+Empty 13224/v0 follows scene loading, before the new scene's 18851/18853 pair.
+Factory constructor 0x7637d0 and getter 0x763804 identify this empty type;
+native caller 0x60ea10 emits it. Treat it as the acknowledgement boundary:
+ignore old ready frames until this message, reset confirmed frame, and send a
+28851 acknowledgement for the first new 18853 using the most recent clock echo.
+Waiting for another clock request can leave the client at its prediction limit.
+Fresh snapshots also require a fresh server simulation clock; retaining the
+connection clock fast-forwarded later scenes thousands of frames and left
+actors frozen or absent. Preserve the echoed client clock while resetting the
+server elapsed clock for each new scene.
+
 ## Verified portal checkpoint — October 14, 2026
 Continuation: authenticated 574 updates persist home +0x118 tutorial/step pairs,
 encoded as raw 64-bit references by 0x7969a0. Reconnect restores these entries

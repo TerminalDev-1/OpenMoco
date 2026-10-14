@@ -84,6 +84,7 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                             command.boolean(False).boolean(False).boolean(False).compact(tutorial, 64).compact(step, 64)
                             send_nonce = LoginTransport.advance(send_nonce)
                             writer.write(Frame(16543, 0, cipher.encrypt(command.bytes(), send_nonce).ciphertext).encode())
+                    await asyncio.sleep(0.3)
                     for client_frame in (1234, 1200):
                         send_nonce = LoginTransport.advance(send_nonce)
                         frame_ready = client_frame.to_bytes(4, 'big') + b'\x00'
@@ -96,6 +97,7 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(clock_reply.message_type, 28851)
                         receive_nonce = LoginTransport.advance(receive_nonce)
                         clock_body = cipher.decrypt(clock_reply.payload, receive_nonce)
+                        old_scene_time = int.from_bytes(clock_body[8:16], 'big')
                         self.assertEqual(clock_body[:8], request_clock[:8])
                         self.assertEqual(int.from_bytes(clock_body[16:20], 'big'), 1234)
                         transport_keepalive = await read_frame()
@@ -125,14 +127,44 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                     send_nonce = LoginTransport.advance(send_nonce)
                     writer.write(Frame(13223, 0, cipher.encrypt(b'\x00', send_nonce).ciphertext).encode())
                     await writer.drain()
-                    returned_profile, returned_scene = await read_frame(), await read_frame()
+                    returned_profile = await read_frame()
                     self.assertEqual(returned_profile.message_type, 24548)
+                    with self.assertRaises(asyncio.TimeoutError):
+                        await asyncio.wait_for(reader.readexactly(1), 0.2)
+                    home_selection = bytes.fromhex('010000000000a6522500000000000000000000000000000000663be00000')
+                    send_nonce = LoginTransport.advance(send_nonce)
+                    writer.write(Frame(13222, 0, cipher.encrypt(home_selection, send_nonce).ciphertext).encode())
+                    await writer.drain()
+                    returned_scene = await read_frame()
                     receive_nonce = LoginTransport.advance(receive_nonce)
                     self.assertEqual(cipher.decrypt(returned_profile.payload, receive_nonce), own_home(new_id, age_category=2, tutorials={'15600000': 0, '15600001': 14200006}))
                     self.assertEqual(returned_scene.message_type, 23491)
                     receive_nonce = LoginTransport.advance(receive_nonce)
                     self.assertEqual(cipher.decrypt(returned_scene.payload, receive_nonce), apartment_scene(new_id))
                     self.assertEqual(store.authenticate(new_id, new_token).profile['scene_id'], 10900000)
+                    # Old battle frames can arrive after the return response.
+                    # Only acknowledge the new scene once its counter resets.
+                    for ready_frame, expected in ((1300, 0), (14, 14), (12, 14)):
+                        if ready_frame == 14:
+                            send_nonce = LoginTransport.advance(send_nonce)
+                            writer.write(Frame(13224, 0, cipher.encrypt(b'', send_nonce).ciphertext).encode())
+                        send_nonce = LoginTransport.advance(send_nonce)
+                        ready = ready_frame.to_bytes(4, 'big') + b'\x00'
+                        writer.write(Frame(18853, 0, cipher.encrypt(ready, send_nonce).ciphertext).encode())
+                        if ready_frame != 14:
+                            send_nonce = LoginTransport.advance(send_nonce)
+                            writer.write(Frame(18851, 0, cipher.encrypt(request_clock, send_nonce).ciphertext).encode())
+                        await writer.drain()
+                        clock_reply = await read_frame()
+                        self.assertEqual(clock_reply.message_type, 28851)
+                        receive_nonce = LoginTransport.advance(receive_nonce)
+                        clock_body = cipher.decrypt(clock_reply.payload, receive_nonce)
+                        if ready_frame == 1300:
+                            self.assertLess(int.from_bytes(clock_body[8:16], 'big'), old_scene_time)
+                        self.assertEqual(int.from_bytes(clock_body[16:20], 'big'), expected)
+                        keepalive = await read_frame()
+                        receive_nonce = LoginTransport.advance(receive_nonce)
+                        self.assertEqual(cipher.decrypt(keepalive.payload, receive_nonce), b'')
                     # A duplicate leave and unsupported options cannot alter
                     # the encrypted response order or disconnect the session.
                     for options in (b'\x00', b'\x04'):

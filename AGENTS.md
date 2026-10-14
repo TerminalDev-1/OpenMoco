@@ -3,6 +3,19 @@
 ## Terminology
 OpenMoco is a private server. Always call the project a private server and the Android application a test client or private-server client. Never use "clone" to describe this project or its client. This user preference applies to all future explanations, code comments, documentation, and release notes.
 
+## Current scene-transition priority
+Repair both warm return-home and the frozen/T-posed battle player before further
+progression work. Do not claim a scene is playable from a socket or screenshot
+alone: verify joystick movement in battle and apartment over repeated travel.
+Static scene snapshots start at frame zero; reset the simulation clock on each
+scene, ignore old ready reports until empty 13224/v0, and acknowledge the first
+new ready frame without waiting for another clock request. Return-home sends
+own-home first and waits for the actual flagged 13222 selection 10900005 before
+the apartment. This restricted mapping does not implement COOL-zone unlocks.
+A one-second delay was inconsistent; omitting own-home crashed. Do not restore
+those failed experiments or reset tutorial/account progress to hide this bug.
+Read the latest PROJECT_STATUS.md and keep the hidden manual server running.
+
 ## Goal and agreed scope
 The user wants to reverse-engineer the supplied mo.co 13.5.1 Android client and implement a local Python server. They confirmed that the first milestone is connecting the original Android client to that server. A standalone Python game is not the current objective.
 The user will test the client on an Android tablet with wireless debugging enabled, not an emulator. Dictation initially described this as a phone and debugging disabled; the user corrected both.

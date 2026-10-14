@@ -1,5 +1,46 @@
 # Project status — 2026-10-14
 
+## Priority repair: warm scene transitions and frozen battle player
+The user reported return-home with an overhead camera, absent portal and a
+T-posed player that could not move. Reproduced in .local/return-home-broken.png;
+the same saved account and apartment snapshot worked on a cold login. Removing
+the own-home refresh crashed native code at 0x7562e0 (null x0). Separating the
+profile/scene by one second worked twice but failed on the third round trip.
+Neither experiment is a complete fix, and neither timing workaround remains.
+
+Return now sends 24548 own-home, then waits for the client's actual flagged
+13222 selection (10900005, auxiliary 0/0, references 0/6700000) before sending
+the current apartment. This is a constrained return-home mapping, not unlocked
+COOL-zone travel. The empty 13224/v0 notification separates old and new scene
+frame reports: native constructor 0x7637d0, getter 0x763804, caller 0x60ea10.
+Old 18853 reports are ignored until that boundary; the first new ready frame
+is immediately acknowledged through the existing 28851 clock layout.
+
+The battle regression also exposed a clock error: static snapshots start at
+frame zero, but the previous server used connection elapsed time in later
+scenes. First ready frames jumped into thousands, with frozen/T-posed or missing
+actors. Reset the simulation clock when sending each fresh scene, retain the
+client timestamp echo, and keep acknowledgements monotonic within that scene.
+The clock reset, loaded boundary and first-ready acknowledgement are now tested
+together. No account/tutorial reset, new APK, or research client hook is needed.
+
+All 52 tests pass, including encrypted return ordering, stale frame rejection,
+first-ready acknowledgement without another clock request, and clock reset.
+Normal tablet verification uses capture 20261014T155306Z-678df9d5. Screenshots
+.local/clock-battle0-after.png, clock-battle1-after.png and clock-battle2-after.png
+show animated players moved down the street by joystick; clock-home1/2-after.png
+show the restored portal and movement onto the rug. Three successive returns
+passed in the same socket session, including a longer battle stay; the third
+is clock-home3-before/after.png. Both warm battle entries also passed joystick
+movement checks. Authenticated frame traffic continues after returning.
+Current hidden launcher/listener:
+21528/22284; logs captures/user-test-server-scene-clock.log and .stderr.log.
+Leave this server running; read .local/user-test-server.json for its current PID.
+
+XP, earned quests/Luna and COOL-zone progression remain the next gameplay work
+after reliable scene transitions. The earlier encounter and progression notes
+below remain relevant; their process IDs are historical.
+
 ## Active checkpoint: human civilians, spirits and recurring encounters
 The user corrected the earlier terminology: 10800092 is a Spirit. Keep the
 six spirits; human civilians use 10800309..10800313, pf_civilian_01..05,
