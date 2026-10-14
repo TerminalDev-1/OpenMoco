@@ -147,6 +147,9 @@ Luna's completion prompt and COOL-zone access are still under investigation.
 The user confirmed COOL zone is a separate area, not the wardrobe. Supplied
 battle data identifies SocialHub 10900005 with w00_cool_zone_v2.json and
 SocialHub_FTUE 10900309 with home.json. Do not fabricate completion to unlock it.
+See docs/PROGRESSION_PROTOCOL.md for the native spawner schema, XP-field names
+with unresolved owning-object binding, quest targets and COOL-zone route.
+These research findings do not mean persistent XP or earned unlocks work.
 Current continuation: the user requested abundant initialized monsters and
 the civilians they attack after verifying all prior changes were committed.
 Python's populated tutorial scene now has twelve enemies and six RunningNpc
