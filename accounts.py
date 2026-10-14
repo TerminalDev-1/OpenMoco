@@ -53,7 +53,7 @@ class AccountStore:
             if token:
                 raise ValueError('A new local guest cannot supply an existing account token')
             token = secrets.token_urlsafe(32)
-            profile = {'display_name': 'Local Hunter'}
+            profile = {'display_name': 'Local Hunter', 'tutorials': {}, 'scene_id': 10900000}
             with self.connect() as db:
                 cursor = db.execute('INSERT INTO accounts (token_hash,profile,created_at) VALUES (?,?,?)',
                     (self.token_hash(token), json.dumps(profile), datetime.now(timezone.utc).isoformat()))
@@ -85,4 +85,34 @@ class AccountStore:
                 raise ValueError('Unknown local account')
             profile = json.loads(row[0])
             profile['age_category'] = 3 if age < 16 else 2
+            db.execute('UPDATE accounts SET profile=? WHERE id=?', (json.dumps(profile), account_id & 0xffffffff))
+
+    def record_tutorial(self, account_id, tutorial, step):
+        from progress import validate_tutorial
+        validate_tutorial(tutorial, step)
+        with self.edit_profile(account_id) as profile:
+            progress = profile.setdefault('tutorials', {})
+            key = str(tutorial)
+            # A replayed earlier turn must not undo a completed tutorial.
+            if key not in progress or progress[key] != 0:
+                progress[key] = step
+
+    def record_scene(self, account_id, scene_id):
+        if scene_id not in (10900000, 10900001):
+            raise ValueError('Unsupported local scene')
+        with self.edit_profile(account_id) as profile:
+            profile['scene_id'] = scene_id
+
+    @contextmanager
+    def edit_profile(self, account_id):
+        if type(account_id) is not int or account_id >> 32 != self.namespace:
+            raise ValueError('Unknown local account namespace')
+        with self.connect() as db:
+            # Serialize read/modify/write across simultaneous guest sessions.
+            db.execute('BEGIN IMMEDIATE')
+            row = db.execute('SELECT profile FROM accounts WHERE id=?', (account_id & 0xffffffff,)).fetchone()
+            if row is None:
+                raise ValueError('Unknown local account')
+            profile = json.loads(row[0])
+            yield profile
             db.execute('UPDATE accounts SET profile=? WHERE id=?', (json.dumps(profile), account_id & 0xffffffff))

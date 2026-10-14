@@ -111,7 +111,7 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                         if profile_probe is not None or apartment:
                                             from home import own_home
                                             # Bind the validated starter profile to this local guest.
-                                            profile_body = own_home(account.account_id, age_category=account.profile.get('age_category', 0)) if apartment or profile_probe == own_home(0) else profile_probe
+                                            profile_body = own_home(account.account_id, age_category=account.profile.get('age_category', 0), tutorials=account.profile.get('tutorials', {})) if apartment or profile_probe == own_home(0) else profile_probe
                                             response = Frame(24548, 0, crypto.encode_session(profile_body))
                                             encoded = response.encode()
                                             with (output / (session + '.server.bin')).open('ab') as replies:
@@ -121,8 +121,12 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                             sent.append({'message_type': 24548, 'version': 0, 'payload_bytes': len(response.payload)})
                                             print(f'{session}: sent account-bound starter profile' if apartment else f'{session}: sent native-evidenced own-home probe; client acceptance pending', flush=True)
                                         if home_probe is not None or apartment:
-                                            from scene import apartment_scene
-                                            scene_body = apartment_scene(account.account_id) if apartment else home_probe
+                                            from scene import apartment_scene, tutorial_scene
+                                            if apartment:
+                                                current_scene = account.profile.get('scene_id', 10900000)
+                                                scene_body = tutorial_scene(account.account_id) if current_scene == 10900001 else apartment_scene(account.account_id)
+                                            else:
+                                                scene_body = home_probe
                                             response = Frame(23491, 0, crypto.encode_session(scene_body))
                                             encoded = response.encode()
                                             with (output / (session + '.server.bin')).open('ab') as replies:
@@ -130,7 +134,7 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                             writer.write(encoded)
                                             await writer.drain()
                                             sent.append({'message_type': 23491, 'version': 0, 'payload_bytes': len(response.payload)})
-                                            state = 'apartment_scene_sent' if apartment else 'home_scene_probe_sent'
+                                            state = ('tutorial_scene_sent' if current_scene == 10900001 else 'apartment_scene_sent') if apartment else 'home_scene_probe_sent'
                                             print(f'{session}: sent {len(scene_body)}-byte account-bound apartment' if apartment else f'{session}: sent native-evidenced scene-start probe; client acceptance pending', flush=True)
                             elif crypto is not None and crypto.reply_sent:
                                 plaintext = crypto.decode_session(frame.payload)
@@ -143,9 +147,14 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                     try:
                                         turn = decode_client_turn(plaintext)
                                         for command in turn.commands:
-                                            if command.command_type == 541 and command.account_id in (0, account.account_id):
+                                            if command.account_id not in (0, account.account_id):
+                                                continue
+                                            if command.command_type == 541:
                                                 accounts.record_age_choice(account.account_id, command.fields['age'])
                                                 print(f'{session}: persisted local onboarding category', flush=True)
+                                            elif command.command_type == 574:
+                                                accounts.record_tutorial(account.account_id, command.fields['tutorial'], command.fields['step'])
+                                                print(f'{session}: persisted tutorial transition', flush=True)
                                     except ValueError as error:
                                         print(f'{session}: turn unsupported: {error}', flush=True)
                                 if apartment and frame.message_type == 13222 and frame.version == 0:
@@ -165,6 +174,7 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                             await writer.drain()
                                             sent.append({'message_type': 23491, 'version': 0, 'payload_bytes': len(response.payload)})
                                             current_scene = 10900001
+                                            accounts.record_scene(account.account_id, current_scene)
                                             confirmed_frame = 0
                                             state = 'tutorial_scene_sent'
                                             print(f'{session}: sent account-bound TutorialAreaBasic after portal selection', flush=True)

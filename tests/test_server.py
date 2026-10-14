@@ -61,11 +61,12 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(profile.message_type, 24548)
                     server_nonce = LoginTransport.advance(server_nonce)
                     profile_body = cipher.decrypt(profile.payload, server_nonce)
-                    self.assertEqual(profile_body, own_home(new_id, age_category=2 if identity else 0))
+                    progress = {'15600000': 0, '15600001': 14200006} if identity else {}
+                    self.assertEqual(profile_body, own_home(new_id, age_category=2 if identity else 0, tutorials=progress))
                     scene = await read_frame()
                     self.assertEqual((scene.message_type, scene.version), (23491, 0))
                     server_nonce = LoginTransport.advance(server_nonce)
-                    self.assertEqual(cipher.decrypt(scene.payload, server_nonce), apartment_scene(new_id))
+                    self.assertEqual(cipher.decrypt(scene.payload, server_nonce), tutorial_scene(new_id) if identity else apartment_scene(new_id))
                     writer.write(Frame(10108,0,cipher.encrypt(b'',LoginTransport.advance(nonce)).ciphertext).encode())
                     keepalive = await read_frame()
                     self.assertEqual(keepalive.message_type,20108)
@@ -78,6 +79,11 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                         choice.boolean(False).boolean(False).boolean(False).integer(16)
                         send_nonce = LoginTransport.advance(send_nonce)
                         writer.write(Frame(16543, 0, cipher.encrypt(choice.bytes(), send_nonce).ciphertext).encode())
+                        for tutorial, step in [(15600000, 0), (15600001, 14200006)]:
+                            command = Writer().compact(0).raw(bytes(8)).compact(1).integer(574)
+                            command.boolean(False).boolean(False).boolean(False).compact(tutorial, 64).compact(step, 64)
+                            send_nonce = LoginTransport.advance(send_nonce)
+                            writer.write(Frame(16543, 0, cipher.encrypt(command.bytes(), send_nonce).ciphertext).encode())
                     for client_frame in (1234, 1200):
                         send_nonce = LoginTransport.advance(send_nonce)
                         frame_ready = client_frame.to_bytes(4, 'big') + b'\x00'
@@ -96,14 +102,15 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(transport_keepalive.message_type, 20108)
                         receive_nonce = LoginTransport.advance(receive_nonce)
                         self.assertEqual(cipher.decrypt(transport_keepalive.payload, receive_nonce), b'')
-                    send_nonce = LoginTransport.advance(send_nonce)
                     selection = bytes.fromhex('000000000000a65221000000000000000000000000000000000000000000')
-                    writer.write(Frame(13222, 0, cipher.encrypt(selection, send_nonce).ciphertext).encode())
-                    await writer.drain()
-                    destination = await read_frame()
-                    self.assertEqual((destination.message_type, destination.version), (23491, 0))
-                    receive_nonce = LoginTransport.advance(receive_nonce)
-                    self.assertEqual(cipher.decrypt(destination.payload, receive_nonce), tutorial_scene(new_id))
+                    if not identity:
+                        send_nonce = LoginTransport.advance(send_nonce)
+                        writer.write(Frame(13222, 0, cipher.encrypt(selection, send_nonce).ciphertext).encode())
+                        await writer.drain()
+                        destination = await read_frame()
+                        self.assertEqual((destination.message_type, destination.version), (23491, 0))
+                        receive_nonce = LoginTransport.advance(receive_nonce)
+                        self.assertEqual(cipher.decrypt(destination.payload, receive_nonce), tutorial_scene(new_id))
                     # Repeated selections must not insert a second scene into
                     # the encrypted stream or disrupt the following keepalive.
                     send_nonce = LoginTransport.advance(send_nonce)

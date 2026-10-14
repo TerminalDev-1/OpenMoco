@@ -2,6 +2,22 @@
 
 
 ## Latest verified checkpoint: Downtown Chaos portal travel
+Progress-saving implementation checkpoint: authenticated 574 tutorial transitions
+now persist in SQLite by local account, alongside the last supported scene. New
+accounts initialize empty tutorial state; reconnect sends native home +0x118
+entries and resumes Downtown Chaos when that was the last selected scene. The
+native collection/entry encoders 0x7966e8/0x7969a0 write tutorial then step as
+raw 64-bit references. Completed tutorials use step zero and resist stale replay.
+Twelve targeted account/profile/encrypted reconnect tests passed. Tablet UI
+verification is pending; do not yet claim the video is suppressed on-device.
+The user's previous eight authenticated transitions were recovered into the
+existing account with tools/recover_local_progress.py; a private SQLite backup
+was retained. No invented completion or account reset was used.
+The user clarified that Downtown Chaos has no return-home button beside its map.
+Investigate HUD visibility and the native return path before claiming it works.
+Monster spawning/combat is now requested; the server still supplies no enemies.
+The old listener is kept running until a tested replacement is ready.
+
 On October 14 the user explicitly confirmed: “I'm in downtown chaos. The portal
 is verified.” Normal-client screenshots and authenticated captures independently
 verify travel from the apartment to TutorialAreaBasic (scene 10900001), displayed

@@ -16,7 +16,7 @@ def _zeros(writer, count):
         writer.compact(0)
 
 
-def _client_home(writer, account_id, battle_kit, age_category):
+def _client_home(writer, account_id, battle_kit, age_category, tutorials):
     writer.raw(struct.pack('>Q', account_id))  # Home's two raw ID words.
     # Empty resources, home events, and native default battle-kit entry.
     _zeros(writer, 3)
@@ -30,7 +30,12 @@ def _client_home(writer, account_id, battle_kit, age_category):
     writer.raw(struct.pack('>Q', battle_kit))  # Selected battle-kit data record.
     _zeros(writer, 3)
     writer.bit_boolean(False)
-    _zeros(writer, 14)
+    _zeros(writer, 13)
+    # Home +0x118, collection 0x7966e8, entry 0x7969a0.
+    # Each entry encodes tutorial first, step second, as raw 64-bit refs.
+    writer.compact(len(tutorials))
+    for tutorial, step in tutorials:
+        writer.raw(struct.pack('>QQ', tutorial, step))
     writer.raw(struct.pack('>QQ', 0, 0))
     _zeros(writer, 3)
     writer.string('').string('')
@@ -50,17 +55,19 @@ def _empty_avatar_and_suffix(writer):
     _zeros(writer, 25)
 
 
-def own_home(account_id, battle_kit=SMART_BOW, age_category=0):
+def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None):
     if not isinstance(account_id, int) or not 0 <= account_id < 1 << 64:
         raise ValueError('Home account ID is outside the native 64-bit range')
     if battle_kit != SMART_BOW:
         raise ValueError('Only the evidenced starter battle kit is supported')
     if age_category not in (0, 2, 3):
         raise ValueError('Unsupported native onboarding category')
+    from progress import tutorial_entries
+    entries = tutorial_entries(tutorials or {})
     writer = Writer().raw(struct.pack('>QQ', 0, account_id))
     writer.bit_boolean(False).string('').bit_boolean(False)
     for _ in range(3):
         writer.integer(0)
-    _client_home(writer, account_id, battle_kit, age_category)
+    _client_home(writer, account_id, battle_kit, age_category, entries)
     _empty_avatar_and_suffix(writer)
     return writer.bytes()

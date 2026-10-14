@@ -3,6 +3,19 @@ from home import own_home
 
 
 class HomeTests(unittest.TestCase):
+    def test_tutorial_references_follow_native_collection_order(self):
+        # Home encoder 0x77ddd8 -> 0x7966e8 -> 0x7969a0: tutorial then step.
+        empty = own_home(1)
+        saved = own_home(1, tutorials={'15600001': 14200006, '15600000': 0})
+        first = (15600000).to_bytes(8, 'big') + bytes(8)
+        second = (15600001).to_bytes(8, 'big') + (14200006).to_bytes(8, 'big')
+        position = saved.index(first)
+        self.assertEqual(saved[position-1], 2)
+        self.assertEqual(saved[position:position+32], first + second)
+        self.assertEqual(saved[:position-1] + b'\0' + saved[position+32:], empty)
+        with self.assertRaises(ValueError):
+            own_home(1, tutorials={'15600000': 14200006})
+
     def test_native_onboarding_setting_position(self):
         from stream import Reader
         for category in (2, 3):

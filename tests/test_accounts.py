@@ -5,6 +5,29 @@ from accounts import AccountStore
 
 
 class AccountTests(unittest.TestCase):
+    def test_tutorial_and_scene_persist_without_cross_account_updates(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'accounts.sqlite3'
+            store = AccountStore(path)
+            first, other = store.authenticate(0, None), store.authenticate(0, None)
+            store.record_tutorial(first.account_id, 15600000, 14200001)
+            store.record_tutorial(first.account_id, 15600000, 0)
+            store.record_tutorial(first.account_id, 15600000, 14200001)
+            store.record_tutorial(first.account_id, 15600001, 14200006)
+            store.record_scene(first.account_id, 10900001)
+            reopened = AccountStore(path)
+            saved = reopened.authenticate(first.account_id, first.token).profile
+            self.assertEqual(saved['tutorials'], {'15600000': 0, '15600001': 14200006})
+            self.assertEqual(saved['scene_id'], 10900001)
+            self.assertEqual(reopened.authenticate(other.account_id, other.token).profile['tutorials'], {})
+            for tutorial, step in [(15600000, 14200006), (0, 0), (15600000, -1)]:
+                with self.assertRaises(ValueError):
+                    store.record_tutorial(first.account_id, tutorial, step)
+            with self.assertRaises(ValueError):
+                store.record_scene(first.account_id, 1)
+            with self.assertRaises(ValueError):
+                store.record_tutorial(1, 15600000, 0)
+
     def test_onboarding_is_bound_and_survives_reopen(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder)/'accounts.sqlite3'

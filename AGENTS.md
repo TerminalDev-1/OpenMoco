@@ -137,6 +137,14 @@ Verify real tablet traffic beyond the previous disconnect interval before
 claiming the problem fixed. Leave the hidden background listener running.
 
 ## Apartment continuation
+Current requested work: implement the missing return-home HUD/path, monster
+gameplay in Downtown Chaos, and persistent progress so reconnects do not replay
+the intro/tutorial. Python now persists authenticated 574 tutorial transitions
+and the last supported scene, restores home +0x118 raw reference pairs, and
+resumes the saved scene. Tests pass; inspect latest status for tablet verification.
+Use tools/recover_local_progress.py only with matching private local login/session
+captures and an existing validated account; keep its SQLite backup private.
+Do not mark an unfinished tutorial complete just to hide a UI problem.
 Latest portal checkpoint: Python now sends the native-derived 521-byte apartment
 with HomeItem 2010, type Portal (2), prefab sc3d/pf_keyitem_portal at the map's
 portal marker. A normal client visibly rendered it and requested destination
