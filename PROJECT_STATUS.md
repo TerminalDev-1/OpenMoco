@@ -41,6 +41,16 @@ build then passed 10 reentry cycles with combat (22:19-22:33 local): no freeze
 or crash, and 81 kill-XP reports, including mixed types such as
 "+4 kills, +1 rescues, +16 kill XP".
 
+Published as pre-release v0.7.0-kill-xp, targeting 2fcc986:
+https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.7.0-kill-xp. The base APK
+(61356239 bytes, SHA-256 c57e756f04a12428a66e4941229d4e1c3041255d7794c3f55ad4015f55ad17fa)
+matches the tablet's installed base. All six release assets matched remote
+sizes and digests, and the seven v0.3.0-apartment dependencies are still
+published. Probes are off; the build is debuggable for key provisioning.
+Open review findings (docs/CODE_REVIEW_2026-10-14.md, H2-H6) still apply to
+this client: diagnostic dumps/JNI logging run in normal builds, and
+package_release.py does not check debuggable state or a clean tree.
+
 Manual server restarted hidden to load the change: see .local/user-test-server.json
 (mode local-kill-xp-bridge, log captures/user-test-server-kill-xp.log).
 

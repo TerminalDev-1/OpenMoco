@@ -16,6 +16,10 @@ not brief movement. Frida Process.enumerateThreads() returns no threads in this
 client, and a tgkill signal sampler crashed it: do not reuse those probes.
 Never leave a diagnostic or failed probe build installed for manual play, and
 never publish one. A caught native abort does not mean the client can continue.
+The fixed client is published as v0.7.0-kill-xp (pre-release, target 2fcc986):
+https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.7.0-kill-xp
+Six assets passed remote size/SHA-256 checks; the seven unchanged splits/parts
+stay linked from v0.3.0-apartment. The tablet runs this exact base (c57e756f).
 
 ## Current progression work
 The user approved a client-reporting bridge. The user then chose kill-based XP
