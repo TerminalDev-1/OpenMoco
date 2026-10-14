@@ -1,10 +1,33 @@
 import unittest
 
-from scene import apartment_scene, tutorial_scene, monster_tutorial_scene, HOME_SPAWN
+from scene import apartment_scene, tutorial_scene, monster_tutorial_scene, populated_tutorial_scene, HOME_SPAWN
 from stream import Reader
 
 
 class SceneTests(unittest.TestCase):
+    def test_native_population_snapshot_and_account_rebinding(self):
+        import hashlib
+        from stream import Writer
+        identity = (128 << 32) | 1
+        body = populated_tutorial_scene(identity)
+        # Full native-encoder golden: twelve enemies and six RunningNpc
+        # civilians, with health/gear/faction and initial spawn IDs preserved.
+        self.assertEqual(len(body), 3308)
+        self.assertEqual(hashlib.sha256(body).hexdigest(), '20608d7ec0dde0394edaf387a5b0deb03e178d731f94021106a29d8b0b47f47c')
+        for offset in (50, 3138):
+            self.assertEqual(Reader(body[offset:]).compact(64), identity)
+        other = (255 << 32) | 0xffffffff
+        changed = populated_tutorial_scene(other)
+        original_identity = Writer().compact(identity, 64).bytes()
+        replacement = Writer().compact(other, 64).bytes()
+        self.assertEqual(changed, body.replace(original_identity, replacement))
+        # The native frame has an additional trailing flag here; the embedded
+        # battle-selection configuration itself must still match exactly.
+        self.assertIn(tutorial_scene(other)[-69:-4], changed)
+        for invalid in (1, 0, True, 'local', (127 << 32) | 1):
+            with self.assertRaises(ValueError):
+                populated_tutorial_scene(invalid)
+
     def test_native_monster_snapshot_and_account_rebinding(self):
         import hashlib
         identity = (128 << 32) | 1

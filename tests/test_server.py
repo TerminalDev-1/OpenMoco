@@ -11,7 +11,7 @@ from transport import LoginTransport
 from protocol import Frame, FrameDecoder
 from server import capture
 from home import own_home
-from scene import apartment_scene, monster_tutorial_scene as tutorial_scene
+from scene import apartment_scene, populated_tutorial_scene as tutorial_scene
 
 
 class ServerTests(unittest.IsolatedAsyncioTestCase):

@@ -1,5 +1,40 @@
 # Project status — 2026-10-14
 
+## Active checkpoint: multiple monsters and civilians
+All previous intended source/docs were committed and pushed: local and remote
+main matched 047d427 with a clean working tree before this work began. Private
+captures/accounts/keys, generated research and APK build outputs remain ignored;
+the verified APK is distributed through releases rather than Git history.
+
+Python now sends a 3308-byte native-derived populated tutorial frame on both
+portal entry and saved-scene reconnect. It contains twelve enemies (one
+10800020 tutorial dragonling and eleven 10800021 regular small dragonlings)
+and six RunningNpc civilians (10800092), in addition to the local player.
+Native helper 0x63be18 initializes gear, health/base health, initial spawn IDs,
+faction and registration. The native caller 0x63c8ac selects faction 1 for
+CharacterType >16 and faction 0 otherwise; do not guess these affiliations.
+Regular enemies start with health/base 1890 and civilians with 5000. Live
+client difficulty scales nearby enemy health. Two account references stay
+dynamic at offsets 50/3138; the synthetic golden SHA-256 is
+20608d7ec0dde0394edaf387a5b0deb03e178d731f94021106a29d8b0b47f47c.
+The old single-monster fixture remains available for regression/research.
+
+Native encoding and Python account rebinding pass all 51 tests. The normal
+client accepted this Python scene in capture 20261014T141636Z-1213cc51 and
+continued authenticated traffic. Read-only HUD observation after another
+Python reconnect confirms twelve enemy and six civilian entities, movement,
+enemy health changes and decreasing enemy counts during client simulation.
+Civilian health remained 5000 in the observed window; monster attacks against
+civilians are not yet verified. Actor placement/visibility is being checked;
+streets become sparse as native recruits fight and enemies move away. Do not
+claim sustained waves or Python-authoritative combat/rewards from this fixture.
+
+Current hidden server launcher/listener: 852/19704, ports 9339/9340,
+`--login --apartment`, logs captures/user-test-server-population.log and
+captures/user-test-server-population.stderr.log. Leave it running. A temporary
+read-only apartment observer is currently installed for placement verification;
+restore the normal probe-free client before finishing manual testing.
+
 ## Published return-home APK checkpoint
 [v0.5.0-return-home](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.5.0-return-home)
 is public as a prerelease, targeting source checkpoint 4d603a8. All six new

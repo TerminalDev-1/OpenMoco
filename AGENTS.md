@@ -137,6 +137,14 @@ Verify real tablet traffic beyond the previous disconnect interval before
 claiming the problem fixed. Leave the hidden background listener running.
 
 ## Apartment continuation
+Current continuation: the user requested abundant initialized monsters and
+the civilians they attack after verifying all prior changes were committed.
+Python's populated tutorial scene now has twelve enemies and six RunningNpc
+civilians, with native gear/base health/factions and dynamic account binding.
+51 tests and actual Python-scene decoding pass. Placement and civilian attack
+behavior remain under verification; read the latest PROJECT_STATUS.md. Keep
+the old single-monster fixture as a regression baseline. Do not describe native
+client simulation as Python-authoritative combat or persistent kill rewards.
 The return-home APK checkpoint is published at
 https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.5.0-return-home,
 targeting 4d603a8. Six new assets and seven linked unchanged dependencies passed

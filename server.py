@@ -121,10 +121,10 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                             sent.append({'message_type': 24548, 'version': 0, 'payload_bytes': len(response.payload)})
                                             print(f'{session}: sent account-bound starter profile' if apartment else f'{session}: sent native-evidenced own-home probe; client acceptance pending', flush=True)
                                         if home_probe is not None or apartment:
-                                            from scene import apartment_scene, monster_tutorial_scene
+                                            from scene import apartment_scene, populated_tutorial_scene
                                             if apartment:
                                                 current_scene = account.profile.get('scene_id', 10900000)
-                                                scene_body = monster_tutorial_scene(account.account_id) if current_scene == 10900001 else apartment_scene(account.account_id)
+                                                scene_body = populated_tutorial_scene(account.account_id) if current_scene == 10900001 else apartment_scene(account.account_id)
                                             else:
                                                 scene_body = home_probe
                                             response = Frame(23491, 0, crypto.encode_session(scene_body))
@@ -165,8 +165,8 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                         print(f'{session}: scene selection unsupported: {error}', flush=True)
                                     else:
                                         if selection.scene_id == 10900001 and current_scene != 10900001:
-                                            from scene import monster_tutorial_scene
-                                            response = Frame(23491, 0, crypto.encode_session(monster_tutorial_scene(account.account_id)))
+                                            from scene import populated_tutorial_scene
+                                            response = Frame(23491, 0, crypto.encode_session(populated_tutorial_scene(account.account_id)))
                                             encoded = response.encode()
                                             with (output / (session + '.server.bin')).open('ab') as replies:
                                                 replies.write(encoded)
