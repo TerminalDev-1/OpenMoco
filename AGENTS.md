@@ -17,15 +17,23 @@ those failed experiments or reset tutorial/account progress to hide this bug.
 Read the latest PROJECT_STATUS.md and keep the hidden manual server running.
 
 ## Goal and agreed scope
-The user wants to reverse-engineer the supplied mo.co 13.5.1 Android client and implement a local Python server. They confirmed that the first milestone is connecting the original Android client to that server. A standalone Python game is not the current objective.
+OpenMoco is a mo.co private server written in Python. The goal is to fully
+reimplement mo.co's server in Python, aiming for 100% feature coverage:
+accounts, worlds, combat, progression, inventory, multiplayer, and all other
+server behavior needed by the Android client. The supplied 13.5.1 client is the
+current compatibility target. Connecting it was the first milestone, not the
+limit of the project. This is an implementation project, not a research project.
+Describe the project this way in documentation, repository metadata, releases,
+and conversation. Use plain, approachable wording. Keep incomplete features
+clearly marked; 100% is the goal, not a claim about today's implementation.
 The user will test the client on an Android tablet with wireless debugging enabled, not an emulator. Dictation initially described this as a phone and debugging disabled; the user corrected both.
 
 ## Test-client isolation
-- Use `com.supercell.moco.localtest` as the separate Android application/package ID for the experimental client. It has been applied to the five tablet splits; see PROJECT_STATUS.md for installation/runtime status.
+- Use `com.supercell.moco.localtest` as the separate Android application/package ID for the private-server client. It has been applied to the five tablet splits; see PROJECT_STATUS.md for installation/runtime status.
 - The initial offline test build removes INTERNET permission and disables backup. Restore network permission only after implementing local routing; the offline build cannot connect to the server as-is.
 - Install alongside `com.supercell.moco`; never replace, uninstall, clear data for, or modify the user's original mo.co installation.
 - The test build must have separate local data, and any login implementation must use a separate local-server identity. Changing the Android package ID alone does not isolate production account progress.
-- Do not sign the experimental client into the user's real Supercell account or launch it against production for testing. Establish local routing before running it.
+- Do not sign the private-server client into the user's real Supercell account or launch it against production for testing. Establish local routing before running it.
 - All APK splits must have consistent package identity and signing; inspect provider authorities and other package-dependent configuration for conflicts before installation.
 
 ## First milestone
@@ -34,7 +42,7 @@ Inspect the package, identify the client transport and connection configuration,
 ## Verified baseline
 Encrypted local login is verified on the tablet using a newly generated local server key pair. The bootstrap decodes/re-encodes this build's obfuscated peer-public-key table; the server uses Curve25519/XSalsa20-Poly1305 NaCl Box with BLAKE2b-24(client public key + server public key). The earlier mismatch was an incomplete interpretation of native inputs, not evidence of a custom cipher. `--login` verifies the challenge, validates local guest credentials, sends 29125/version 1, and handles authenticated SecretBox keepalives. The native success handler completes. The starter home, apartment and portal destination are verified; full gameplay remains unfinished.
 - Use `tools/create_server_key.py`; keep private key JSON under ignored `.local/`. The runner provisions only the public key into the debuggable test client and cold-launches it for `--login` tests. Do not publish private keys or decrypted login captures.
-- The public v0.2.0-local-login APK supports runtime public-key provisioning and verified local guest login with probes disabled. The older v0.1.0-hello APK predates that feature. Continue publishing verified client updates when needed; research builds with protocol probes enabled must not be published.
+- The public v0.2.0-local-login APK supports runtime public-key provisioning and verified local guest login with probes disabled. The older v0.1.0-hello APK predates that feature. Continue publishing verified client updates when needed; diagnostic builds with protocol probes enabled must not be published.
 
 The connection milestone and first hello exchange are achieved. The renamed Android client sends an 83-byte initial message, type 10100, version 0, payload length 76. With `--handshake`, the Python server replies with 20100/version 0 containing a length-prefixed 24-byte random challenge. The tablet accepts it and sends 10101/version 9. This was reproduced across cold launches, including with native protocol probes disabled. Use `--login` for the now-verified encrypted local login and session; home data and gameplay remain unimplemented.
 - Use the diagnostic base APK built with `--local-network` alongside the four preserved offline splits. The original app remains installed separately.
@@ -63,7 +71,7 @@ completes the handler and exchanges authenticated SecretBox keepalives.
 Reconnect-token validation is verified on real cold launches. Home data and
 gameplay remain absent; this is not a working home screen. The native player-tag
 conversion requires the ID high word <=255. Use a persisted local namespace in
-128..255; SQLite profiles and tokens belong only to this server. Older research
+128..255; SQLite profiles and tokens belong only to this server. Older development
 IDs are migrated with token-validated aliases, without clearing test client data.
 See PROJECT_STATUS.md for failures and verification evidence.
 The user has now approved all four next stages: encrypted transport, local guest accounts, compatible login replies, and minimum home/profile data. Work through their dependencies without requesting the same approval again:
@@ -85,10 +93,10 @@ Continue with minimum home data. Preserve the working login/session baseline whi
   step is complete and is not a reason to end the turn. Continue implementation
   after pushing it; mark each full step complete only after its required checks.
 - Before the initial public push and every later checkpoint, inspect the staged contents for the existing exclusions: private signing keys, device/account information, raw captures, extracted proprietary inputs, original archives, and generated builds. Stage intended source/documentation explicitly.
-- The user explicitly instructed us to publish the experimental Android APK publicly and record this requirement. Publish the verified local-test client as GitHub Release assets, including its required matching splits, checksums, and installation instructions. This supersedes the earlier future-possibility wording; no repeat confirmation is needed for this authorized publication.
+- The user explicitly instructed us to publish the private-server Android APK publicly and record this requirement. Publish the verified local-test client as GitHub Release assets, including its required matching splits, checksums, and installation instructions. This supersedes the earlier future-possibility wording; no repeat confirmation is needed for this authorized publication.
 - The first APK pre-release is public: https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.1.0-hello. It contains the base APK, three configuration APKs, four asset-pack parts, and four verification/instruction files. All 12 GitHub asset SHA-256 digests matched the local files before publication.
 - The updated local-login pre-release is public: https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.2.0-local-login. Source commit 6467451; 12 remote asset names/sizes/digests verified, full split verification and reassembly passed, and probe-free tablet login/keepalives reproduced. Home data and gameplay remain incomplete.
-- The apartment pre-release is public: https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.3.0-apartment. Source checkpoint 6f0b117; all 12 remote asset names/sizes/SHA-256 digests matched, five-split verification and reassembly passed, and the normal client visibly rendered the Python-supplied player inside the apartment. All research probes are disabled. Use --login --apartment. Portal rendering/travel, tutorial persistence, and authoritative simulation remain unfinished.
+- The apartment pre-release is public: https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.3.0-apartment. Source checkpoint 6f0b117; all 12 remote asset names/sizes/SHA-256 digests matched, five-split verification and reassembly passed, and the normal client visibly rendered the Python-supplied player inside the apartment. All diagnostic probes are disabled. Use --login --apartment. Portal rendering/travel, tutorial persistence, and authoritative simulation remain unfinished.
 - Maintain a downloadable verified client release when successful client changes require a new APK. Server-only checkpoints do not require rebuilding unchanged APKs. Describe incomplete handshake/authentication/gameplay behavior accurately.
 - Keep APKs out of Git history. GitHub release files must be smaller than 2 GiB; split a larger asset-pack APK into numbered parts with a manifest and verified reassembly tool. Do not present a base-only APK as a complete fresh installation.
 - Prepare reproducible build instructions, dependency versions, and an accurate description of supported behavior when preparing a release. Identify what source and client artifacts can be distributed before assembling public release contents.
@@ -118,19 +126,19 @@ Continue with minimum home data. Preserve the working login/session baseline whi
 - `Archive.zip` contains another copy of the APKM; avoid unpacking it unnecessarily.
 
 ## Home investigation continuation
-The corrected typed Home references allow native scene-start handler completion, but the default frame crashes during copying at libg+0x725714 because primary+0xd8 has no handler. This is not a usable home. Type 1240 is an evidenced OpenWorld handler candidate awaiting verification. Keep experimental scene bodies opt-in and do not run fixture-generation probes concurrently with real scene startup. See the active section at the top of PROJECT_STATUS.md before interpreting historical entries.
+The corrected typed Home references allow native scene-start handler completion, but the default frame crashes during copying at libg+0x725714 because primary+0xd8 has no handler. This is not a usable home. Type 1240 is an evidenced OpenWorld handler candidate awaiting verification. Keep development scene bodies opt-in and do not run fixture-generation probes concurrently with real scene startup. See the active section at the top of PROJECT_STATUS.md before interpreting historical entries.
 
 ## Manual testing and onboarding checkpoint
 The user explicitly requires leaving the server running while they test. Use
 a hidden background process with file-backed logs, and keep its current PID,
 command line, mode, and paths in PROJECT_STATUS.md/.local/user-test-server.json.
 Do not stop the manual server, reinstall, or cold-launch the test client merely
-to continue research while the user is testing. Check listener and actual client
+to continue development while the user is testing. Check listener and actual client
 traffic separately: a client can time out while the listener is still running.
 Onboarding and "Let's Go" are now observed, but subsequent responses/gameplay
 are unfinished. home.py's 156-byte starter profile encoder has golden validation;
 its authenticated-account integration now binds the known starter fixture to
-the validated local guest ID. Current research fixtures are
+the validated local guest ID. Current development fixtures are
 isolated local data. See the latest status section before historical findings.
 
 ## Persistent test connections
@@ -144,7 +152,7 @@ Native evidence: 0x5c3320 queues event 3; 0x5c2c34 -> 0x610d78 updates
 the confirmed frame monotonically. This acknowledges receipt for the current
 onboarding experiment; it does not implement authoritative gameplay.
 Do not guess a 28853 payload: the discarded four-integer candidate crashed.
-Connection tracing is research-only (`--connection-diagnostics`), disabled
+Connection tracing is diagnostic-only (`--connection-diagnostics`), disabled
 by default, and blocked from release packaging alongside protocol probes.
 Verify real tablet traffic beyond the previous disconnect interval before
 claiming the problem fixed. Leave the hidden background listener running.
@@ -162,7 +170,7 @@ battle data identifies SocialHub 10900005 with w00_cool_zone_v2.json and
 SocialHub_FTUE 10900309 with home.json. Do not fabricate completion to unlock it.
 See docs/PROGRESSION_PROTOCOL.md for the native spawner schema, XP-field names
 with unresolved owning-object binding, quest targets and COOL-zone route.
-These research findings do not mean persistent XP or earned unlocks work.
+These implementation findings do not mean persistent XP or earned unlocks work.
 Current continuation: the user requested abundant initialized monsters and
 the civilians they attack after verifying all prior changes were committed.
 Python's populated tutorial scene now has twelve enemies and six RunningNpc
@@ -178,7 +186,7 @@ The return-home APK checkpoint is published at
 https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.5.0-return-home,
 targeting 4d603a8. Six new assets and seven linked unchanged dependencies passed
 remote digest/size checks. The installed normal base matches the release build;
-all research probes are disabled. Keep the current manual server running.
+all diagnostic probes are disabled. Keep the current manual server running.
 Current requested work: implement the missing return-home HUD/path, monster
 gameplay in Downtown Chaos, and persistent progress so reconnects do not replay
 the intro/tutorial. Python now persists authenticated 574 tutorial transitions
@@ -238,7 +246,7 @@ scene. Read docs/APARTMENT_PROTOCOL.md for the verified sequence, command
 layouts, native player/character schemas, and ordered implementation work.
 commands.py decodes commands; the server persists authenticated age choice 541
 and tutorial transition 574. Quest execution and inventory remain unfinished.
-Preserve the working background session while researching. The next concrete
+Preserve the working background session during development. The next concrete
 implementation milestones for player placement and portal travel are verified.
 Further gameplay work follows the latest PROJECT_STATUS.md rather than these
-historical research notes. Publish requested APK checkpoints as GitHub releases.
+historical implementation notes. Publish requested APK checkpoints as GitHub releases.

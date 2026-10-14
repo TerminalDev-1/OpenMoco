@@ -1,5 +1,15 @@
 # Project status — 2026-10-14
 
+## Project identity and full implementation goal
+The user clarified that OpenMoco is a mo.co private server written in Python,
+with a goal of 100% server feature coverage. Connection/login milestones are
+early steps toward that complete implementation. README.md now introduces
+the project in plain language, lists playable features and unfinished work,
+and provides run/build instructions without presenting it as a research project.
+AGENTS.md records this goal and wording preference for future sessions.
+GitHub's repository description uses the same private-server identity.
+This documentation change does not alter the running server or installed client.
+
 ## Priority repair: warm scene transitions and frozen battle player
 The user reported return-home with an overhead camera, absent portal and a
 T-posed player that could not move. Reproduced in .local/return-home-broken.png;
