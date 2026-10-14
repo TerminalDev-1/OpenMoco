@@ -1,5 +1,23 @@
 # Project status — 2026-10-14
 
+## Published return-home APK checkpoint
+[v0.5.0-return-home](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.5.0-return-home)
+is public as a prerelease, targeting source checkpoint 4d603a8. All six new
+remote assets have matching names, sizes and SHA-256 digests. The seven unchanged
+configuration/asset-part dependencies from v0.3.0-apartment also passed their
+remote size/digest checks and are explicitly linked in DOWNLOADS.md. The normal
+APK has local routing enabled and protocol, connection and apartment research
+probes disabled. Its installed tablet base digest matches the release build;
+all five splits remain installed. All 50 tests and normal base verification pass.
+The listener remains on ports 9339/9340 with authenticated 18851/18853 traffic
+continuing in capture 20261014T140329Z-e3efa881, beyond the old timeout interval.
+
+Completed requested milestones: native return-home access and travel, saving
+reported tutorial progress and last scene, and an initial visible damageable
+monster. Remaining monster work: diagnose its fleeing behavior, add sustained
+encounters/waves and Python-authoritative damage/death/rewards. Quest execution
+and inventory progression are also unfinished. Preserve the verified initial
+snapshot while testing improvements; do not fabricate completed tutorials.
 
 ## Latest verified checkpoint: saved progress and return home
 The normal client now opens its minimap and exposes the native Leave Battle

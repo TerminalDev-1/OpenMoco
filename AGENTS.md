@@ -137,6 +137,11 @@ Verify real tablet traffic beyond the previous disconnect interval before
 claiming the problem fixed. Leave the hidden background listener running.
 
 ## Apartment continuation
+The return-home APK checkpoint is published at
+https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.5.0-return-home,
+targeting 4d603a8. Six new assets and seven linked unchanged dependencies passed
+remote digest/size checks. The installed normal base matches the release build;
+all research probes are disabled. Keep the current manual server running.
 Current requested work: implement the missing return-home HUD/path, monster
 gameplay in Downtown Chaos, and persistent progress so reconnects do not replay
 the intro/tutorial. Python now persists authenticated 574 tutorial transitions
