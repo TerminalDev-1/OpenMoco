@@ -1,5 +1,36 @@
 # Project status — 2026-10-14
 
+## Active work: collected XP and native tutorial progression
+The user approved a private-client outcome bridge first; combat remains client
+simulated. Checkpoint 29f84e4 adds a native-derived 4946-byte snapshot with
+initialized slime 10800138, jumping dragonling 10800036 and slammer 10800268
+alongside five existing monster records, spirits, humans and native zones.
+Local metadata level starts at 1; enemy-XP budget 60000 is not earned XP.
+Normal probe-free acceptance: capture 20261014T191433Z-24a93363 and
+.local/xp-normal.png, showing animated combat.
+
+The loopback 9340 bridge now journals per-battle epoch cumulative counts and
+collected XP in SQLite. Native killedEnemies metadata +98 supplies counts;
+SCPlayer +19c is read after collectible application 0x74a0e4. Do not award XP
+from death calculation 0x705d50 or drop effects. The user corrected this:
+XP is collected in battle, and the nearby badge previously climbed to 243/247
+while the top bar did not. +190 is available budget; metadata +14 is level.
+The supplied tutorial loot gate 0x6c2894 returns config +2f8; the isolated
+client enables native XP calculation while the provisioned bridge is active.
+Hooks verify 13.5.1 signatures. Bot accounts and Spirit counts are excluded.
+Reports are trusted client input, not authoritative Python combat. Actual
+normal-client reports reached 41 collected XP, 19 kills and 2 human counts;
+duplicate reports awarded zero. Four bridge tests cover retries, rollback,
+epoch/account isolation, HTTP auth and reopening the database.
+
+Native quest state, XP avatar/top-bar binding, Luna completion and earned
+unlocks remain unfinished. 50 kills/3 human counts record tutorial_ready only,
+without marking the native tutorial complete. Continue those state layouts.
+Hidden manual launcher/listener 5580/24584, --login --apartment, normal bridge
+APK installed. Logs captures/user-test-server-xp.log and .stderr.log; keep it
+running. Socket/stream API reference: https://frida.re/docs/javascript-api/.
+
+
 ## Reconnect repair: preserve native socket error status
 The server and ADB reverse mappings were running when the user saw Connection
 Error. The client opened and immediately closed several zero-byte connections

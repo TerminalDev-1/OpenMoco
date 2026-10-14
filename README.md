@@ -15,14 +15,16 @@ The current client version is **13.5.1**.
 - A playable apartment with a starter bow and working portal.
 - Travel to Downtown Chaos and back through **Map → Leave Battle**.
 - Movement and player animation across repeated scene changes.
-- Five monster types, spirits, human civilians, and recurring spawns.
+- Eight monster records, spirits, human civilians, and recurring native spawns.
+- Saved collected XP and kill/rescue counts through a local client bridge.
 - Connections stay open while you take a break.
 - The client reconnects when you return to the app with the server available.
 
-XP, earned quest progress, Luna's progression prompts, rewards, inventory,
+XP bar/level display binding, native quest completion, Luna's progression prompts, rewards, inventory,
 COOL-zone access, multiplayer, and combat controlled by the Python server still
 need work. Combat currently runs in the Android client from the scenes supplied
-by the server.
+by the server. The bridge reports native outcomes and credits XP when collected;
+Python saves those reports, but does not yet control combat or finish native quests.
 
 ## Get the client
 

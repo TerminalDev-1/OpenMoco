@@ -10,7 +10,7 @@ import time
 from protocol import Frame, FrameDecoder, decode_client_hello, server_hello
 
 
-async def capture(reader, writer, output, handshake=False, server_key=None, accounts=None, transport_probe=False, home_probe=None, profile_probe=None, apartment=False):
+async def capture(reader, writer, output, handshake=False, server_key=None, accounts=None, transport_probe=False, home_probe=None, profile_probe=None, apartment=False, battle_bridge=None):
     session = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ') + '-' + uuid.uuid4().hex[:8]
     peer = writer.get_extra_info('peername')
     total = 0
@@ -125,12 +125,14 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                             sent.append({'message_type': 24548, 'version': 0, 'payload_bytes': len(response.payload)})
                                             print(f'{session}: sent account-bound starter profile' if apartment else f'{session}: sent native-evidenced own-home probe; client acceptance pending', flush=True)
                                         if home_probe is not None or apartment:
-                                            from scene import apartment_scene, encounter_tutorial_scene
+                                            from scene import apartment_scene, progression_tutorial_scene
                                             if apartment:
                                                 current_scene = account.profile.get('scene_id', 10900000)
-                                                scene_body = encounter_tutorial_scene(account.account_id) if current_scene == 10900001 else apartment_scene(account.account_id)
+                                                scene_body = progression_tutorial_scene(account.account_id) if current_scene == 10900001 else apartment_scene(account.account_id)
                                             else:
                                                 scene_body = home_probe
+                                            if battle_bridge is not None and current_scene == 10900001:
+                                                battle_bridge.begin(account.account_id, session)
                                             response = Frame(23491, 0, crypto.encode_session(scene_body))
                                             encoded = response.encode()
                                             with (output / (session + '.server.bin')).open('ab') as replies:
@@ -179,6 +181,8 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                             sent.append({'message_type': 23491, 'version': 0, 'payload_bytes': len(response.payload)})
                                             pending_home_scene = False
                                             current_scene = 10900000
+                                            if battle_bridge is not None:
+                                                battle_bridge.end(account.account_id, session)
                                             accounts.record_scene(account.account_id, current_scene)
                                             confirmed_frame = 0
                                             awaiting_scene_loaded = True
@@ -188,8 +192,10 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
                                             state = 'apartment_scene_sent'
                                             print(f'{session}: returned to apartment after client home-scene request', flush=True)
                                         if selection.scene_id == 10900001 and current_scene != 10900001:
-                                            from scene import encounter_tutorial_scene
-                                            response = Frame(23491, 0, crypto.encode_session(encounter_tutorial_scene(account.account_id)))
+                                            from scene import progression_tutorial_scene
+                                            if battle_bridge is not None:
+                                                battle_bridge.begin(account.account_id, session)
+                                            response = Frame(23491, 0, crypto.encode_session(progression_tutorial_scene(account.account_id)))
                                             encoded = response.encode()
                                             with (output / (session + '.server.bin')).open('ab') as replies:
                                                 replies.write(encoded)
@@ -294,6 +300,8 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
     except (ConnectionError, OSError) as error:
         reason = str(error)
     finally:
+        if battle_bridge is not None and local_account is not None:
+            battle_bridge.end(local_account["account_id"], session)
         writer.close()
         try:
             await writer.wait_closed()
@@ -311,12 +319,12 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
         print(f'Closed: {session}; {total} bytes; {reason}', flush=True)
 
 
-async def run(host, port, output, handshake=False, server_key=None, account_store=None, transport_probe=False, home_probe=None, profile_probe=None, apartment=False):
+async def run(host, port, output, handshake=False, server_key=None, account_store=None, transport_probe=False, home_probe=None, profile_probe=None, apartment=False, battle_bridge=None):
     output.mkdir(parents=True, exist_ok=True)
     if server_key is not None and account_store is None:
         from accounts import AccountStore
         account_store = AccountStore(Path(__file__).resolve().parent/'.local/accounts.sqlite3')
-    server = await asyncio.start_server(lambda r, w: capture(r, w, output, handshake, server_key, account_store, transport_probe, home_probe, profile_probe, apartment), host, port)
+    server = await asyncio.start_server(lambda r, w: capture(r, w, output, handshake, server_key, account_store, transport_probe, home_probe, profile_probe, apartment, battle_bridge), host, port)
     print(f'Local listener: {host}:{port}; mode={"experimental hello" if handshake else "capture"}', flush=True)
     async with server:
         await server.serve_forever()

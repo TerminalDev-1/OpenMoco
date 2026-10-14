@@ -77,6 +77,17 @@ def main():
         adb('push', str(public_file), '/data/local/tmp/openmoco-server-public-key.txt')
         adb('shell', 'run-as', PACKAGE, 'mkdir', '-p', 'files')
         adb('shell', 'run-as', PACKAGE, 'cp', '/data/local/tmp/openmoco-server-public-key.txt', 'files/local-server-public-key.txt')
+    bridge = None
+    if args.apartment:
+        import secrets
+        from accounts import AccountStore
+        from battle_bridge import BattleBridge
+        token_path = ROOT/'.local/battle-bridge-token.txt'
+        if not token_path.exists():
+            token_path.write_text(secrets.token_hex(32), encoding='ascii')
+        bridge = BattleBridge(AccountStore(ROOT/'.local/accounts.sqlite3'), token_path.read_text().strip())
+        adb('push', str(token_path), '/data/local/tmp/openmoco-battle-bridge-token.txt')
+        adb('shell', 'run-as', PACKAGE, 'cp', '/data/local/tmp/openmoco-battle-bridge-token.txt', 'files/battle-bridge-token.txt')
     adb('reverse', 'tcp:9339', 'tcp:9339')
     adb('reverse', 'tcp:9340', 'tcp:9340')
     async def session():
@@ -91,8 +102,8 @@ def main():
                     await writer.wait_closed()
                 except ConnectionError:
                     pass
-        sdk = await asyncio.start_server(sdk_sink, '127.0.0.1', 9340)
-        listener = asyncio.create_task(run('127.0.0.1', 9339, ROOT / 'captures' / 'game', args.handshake or args.login, key, transport_probe=args.transport_probe, home_probe=home_probe, profile_probe=profile_probe, apartment=args.apartment))
+        sdk = await asyncio.start_server(bridge.handle if bridge else sdk_sink, '127.0.0.1', 9340)
+        listener = asyncio.create_task(run('127.0.0.1', 9339, ROOT / 'captures' / 'game', args.handshake or args.login, key, transport_probe=args.transport_probe, home_probe=home_probe, profile_probe=profile_probe, apartment=args.apartment, battle_bridge=bridge))
         # Allow the listener to bind before launching the client.
         await asyncio.sleep(0.1)
         if listener.done():

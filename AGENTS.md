@@ -3,6 +3,16 @@
 ## Terminology
 OpenMoco is a private server. Always call the project a private server and the Android application a test client or private-server client. Never use "clone" to describe this project or its client. This user preference applies to all future explanations, code comments, documentation, and release notes.
 
+## Current progression work
+The user approved a client-reporting bridge first. Credit XP at collectible
+application, not monster death. The nearby battle badge and top XP bar are
+separate displays; the user observed level 243/247 without top-bar progress.
+New native-derived snapshot initializes three extra monsters and level 1.
+Python journals outcomes/collected XP by authenticated battle epoch, with
+cumulative high-water marks. Combat remains simulated by the client.
+Do not mark tutorial complete from readiness alone: native quest state, Luna
+and XP UI binding still need implementation. Read the latest status section.
+
 ## Current scene-transition priority
 The verified reconnect/background-resume APK is published as v0.6.0-reconnect:
 https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.6.0-reconnect.

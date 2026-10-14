@@ -88,6 +88,118 @@ rpc.exports = {
                 localIdlePolicyInstalled = true;
                 log('Local idle-close policy installed');
             }
+
+            let battleBridgeInstalled = false;
+            function installBattleBridge(owner) {
+                if (battleBridgeInstalled) return;
+                let token;
+                try { token = File.readAllText('/data/user/0/com.supercell.moco.localtest/files/battle-bridge-token.txt').trim(); }
+                catch (_) { return; }
+                if (!/^[0-9a-f]{64}$/.test(token)) throw new Error('Invalid battle bridge token');
+                for (const [offset, signature] of [[0x5bf784,'ffc301d1fd7b01a9fc6f02a9fa6703a9'],
+                    [0x738e58,'fd7bbca9f85f01a9f65702a9f44f03a9'],
+                    [0x74a0e4,'ff4302d1fd7b03a9fc6f04a9fa6705a9'],[0x6c2894,'00e04b39c0035fd6']]) {
+                    const bytes = Array.from(new Uint8Array(owner.base.add(offset).readByteArray(signature.length / 2)))
+                        .map(v => v.toString(16).padStart(2,'0')).join('');
+                    if (bytes !== signature) throw new Error('Unsupported battle bridge signature');
+                }
+                const vector = new NativeFunction(owner.base.add(0x725fac),'pointer',['pointer','int']);
+                const allowed = new Set([10800020,10800021,10800026,10800117,10800120,10800138,
+                    10800036,10800268,10800309,10800310,10800311,10800312,10800313]);
+                let battle = null, busy = false;
+                function dataId(data) {
+                    const ref = data.add(0x18);
+                    return new NativeFunction(ref.readPointer().add(0x10).readPointer(),'uint64',['pointer'])(ref).toString();
+                }
+                function belongs(player) {
+                    return battle !== null && player.add(0x1e8).readPointer().readU64().toString() === battle.account;
+                }
+                function counts(player) {
+                    const meta = player.add(0x1e8).readPointer(), result = {};
+                    const size = meta.add(0xa4).readS32(), start = meta.add(0x98).readPointer();
+                    if (size < 0 || size > 4096) throw new Error('Invalid killedEnemies vector');
+                    for (let i=0; i<size; i++) {
+                        const entry = start.add(i*8).readPointer();
+                        const id = dataId(entry.add(0x10).readPointer());
+                        if (allowed.has(Number(id))) result[id] = (result[id] || 0) + entry.add(0x18).readS32();
+                    }
+                    return result;
+                }
+                async function request(method, body) {
+                    const conn = await Socket.connect({host:'127.0.0.1',port:9340});
+                    const timer = setTimeout(() => conn.close().catch(() => {}),5000);
+                    try {
+                        const data = JSON.stringify(body);
+                        const wire = method+' /openmoco/battle HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer '+token+
+                            '\r\nContent-Length: '+data.length+'\r\nConnection: close\r\n\r\n'+data;
+                        await conn.output.writeAll(Array.from(wire,c=>c.charCodeAt(0)));
+                        let reply = '';
+                        while (reply.length < 16384) {
+                            const chunk = await conn.input.read(4096);
+                            if (chunk.byteLength === 0) break;
+                            reply += String.fromCharCode(...new Uint8Array(chunk));
+                        }
+                        if (!reply.startsWith('HTTP/1.1 200 ')) throw new Error('Bridge unavailable');
+                        return JSON.parse(reply.split('\r\n\r\n')[1]);
+                    } finally { clearTimeout(timer); await conn.close(); }
+                }
+                // Network work runs asynchronously, never inside a native callback.
+                setInterval(async () => {
+                    if (busy || battle === null) return;
+                    const current = battle;
+                    busy = true;
+                    try {
+                        if (current.epoch === null) {
+                            const state = await request('GET',{account_id:current.account});
+                            if (battle === current) current.epoch = state.epoch;
+                        }
+                        if (battle === current && current.epoch !== null) {
+                            const result = await request('POST',{account_id:current.account,epoch:current.epoch,
+                                counts:current.counts,xp:current.xp});
+                            if (battle === current && result.xp !== current.savedXp) {
+                                current.savedXp = result.xp;
+                                log('Saved private-server XP '+result.xp+' kills='+result.kills+' rescues='+result.rescues);
+                            }
+                        }
+                    } catch (_) { /* Retain cumulative progress and retry after local connection loss. */ }
+                    finally { busy = false; }
+                },2000);
+                Interceptor.attach(owner.base.add(0x5bf784),{onEnter(args) {
+                    try {
+                        const frame = args[1].add(0xa0).readPointer().add(0x28).readPointer();
+                        const players = vector(frame,2009);
+                        if (vector(frame,2002).add(12).readS32() === 0 || players.add(12).readS32() === 0) { battle = null; return; }
+                        const player = players.readPointer().readPointer();
+                        battle = {account:player.add(0x1e8).readPointer().readU64().toString(),epoch:null,
+                            counts:counts(player),xp:0,initialXp:player.add(0x19c).readS32(),savedXp:-1};
+                        // The supplied tutorial disables loot. Enable its native XP math only
+                        // for this private-server battle, with a provisioned bridge token.
+                        log('Private-server battle progress bridge active');
+                    } catch (error) { battle = null; log('Battle bridge scene rejected: '+error); }
+                }});
+                Interceptor.attach(owner.base.add(0x6c2894),{onLeave(value) {
+                    if (battle !== null) value.replace(0);
+                }});
+                Interceptor.attach(owner.base.add(0x738e58),{onEnter(args) { this.player = args[0]; },onLeave() {
+                    try { if (belongs(this.player)) battle.counts = counts(this.player); }
+                    catch (error) { log('Battle outcome rejected: '+error); }
+                }});
+                // 74a0e4 applies a collectible to its owning SCPlayer. The native
+                // +19c total changes here for XP drops (resource kinds 11..13).
+                // Use a high-water mark, not death-time XP calculation or effects.
+                Interceptor.attach(owner.base.add(0x74a0e4),{onEnter(args) {
+                    this.player = args[0].add(0x50).readPointer();
+                },onLeave() {
+                    try {
+                        if (this.player.isNull() || !belongs(this.player)) return;
+                        battle.xp = Math.min(60000,Math.max(battle.xp,
+                            this.player.add(0x19c).readS32() - battle.initialXp));
+                    } catch (error) { log('Collected battle XP rejected: '+error); }
+                }});
+                battleBridgeInstalled = true;
+                log('Private-server battle bridge installed');
+            }
+
             function installApartmentProbe(owner) {
                 if (parameters.apartment_probe !== true || apartmentProbeInstalled) return;
                 apartmentProbeInstalled = true;
@@ -101,6 +213,7 @@ rpc.exports = {
             function configureLocalKey(owner) {
                 installLocalIdlePolicy(owner);
                 installLocalMapControl(owner);
+                installBattleBridge(owner);
                 let publicKey = parameters.server_public_key;
                 const keyPath = '/data/user/0/com.supercell.moco.localtest/files/local-server-public-key.txt';
                 try { publicKey = File.readAllText(keyPath).trim(); } catch (_) {}
