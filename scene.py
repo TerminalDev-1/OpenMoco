@@ -45,7 +45,23 @@ _PORTAL_SUFFIX = bytes.fromhex(
 )
 
 
-def apartment_scene(account_id, portal=True, level=1):
+DEFAULT_PLAYER_NAME = 'Local Hunter'
+_NAME_FIELD = len(DEFAULT_PLAYER_NAME).to_bytes(4, 'big') + DEFAULT_PLAYER_NAME.encode()
+
+
+def _with_player_name(suffix, name):
+    """Replace the template's metadata name (length-prefixed string)."""
+    if name == DEFAULT_PLAYER_NAME:
+        return suffix
+    encoded = name.encode('utf-8') if isinstance(name, str) else b''
+    if not encoded or len(encoded) > 60:
+        raise ValueError('Invalid player name')
+    if suffix.count(_NAME_FIELD) != 1:
+        raise ValueError('Template name field not found')
+    return suffix.replace(_NAME_FIELD, len(encoded).to_bytes(4, 'big') + encoded)
+
+
+def apartment_scene(account_id, portal=True, level=1, name=DEFAULT_PLAYER_NAME):
     """Bind the two evidenced accountId fields to a valid local namespace.
 
     Native metadata serializer 0x73ab98 starts with accountId; the second
@@ -61,7 +77,8 @@ def apartment_scene(account_id, portal=True, level=1):
     if type(level) is not int or not 1 <= level < 64:
         raise ValueError('Apartment level must fit the one-byte native field')
     identity = Writer().compact(account_id, 64).bytes()
-    suffix = _PORTAL_SUFFIX if portal else _SUFFIX
+    # The overhead badge shows the metadata name that follows the levels.
+    suffix = _with_player_name(_PORTAL_SUFFIX if portal else _SUFFIX, name)
     return _PREFIX + identity + _MIDDLE + identity + bytes([level, level]) + suffix[2:]
 
 

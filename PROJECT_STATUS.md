@@ -1,5 +1,33 @@
 # Project status — 2026-10-15
 
+## Hunter-name SIGN (2026-10-15, verified on the tablet)
+The "YOUR HUNTER NAME" screen (tutorial 15600002, step 14200011) works.
+SIGN sends 17582/v0: name string + boolean 1 (sender 0x5b28c8 also sets the
+popup's waiting flag +0xac, which greys SIGN). Native findings:
+- Replies routed to the name popup (popup id 0x10, getter 0x4e492c returns
+  its +0x1c8 listener, vtable 0xea5918): 20205 (0x5bec5c, error code 1..6 ->
+  listener +0x10, re-enables SIGN) and 28350 (decoder 0x75e8a4: bool, BE int,
+  string). 28350 with false calls listener +0x20, an empty function for this
+  popup, so it cannot finish the screen on its own.
+- The popup closes only through command 14 (execute 0x688cf8): it sets the
+  profile name (+0x30) and name-set flag (+0x48), then calls game listener
+  slot 0x48 (0x5a0568), which closes popup 0x10. Command 14 is decoded only
+  from client turns (16543 decoder 0x774668); its JSON form (27971) reflects
+  only base fields and "id", not the name, so the server cannot send it.
+- Own-home profile 0x755e34: raw long, optional long, name string (+0x30),
+  name-set flag (+0x48), three ints. The tutorial opens the name popup only
+  while the flag is false (0x6278c0, 0x646844).
+Implementation (naming.py, server.py, accounts.py, home.py, scene.py): accept
+17582, save display_name + name_set, reply 28350 {false, 0, name}, then reload
+home exactly like Leave Battle (own-home with the name set, then the apartment
+after the client's flagged 13222). The apartment nameplate now uses the saved
+name (template metadata string). Tablet result: SIGN reloaded the apartment,
+Luna's "hunter application approved" chat continued, and a later reconnect
+showed no name popup and the nameplate "hi". Remaining: the Downtown Chaos
+scene templates still show "Local Hunter"; name validation and the 20205
+error codes are not implemented (any 1..60-byte name is accepted).
+Account DB backup: .local/accounts.sqlite3.bak-before-name-20261015212700.
+
 ## Apartment level badge shows saved XP (server-only)
 Work on 2026-10-15 (late evening). No client change; the installed tablet base
 is still the published v0.9.0 normal build (61c11c9b...).

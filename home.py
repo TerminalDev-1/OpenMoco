@@ -292,7 +292,7 @@ def _level_track(writer, track):
 
 
 def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, main_steps=(), xp=0,
-             vanity=(), look=()):
+             vanity=(), look=(), name=None):
     if not isinstance(account_id, int) or not 0 <= account_id < 1 << 64:
         raise ValueError('Home account ID is outside the native 64-bit range')
     if battle_kit != SMART_BOW:
@@ -305,6 +305,8 @@ def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, m
         raise ValueError('Invalid vanity item reference')
     if any(item not in vanity for item in look):
         raise ValueError('Equipped cosmetic is not owned')
+    if name is not None and (not isinstance(name, str) or not name or len(name.encode('utf-8')) > 60):
+        raise ValueError('Invalid hunter name')
     for step in main_steps:
         for quest in step.quests:
             if not 0 <= quest.progress <= 0x7fffffff or not 0 < quest.target <= 0x7fffffff:
@@ -312,7 +314,9 @@ def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, m
     from progress import tutorial_entries
     entries = tutorial_entries(tutorials or {})
     writer = Writer().raw(struct.pack('>QQ', 0, account_id))
-    writer.bit_boolean(False).string('').bit_boolean(False)
+    # Profile 0x755e34: optional +28 long, name +30, name-set flag +48. The
+    # hunter-name popup opens only while the flag is false (0x6278c0).
+    writer.bit_boolean(False).string(name or '').bit_boolean(name is not None)
     for _ in range(3):
         writer.integer(0)
     _client_home(writer, account_id, battle_kit, age_category, entries, tuple(main_steps),

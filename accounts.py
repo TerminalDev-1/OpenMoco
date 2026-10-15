@@ -99,6 +99,12 @@ class AccountStore:
             profile.setdefault('look', {})[str(slot)] = cosmetic
         return slot
 
+    def record_display_name(self, account_id, name):
+        """Persist the hunter name accepted from 17582."""
+        with self.edit_profile(account_id) as profile:
+            profile['display_name'] = name
+            profile['name_set'] = True
+
     def record_tutorial(self, account_id, tutorial, step):
         from progress import validate_tutorial
         validate_tutorial(tutorial, step)

@@ -63,6 +63,10 @@ apartment badge now shows the saved-XP level (server-only, verified
 client-home +0xe8 XP record, and the apartment snapshot's metadata level is
 set from XP. No bridge write is needed at home. Never press READY in the
 editor for the user.
+Update 2026-10-15 (night): the hunter-name SIGN screen works (verified on the
+tablet). The popup only closes through client command 14, which the server
+cannot send, so Python saves the name and reloads home like Leave Battle with
+the own-home name-set flag. See PROJECT_STATUS.md before changing it.
 
 ## Current scene-transition priority
 The verified reconnect/background-resume APK is published as v0.6.0-reconnect:

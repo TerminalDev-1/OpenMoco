@@ -22,6 +22,8 @@ import secrets
 import time
 import uuid
 
+from scene import DEFAULT_PLAYER_NAME
+from naming import MAX_NAME_BYTES, NAME_CHANGE, NAME_CHANGE_RESULT, decode_name_change, name_change_result
 from protocol import Frame, FrameDecoder, decode_client_hello, server_hello
 
 # Client -> server message types.
@@ -100,6 +102,7 @@ class GameSession:
         self.awaiting_scene_loaded = False
         self.pending_home_scene = False
         self.home_level = 1  # Set from saved XP whenever own-home is built.
+        self.home_name = DEFAULT_PLAYER_NAME
         self.last_clock_request = None
 
     # ----- logging and capture files -------------------------------------
@@ -264,12 +267,15 @@ class GameSession:
         # The apartment scene that follows shows this level over the player.
         # Capped to keep its snapshot field one byte (see scene.apartment_scene).
         self.home_level = min(63, level_for_xp(profile.get('battle_progress', {}).get('xp', 0)))
+        name = profile.get('display_name') if profile.get('name_set') else None
+        self.home_name = name or DEFAULT_PLAYER_NAME
         return own_home(self.account.account_id, vanity=STARTER_VANITY,
                         look=equipped_look(profile.get('look')),
                         age_category=profile.get('age_category', 0),
                         tutorials=profile.get('tutorials', {}),
                         main_steps=intro_main_steps(profile),
-                        xp=profile.get('battle_progress', {}).get('xp', 0))
+                        xp=profile.get('battle_progress', {}).get('xp', 0),
+                        name=name)
 
     async def _send_initial_home(self):
         from home import own_home
@@ -293,7 +299,7 @@ class GameSession:
             if self.current_scene == TUTORIAL_AREA:
                 body = progression_tutorial_scene(account_id)
             else:
-                body = apartment_scene(account_id, level=self.home_level)
+                body = apartment_scene(account_id, level=self.home_level, name=self.home_name)
         else:
             body = self.home_probe
         if self.battle_bridge is not None and self.current_scene == TUTORIAL_AREA:
@@ -322,6 +328,8 @@ class GameSession:
                 await self.on_scene_selection(plaintext)
             elif frame.message_type == LEAVE_BATTLE:
                 await self.on_leave_battle(plaintext)
+            elif frame.message_type == NAME_CHANGE:
+                await self.on_name_change(plaintext)
 
         # Clock and keepalive handling applies in every logged-in mode.
         scene_ready = False
@@ -335,6 +343,33 @@ class GameSession:
             await self._send_clock_reply()
         if frame.message_type == CLIENT_KEEPALIVE and not plaintext:
             await self.send_session(SERVER_KEEPALIVE, b'')
+
+    async def on_name_change(self, plaintext):
+        """Accept the hunter name from SIGN and confirm it with 28350."""
+        try:
+            name, _ = decode_name_change(plaintext)
+        except ValueError as error:
+            self.log(f'name change not decoded: {error}')
+            return
+        name = name.strip()
+        if not name or len(name.encode('utf-8')) > MAX_NAME_BYTES:
+            self.log('name change ignored: empty or too long')
+            return
+        if self.accounts is None or self.account is None:
+            return
+        account_id = self.account.account_id
+        self.accounts.record_display_name(account_id, name)
+        await self.send_session(NAME_CHANGE_RESULT, name_change_result(name))
+        self.log(f'accepted hunter name ({len(name)} characters)')
+        # The popup closes only through native command 14, which this client
+        # accepts only in its own turns. Reload home instead, as Leave Battle
+        # does: own-home now has the name set, so the popup is not reopened.
+        if self.current_scene == APARTMENT and not self.pending_home_scene:
+            saved = self.accounts.authenticate(account_id, self.account.token).profile
+            await self.send_session(OWN_HOME, self._own_home_body(saved))
+            self.pending_home_scene = True
+            self.state = 'awaiting_home_scene_request'
+            self.log('sent named home profile; awaiting client home-scene request')
 
     def on_client_turn(self, plaintext):
         """Persist the supported commands from an authenticated client turn."""
@@ -376,7 +411,7 @@ class GameSession:
         """Second half of return-home: the client asked for its home scene."""
         from scene import apartment_scene
         account_id = self.account.account_id
-        await self.send_session(SCENE_START, apartment_scene(account_id, level=self.home_level))
+        await self.send_session(SCENE_START, apartment_scene(account_id, level=self.home_level, name=self.home_name))
         self.pending_home_scene = False
         self.current_scene = APARTMENT
         if self.battle_bridge is not None:
