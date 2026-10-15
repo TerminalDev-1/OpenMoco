@@ -17,7 +17,12 @@ clean cycles is a pass (no need to complete 10). Still report any crash seen. Fr
 client, and a tgkill signal sampler crashed it: do not reuse those probes.
 Never leave a diagnostic or failed probe build installed for manual play, and
 never publish one. A caught native abort does not mean the client can continue.
-The fixed client is published as v0.7.0-kill-xp (pre-release, target 2fcc986):
+Latest client: v0.8.0-xp-bar (pre-release, target 5755bbe, base e950a79a...),
+https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.8.0-xp-bar. Six
+assets passed remote size/SHA-256 checks; seven unchanged splits/parts stay
+linked from v0.3.0-apartment. Known issue: one SIGSEGV on Leave Battle during
+GoToPortal (own-home handler), see PROJECT_STATUS.md.
+The previous fixed client is published as v0.7.0-kill-xp (pre-release, target 2fcc986):
 https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.7.0-kill-xp
 Six assets passed remote size/SHA-256 checks; the seven unchanged splits/parts
 stay linked from v0.3.0-apartment. The tablet runs this exact base (c57e756f).

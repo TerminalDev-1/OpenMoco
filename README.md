@@ -37,7 +37,7 @@ them, and turns them into quest progress and saved XP.
 ## Get the client
 
 Download the private-server client from
-[GitHub Releases](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.6.0-reconnect).
+[GitHub Releases](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.8.0-xp-bar).
 Follow the [installation guide](docs/INSTALL.md) to assemble and install all the
 required APK splits. A fresh install also needs the unchanged splits and asset
 parts linked from the apartment release.

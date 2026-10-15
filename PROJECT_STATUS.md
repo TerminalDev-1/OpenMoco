@@ -51,7 +51,13 @@ handler (decoder 0x755e34), so the quest-bearing own-home (Intro_3 with live
 progress, sent on every Leave Battle during GoToPortal) is the prime suspect,
 not the XP-bar hooks. Seen once in 13 returns this session; unresolved.
 The user then set the pass bar at more than 4 clean cycles and asked to
-publish, so v0.8.0-xp-bar was released with this crash listed as known. The soak used a
+publish, so v0.8.0-xp-bar was released with this crash listed as known:
+https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.8.0-xp-bar
+(pre-release, target 5755bbe). The six assets matched remote sizes and SHA-256
+digests, and the seven v0.3.0-apartment dependencies are still published and
+match. The installed tablet base is this release build. The real account state
+was restored after the soak (backup .local/accounts.after-xp-soak2.sqlite3 keeps
+the soak copy). The soak used a
 temporary copy of the account state (GoToPortal, kills capped below 50); the
 real state was restored from .local/accounts.before-xp-soak.sqlite3 with scene
 set back to the apartment.
