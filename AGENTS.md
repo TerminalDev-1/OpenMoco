@@ -36,8 +36,12 @@ objectives are earned. The server now sends Intro_3 quests in own-home and,
 on Leave Battle with 50 kills and 3 rescues, advances Portal to ClaimQuests.
 The native client then finishes the Portal tutorial and starts character
 creation (verified on the tablet). Never advance it without the earned
-objectives. The in-battle XP bar is still unfilled: editing battle-snapshot
-bytes makes the client quit, so don't retry that. Read the latest status section.
+objectives. Editing battle-snapshot bytes makes the client quit; don't retry.
+The in-battle XP bar now fills: the bridge installs the server's (provisional)
+XP level table and adds server battle XP to the HUD XP getter. The old freeze
+was the client's empty level table, not the 6c2894 override itself; keep a
+non-empty, all-positive table before any XP can become positive. Read the
+latest status section.
 The server code was refactored for readability (GameSession class); the user
 wants existing logic kept, not rewritten.
 

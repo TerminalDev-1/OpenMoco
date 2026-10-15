@@ -24,7 +24,10 @@ The current client version is **13.5.1**.
 - Connections stay open while you take a break.
 - The client reconnects when you return to the app with the server available.
 
-Still to do: filling the in-battle XP bar, character creation (the editor opens
+- The in-battle XP bar and level badge show the server's saved XP and fill as
+  the server credits kills (the XP-per-level table is provisional for now).
+
+Still to do: the real XP-per-level curve, character creation (the editor opens
 but has no head/cosmetic data yet), rewards, inventory, COOL-zone access,
 multiplayer, and combat controlled by the Python server. Combat currently runs in
 the Android client from the scenes supplied by the server. The client bridge

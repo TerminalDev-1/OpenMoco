@@ -1,5 +1,56 @@
 # Project status — 2026-10-15
 
+## In-battle XP bar fills from server XP; root cause of the old XP freeze found
+Found with a temporary --apartment-probe build loading pushed scripts
+(never published; the normal build replaced it on the tablet).
+
+Root cause of the 2026-10-14 freeze: the client's XP level table is empty. It
+is config object [[[0xfadbf8]+8]+0x30] (+0 base XP, +8 int vector {data,
++8 capacity, +c count}); the client data has no level table and the official
+server supplies it. Level loop 0x788de8 subtracts table[min(level,count-1)]
+while XP stays >= 0. With count 0 it reads index -1 and never ends, so the
+first positive battle XP (XP drops under the old 6c2894 override, or any
+direct write) spun Mainloop at 100% CPU. Reproduced by writing 300 to
+player+0x1a0 (identical spin), then fixed by installing a table first.
+
+Bar mechanics: HUD update 0x57f870 (entered every frame via 0x57f864) shows
+base XP HUD+0x178 plus battle XP. In battle, battle XP is 0x73a364(local player
+logic+0x2898) = +0x19c + +0x1a0 - baseline(+0x1f0). The HUD keeps its own level
+table copy at +0x1c8 (+0x198 shares it), made at HUD creation. Direct writes
+to player XP fields are wiped by prediction rollback every frame.
+
+Implementation (client/loader_diagnostics.js bridge + battle_bridge.py):
+- The server owns the table: progress.XP_LEVELS, PROVISIONAL (200 per level,
+  from XP_LEVEL_1_OFFSET 200, 29 levels from MAX_LEVEL); the real curve is
+  unknown. The runner provisions it as files/xp-levels.json; bridge replies
+  also carry xp_levels, xp_before_battle and battle_xp (kill XP credited in
+  this battle epoch, recomputed from its high-water counts).
+- The bridge fills the config table (native operator new 0xe771c0, count written
+  last) at scene start, and the HUD copy from a one-shot 0x57f870 hook that
+  also writes HUD+0x178 = xp_before_battle, then detaches.
+- A 0x73a364 onLeave hook adds battle_xp to the returned value. That value is
+  only cached for display (callers 0x612758, 0x60d2a8, 0x60ebf0), so no
+  simulation state changes and rollback cannot undo it.
+- Signatures for 0x73a364, 0x5c10f4 and 0x57f870 are checked before hooking.
+
+Verified on the tablet: badge shows level 4 for 1,849 XP; the top bar fills to
+the level-4 fraction and grows with kills; a test write produced the native
+"+300" counter and "LEVEL UP! 2" banner. tools/verify_test_client.py passes
+(base 1457 unchanged payload entries). Installed normal base SHA-256 prefix
+e950a79ac34d72d5 (probe flags false). Soak, PARTIAL: 5 warm leave-battle ->
+apartment -> portal round trips with combat (6 battle checks, all with live
+frame traffic, one connection, no freeze; badge reached level 5 and the bar
+restarted). It stopped because the tablet was switched to Settings; the
+required 10-cycle soak is not complete, so no APK release yet. The soak used a
+temporary copy of the account state (GoToPortal, kills capped below 50); the
+real state was restored from .local/accounts.before-xp-soak.sqlite3 with scene
+set back to the apartment.
+Not done: the real level curve; the apartment badge and home-profile XP were
+not checked; the provisional table is an
+approximation, like kill-based XP itself.
+
+## Earlier on 2026-10-15
+
 ## Server readability refactor; tutorial Portal step completes on the server
 Work on 2026-10-15 (Claude), using the wireless tablet (find it with
 `adb mdns services`, then `adb connect`; connection details are in ignored

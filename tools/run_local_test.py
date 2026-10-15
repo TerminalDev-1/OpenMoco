@@ -88,6 +88,13 @@ def main():
         bridge = BattleBridge(AccountStore(ROOT/'.local/accounts.sqlite3'), token_path.read_text().strip())
         adb('push', str(token_path), '/data/local/tmp/openmoco-battle-bridge-token.txt')
         adb('shell', 'run-as', PACKAGE, 'cp', '/data/local/tmp/openmoco-battle-bridge-token.txt', 'files/battle-bridge-token.txt')
+        # The server's XP level table, installed by the client bridge before the
+        # battle HUD is built (the client data has no table of its own).
+        from progress import XP_LEVELS
+        levels_path = ROOT/'.local/xp-levels.json'
+        levels_path.write_text(json.dumps(list(XP_LEVELS)), encoding='ascii')
+        adb('push', str(levels_path), '/data/local/tmp/openmoco-xp-levels.json')
+        adb('shell', 'run-as', PACKAGE, 'cp', '/data/local/tmp/openmoco-xp-levels.json', 'files/xp-levels.json')
     adb('reverse', 'tcp:9339', 'tcp:9339')
     adb('reverse', 'tcp:9340', 'tcp:9340')
     async def session():

@@ -38,6 +38,17 @@ KILL_TARGET = 50
 RESCUE_TARGET = 3
 
 
+# XP needed for each level, sent to the client bridge, which installs it in the
+# client's empty native level table (read by 0x788de8). The 13.5.1 data has
+# no level table; the official server supplies it. PROVISIONAL values: level 1
+# uses globals.csv XP_LEVEL_1_OFFSET (200) and each later level adds 200, up to
+# MAX_LEVEL (29). Replace them when the real curve is known. Every entry must be
+# positive: a zero entry makes the native level loop spin forever.
+XP_LEVEL_1_OFFSET = 200
+MAX_LEVEL = 29
+XP_LEVELS = tuple(XP_LEVEL_1_OFFSET * level for level in range(1, MAX_LEVEL + 1))
+
+
 def validate_tutorial(tutorial, step):
     if type(tutorial) is not int or tutorial not in TUTORIAL_STEPS:
         raise ValueError('Unsupported tutorial reference')

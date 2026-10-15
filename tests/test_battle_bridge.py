@@ -39,6 +39,25 @@ class BattleBridgeTests(unittest.TestCase):
         self.assertEqual(profile['battle_progress']['xp'], 124)
         self.assertEqual(profile['tutorials'], {})  # Readiness does not fake completion.
 
+    def test_xp_bar_display_splits_saved_and_battle_xp(self):
+        from progress import XP_LEVELS
+        self.report({'10800021': 10})  # 20 XP in an earlier battle.
+        epoch = self.bridge.begin(self.account.account_id, 'two')
+        state = self.bridge.state(self.account.account_id)
+        self.assertEqual((state['xp_before_battle'], state['battle_xp']), (20, 0))
+        self.assertEqual(state['xp_levels'], list(XP_LEVELS))
+        result = self.report({'10800021': 3, '10800268': 1}, epoch=epoch)
+        self.assertEqual((result['xp'], result['xp_before_battle'], result['battle_xp']), (36, 20, 16))
+        # A retried report keeps the same battle XP.
+        result = self.report({'10800021': 3, '10800268': 1}, epoch=epoch)
+        self.assertEqual(result['battle_xp'], 16)
+        self.assertEqual(self.bridge.state(self.account.account_id)['battle_xp'], 16)
+
+    def test_xp_levels_never_stall_the_native_level_loop(self):
+        from progress import XP_LEVELS
+        self.assertTrue(XP_LEVELS)
+        self.assertTrue(all(type(v) is int and v > 0 for v in XP_LEVELS))
+
     def test_epoch_account_and_character_isolation(self):
         other = self.store.authenticate(0, None)
         with self.assertRaises(ValueError):

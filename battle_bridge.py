@@ -21,7 +21,7 @@ import hmac
 import json
 import secrets
 
-from progress import KILL_TARGET, RESCUE_TARGET
+from progress import KILL_TARGET, RESCUE_TARGET, XP_LEVELS
 
 # characters.csv LootProfile -> loot_profiles.csv XP (Weak 2000, WeakMedium
 # 4000, Strong 10000). Native 6a58c8 scales that value and divides by 10000;
@@ -77,6 +77,11 @@ def _credit(previous, counts):
     return merged, kills, rescues, kill_xp
 
 
+def _battle_xp(counts):
+    """Kill XP credited so far in one battle, from its high-water counts."""
+    return sum(count * KILL_XP[int(key)] for key, count in counts.items() if int(key) in MONSTERS)
+
+
 class BattleBridge:
     def __init__(self, accounts, token):
         self.accounts, self.token = accounts, token
@@ -103,11 +108,22 @@ class BattleBridge:
     # ----- requests from the client bridge -------------------------------
 
     def state(self, account_id):
+        """Battle start: epoch, saved totals and the XP display data."""
         if account_id not in self.active:
             raise ValueError('No authenticated battle for this account')
+        epoch = self.active[account_id][1]
         with self.accounts.edit_profile(account_id) as profile:
             saved = dict(profile.get('battle_progress', {}))
-        return dict(epoch=self.active[account_id][1], **saved)
+        with self.accounts.connect() as db:
+            row = db.execute('SELECT counts FROM battle_reports WHERE epoch=?', (epoch,)).fetchone()
+        battle_xp = _battle_xp(json.loads(row[0])) if row else 0
+        return dict(saved, epoch=epoch, **self._xp_display(saved.get('xp', 0), battle_xp))
+
+    @staticmethod
+    def _xp_display(total_xp, battle_xp):
+        """What the client's XP bar shows: XP before this battle plus XP earned in it."""
+        return {'xp_before_battle': total_xp - battle_xp, 'battle_xp': battle_xp,
+                'xp_levels': list(XP_LEVELS)}
 
     def report(self, account_id, epoch, counts, xp):
         """Credit a cumulative report and return the account's saved totals."""
@@ -138,7 +154,7 @@ class BattleBridge:
         if kills or rescues:
             print(f'Battle progress: +{kills} kills, +{rescues} rescues, +{kill_xp} kill XP; '
                   f'tutorial_ready={progress["tutorial_ready"]}', flush=True)
-        return dict(epoch=epoch, **progress)
+        return dict(progress, epoch=epoch, **self._xp_display(progress['xp'], _battle_xp(merged)))
 
     # ----- loopback HTTP endpoint -----------------------------------------
 

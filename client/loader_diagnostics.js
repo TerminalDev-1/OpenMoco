@@ -98,7 +98,10 @@ rpc.exports = {
                 if (!/^[0-9a-f]{64}$/.test(token)) throw new Error('Invalid battle bridge token');
                 for (const [offset, signature] of [[0x5bf784,'ffc301d1fd7b01a9fc6f02a9fa6703a9'],
                     [0x738e58,'fd7bbca9f85f01a9f65702a9f44f03a9'],
-                    [0x74a0e4,'ff4302d1fd7b03a9fc6f04a9fa6705a9']]) {
+                    [0x74a0e4,'ff4302d1fd7b03a9fc6f04a9fa6705a9'],
+                    [0x73a364,'fd7bbea9f30b00f9fd030091089c41b9'],
+                    [0x5c10f4,'080440f9680000b4001940f9c0035fd6'],
+                    [0x57f870,'ff0302d1eb2b036de923046dfd7b05a9']]) {
                     const bytes = Array.from(new Uint8Array(owner.base.add(offset).readByteArray(signature.length / 2)))
                         .map(v => v.toString(16).padStart(2,'0')).join('');
                     if (bytes !== signature) throw new Error('Unsupported battle bridge signature');
@@ -107,6 +110,80 @@ rpc.exports = {
                 const allowed = new Set([10800020,10800021,10800026,10800117,10800120,10800138,
                     10800036,10800268,10800309,10800310,10800311,10800312,10800313]);
                 let battle = null, busy = false;
+                // XP bar display, supplied by the server: XP before this battle,
+                // server-credited battle XP, and the per-level XP table.
+                let xpDisplay = null;
+                const nativeNew = new NativeFunction(owner.base.add(0xe771c0),'pointer',['uint64']);
+                // The client's XP level table (0x5c10f4: [[mgr+8]+0x30]; +0 base XP,
+                // +8 int vector {data,+8 capacity,+c count}) arrives empty. Level loop
+                // 0x788de8 never ends on an empty table once XP > 0 (the old freeze).
+                function xpConfig() {
+                    const manager = owner.base.add(0xfadbf8).readPointer();
+                    if (manager.isNull()) return null;
+                    const holder = manager.add(8).readPointer();
+                    if (holder.isNull()) return null;
+                    const config = holder.add(0x30).readPointer();
+                    return config.isNull() || config.add(8).readPointer().isNull() ? null : config;
+                }
+                function validLevels(levels) {
+                    return Array.isArray(levels) && levels.length >= 1 && levels.length <= 200 &&
+                        levels.every(v => Number.isInteger(v) && v > 0 && v < 0x40000000);
+                }
+                // The runner provisions the server's table so it is in place before the
+                // battle HUD copies it at scene start; server replies carry it too.
+                let xpLevels = null;
+                try {
+                    const provisioned = JSON.parse(File.readAllText('/data/user/0/com.supercell.moco.localtest/files/xp-levels.json'));
+                    if (validLevels(provisioned)) xpLevels = provisioned;
+                } catch (_) {}
+                function fillLevelTable(table, where) {
+                    if (table.isNull() || table.add(0xc).readS32() !== 0) return;
+                    // Native allocation: the game may free this buffer itself.
+                    const data = nativeNew(xpLevels.length * 4);
+                    xpLevels.forEach((v, i) => data.add(i * 4).writeS32(v));
+                    table.writePointer(data);
+                    table.add(8).writeS32(xpLevels.length);
+                    table.add(0xc).writeS32(xpLevels.length);  // Count last: readers check it.
+                    log('Installed private-server XP level table in '+where+' ('+xpLevels.length+' levels)');
+                }
+                function installXpLevels() {
+                    const config = xpLevels === null ? null : xpConfig();
+                    if (config === null) return false;
+                    fillLevelTable(config.add(8).readPointer(), 'client config');
+                    return true;
+                }
+                // The battle XP HUD (bar update 0x57f870, reached every frame from
+                // 0x57f864) keeps its own table copy at +0x1c8 (+0x198 shares it). On a
+                // cold launch it is copied before the config exists, so fill it once
+                // from the first HUD update, then detach to keep Mainloop free.
+                // It also has its own base XP at +0x178 (0 here); the bar shows base plus
+                // battle XP. Both are written on Mainloop while the HUD is live, then the
+                // hook detaches, so it runs only for the first frames of a battle.
+                let hudWatch = null, hudReady = false, hudBase = null;
+                function watchHud() {
+                    if (hudWatch !== null || hudReady || xpLevels === null) return;
+                    hudWatch = Interceptor.attach(owner.base.add(0x57f870),{onEnter(args) {
+                        if (hudReady) return;
+                        try {
+                            installXpLevels();
+                            fillLevelTable(args[0].add(0x1c8).readPointer(), 'battle HUD');
+                            if (hudBase === null) return;  // Wait for the server's reply.
+                            args[0].add(0x178).writeS32(hudBase);
+                        } catch (error) { log('HUD XP display rejected: '+error); }
+                        hudReady = true;
+                        // Detach outside the native callback.
+                        setTimeout(() => { if (hudWatch !== null) { hudWatch.detach(); hudWatch = null; } }, 0);
+                    }});
+                }
+                function applyXpDisplay(result) {
+                    if (validLevels(result.xp_levels)) xpLevels = result.xp_levels;
+                    if (!Number.isInteger(result.xp_before_battle) || result.xp_before_battle < 0) return;
+                    if (hudBase === null) hudBase = result.xp_before_battle;
+                    watchHud();
+                    if (!installXpLevels()) return;
+                    xpConfig().writeS32(result.xp_before_battle);
+                    xpDisplay = {battleXp: result.battle_xp};
+                }
                 function dataId(data) {
                     const ref = data.add(0x18);
                     return new NativeFunction(ref.readPointer().add(0x10).readPointer(),'uint64',['pointer'])(ref).toString();
@@ -151,11 +228,12 @@ rpc.exports = {
                     try {
                         if (current.epoch === null) {
                             const state = await request('GET',{account_id:current.account});
-                            if (battle === current) current.epoch = state.epoch;
+                            if (battle === current) { current.epoch = state.epoch; applyXpDisplay(state); }
                         }
                         if (battle === current && current.epoch !== null) {
                             const result = await request('POST',{account_id:current.account,epoch:current.epoch,
                                 counts:current.counts,xp:current.xp});
+                            if (battle === current) applyXpDisplay(result);
                             if (battle === current && result.xp !== current.savedXp) {
                                 current.savedXp = result.xp;
                                 log('Saved private-server XP '+result.xp+' kills='+result.kills+' rescues='+result.rescues);
@@ -165,6 +243,10 @@ rpc.exports = {
                     finally { busy = false; }
                 },2000);
                 Interceptor.attach(owner.base.add(0x5bf784),{onEnter(args) {
+                    xpDisplay = null;
+                    hudReady = false;
+                    hudBase = null;
+                    try { installXpLevels(); watchHud(); } catch (error) { log('XP level table rejected: '+error); }
                     try {
                         const frame = args[1].add(0xa0).readPointer().add(0x28).readPointer();
                         const players = vector(frame,2009);
@@ -193,6 +275,13 @@ rpc.exports = {
                         battle.xp = Math.min(60000,Math.max(battle.xp,
                             this.player.add(0x19c).readS32() - battle.initialXp));
                     } catch (error) { log('Collected battle XP rejected: '+error); }
+                }});
+                // 0x73a364 returns the local player's battle XP for the HUD bar, level
+                // badge and XP counter only (callers 0x612758, 0x60d2a8, 0x60ebf0).
+                // Adding server XP to the result leaves simulation state untouched,
+                // so prediction rollback cannot undo it.
+                Interceptor.attach(owner.base.add(0x73a364),{onLeave(retval) {
+                    if (xpDisplay !== null && xpDisplay.battleXp > 0) retval.replace(retval.toInt32() + xpDisplay.battleXp);
                 }});
                 battleBridgeInstalled = true;
                 log('Private-server battle bridge installed');

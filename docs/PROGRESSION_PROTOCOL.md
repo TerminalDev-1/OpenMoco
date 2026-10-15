@@ -69,6 +69,16 @@ the tutorial. Existing 574 tutorial persistence must remain intact.
   references. Their names are inferred from observed order; they're persisted
   and replayed on reconnect.
 
+## Implemented: XP bar (2026-10-15)
+
+- XP level table: config [[[0xfadbf8]+8]+0x30], +0 base XP, +8 int vector.
+  The client ships no table; an empty one makes level loop 0x788de8 spin
+  forever once XP > 0. The battle HUD copies it to +0x1c8 at creation.
+- Bar: 0x57f870 shows HUD+0x178 base XP plus battle XP from 0x73a364
+  (player +0x19c + +0x1a0 - baseline). The bridge fills both tables, sets the
+  bases and adds server battle XP to 0x73a364's result (display-only callers).
+- Server table progress.XP_LEVELS is provisional (200 per level, 29 levels).
+
 ## COOL zone
 
 The user confirmed this is a separate area, not the wardrobe. Supplied battle
