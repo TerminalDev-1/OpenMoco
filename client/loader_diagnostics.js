@@ -159,30 +159,50 @@ rpc.exports = {
                 // It also has its own base XP at +0x178 (0 here); the bar shows base plus
                 // battle XP. Both are written on Mainloop while the HUD is live, then the
                 // hook detaches, so it runs only for the first frames of a battle.
-                let hudWatch = null, hudReady = false, hudBase = null;
+                // The apartment also reaches 0x57f870, so the hook acts only while a
+                // battle is live and fills the HUD table once per scene.
+                let hudWatch = null, hudReady = false, hudBase = null, hudTableDone = false;
+                function stopHudWatch() {
+                    hudReady = true;
+                    const listener = hudWatch;
+                    hudWatch = null;
+                    if (listener !== null) setTimeout(() => listener.detach(), 0);
+                }
                 function watchHud() {
-                    if (hudWatch !== null || hudReady || xpLevels === null) return;
+                    if (hudWatch !== null || hudReady || battle === null || xpLevels === null) return;
                     hudWatch = Interceptor.attach(owner.base.add(0x57f870),{onEnter(args) {
-                        if (hudReady) return;
+                        if (hudReady || battle === null) return;
                         try {
-                            installXpLevels();
-                            fillLevelTable(args[0].add(0x1c8).readPointer(), 'battle HUD');
+                            if (!hudTableDone) {
+                                hudTableDone = true;
+                                installXpLevels();
+                                fillLevelTable(args[0].add(0x1c8).readPointer(), 'battle HUD');
+                            }
                             if (hudBase === null) return;  // Wait for the server's reply.
                             args[0].add(0x178).writeS32(hudBase);
                         } catch (error) { log('HUD XP display rejected: '+error); }
-                        hudReady = true;
-                        // Detach outside the native callback.
-                        setTimeout(() => { if (hudWatch !== null) { hudWatch.detach(); hudWatch = null; } }, 0);
+                        stopHudWatch();  // Detaches outside the native callback.
                     }});
                 }
-                function applyXpDisplay(result) {
+                // Server replies arrive on the Frida JS thread. Only JS state changes
+                // there; the native table and base XP writes wait for the next
+                // 0x73a364 call on Mainloop, which happens only while a battle HUD is
+                // live. A reply for an earlier battle (after Leave Battle or a new
+                // scene start) is dropped instead of written.
+                let pendingXp = null;
+                function applyXpDisplay(result, current) {
                     if (validLevels(result.xp_levels)) xpLevels = result.xp_levels;
                     if (!Number.isInteger(result.xp_before_battle) || result.xp_before_battle < 0) return;
                     if (hudBase === null) hudBase = result.xp_before_battle;
                     watchHud();
-                    if (!installXpLevels()) return;
-                    xpConfig().writeS32(result.xp_before_battle);
-                    xpDisplay = {battleXp: result.battle_xp};
+                    pendingXp = {battle: current, base: result.xp_before_battle, battleXp: result.battle_xp};
+                }
+                function applyPendingXp() {
+                    const pending = pendingXp;
+                    pendingXp = null;
+                    if (pending.battle !== battle || !installXpLevels()) return;
+                    xpConfig().writeS32(pending.base);
+                    xpDisplay = {battleXp: pending.battleXp};
                 }
                 function dataId(data) {
                     const ref = data.add(0x18);
@@ -228,12 +248,12 @@ rpc.exports = {
                     try {
                         if (current.epoch === null) {
                             const state = await request('GET',{account_id:current.account});
-                            if (battle === current) { current.epoch = state.epoch; applyXpDisplay(state); }
+                            if (battle === current) { current.epoch = state.epoch; applyXpDisplay(state, current); }
                         }
                         if (battle === current && current.epoch !== null) {
                             const result = await request('POST',{account_id:current.account,epoch:current.epoch,
                                 counts:current.counts,xp:current.xp});
-                            if (battle === current) applyXpDisplay(result);
+                            if (battle === current) applyXpDisplay(result, current);
                             if (battle === current && result.xp !== current.savedXp) {
                                 current.savedXp = result.xp;
                                 log('Saved private-server XP '+result.xp+' kills='+result.kills+' rescues='+result.rescues);
@@ -244,18 +264,24 @@ rpc.exports = {
                 },2000);
                 Interceptor.attach(owner.base.add(0x5bf784),{onEnter(args) {
                     xpDisplay = null;
+                    pendingXp = null;
                     hudReady = false;
                     hudBase = null;
-                    try { installXpLevels(); watchHud(); } catch (error) { log('XP level table rejected: '+error); }
+                    hudTableDone = false;
+                    try { installXpLevels(); } catch (error) { log('XP level table rejected: '+error); }
                     try {
                         const frame = args[1].add(0xa0).readPointer().add(0x28).readPointer();
                         const players = vector(frame,2009);
-                        if (vector(frame,2002).add(12).readS32() === 0 || players.add(12).readS32() === 0) { battle = null; return; }
-                        const player = players.readPointer().readPointer();
-                        battle = {account:player.add(0x1e8).readPointer().readU64().toString(),epoch:null,
-                            counts:counts(player),xp:0,initialXp:player.add(0x19c).readS32(),savedXp:-1};
-                        log('Private-server battle progress bridge active');
+                        if (vector(frame,2002).add(12).readS32() === 0 || players.add(12).readS32() === 0) battle = null;
+                        else {
+                            const player = players.readPointer().readPointer();
+                            battle = {account:player.add(0x1e8).readPointer().readU64().toString(),epoch:null,
+                                counts:counts(player),xp:0,initialXp:player.add(0x19c).readS32(),savedXp:-1};
+                            log('Private-server battle progress bridge active');
+                        }
                     } catch (error) { battle = null; log('Battle bridge scene rejected: '+error); }
+                    if (battle === null) stopHudWatch();
+                    else try { watchHud(); } catch (error) { log('HUD XP watch rejected: '+error); }
                 }});
                 // Do not force the tutorial's loot-disabled setting (6c2894): enabled
                 // XP drops froze Mainloop after warm battle reentry. The server
@@ -280,7 +306,11 @@ rpc.exports = {
                 // badge and XP counter only (callers 0x612758, 0x60d2a8, 0x60ebf0).
                 // Adding server XP to the result leaves simulation state untouched,
                 // so prediction rollback cannot undo it.
+                // It also applies queued server XP on Mainloop (see applyXpDisplay).
                 Interceptor.attach(owner.base.add(0x73a364),{onLeave(retval) {
+                    if (pendingXp !== null) {
+                        try { applyPendingXp(); } catch (error) { log('XP display rejected: '+error); }
+                    }
                     if (xpDisplay !== null && xpDisplay.battleXp > 0) retval.replace(retval.toInt32() + xpDisplay.battleXp);
                 }});
                 battleBridgeInstalled = true;
