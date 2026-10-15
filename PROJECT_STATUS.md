@@ -76,6 +76,12 @@ unchanged payload entries). 71 tests pass (run per module; see below).
    connection. Treat them as a probe-build artifact (unknown cause); recheck
    if they appear on a normal build.
 
+Published: https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.9.0-character-editor
+(pre-release, target 1c9dc70). Six assets (base 61c11c9b..., manifest,
+assembler, INSTALL.md, SHA256SUMS.txt, DOWNLOADS.md) matched remote sizes and
+SHA-256 digests; the seven v0.3.0-apartment dependencies still match. The
+installed tablet base is this release build.
+
 Tests: `python -m unittest discover tests` hangs if a server test fails
 inside its async exchange; run modules one by one with a timeout to see the
 failure. Manual server: hidden, mode local-starter-look-and-bridge-fix, log
