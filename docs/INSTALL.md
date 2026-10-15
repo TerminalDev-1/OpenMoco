@@ -11,14 +11,15 @@ then Leave Battle to return home. Monsters and civilians fight in Downtown
 Chaos, and the server credits XP for each kill. The in-battle XP bar and level
 badge show the server's XP (the XP-per-level table is provisional). Once you've
 defeated 50 monsters and rescued 3 civilians, Leave Battle finishes the first
-tutorial and the client moves on to character creation, which still has no
-cosmetic data. Authoritative gameplay remains unfinished. The build is
+tutorial and the client moves on to character creation, where the server's
+starter faces, hairstyles and colours can be chosen and are saved. The home
+level badge doesn't show saved XP yet. Authoritative gameplay remains unfinished. The build is
 debuggable; research probes are disabled.
 
 ## Download and assemble
 
 Download the updated base APK, manifest, assembler and checksums from
-[v0.8.0-xp-bar](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.8.0-xp-bar).
+[v0.9.0-character-editor](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.9.0-character-editor).
 For a fresh installation, also download the three configuration APKs and four
 asset-pack parts from
 [v0.3.0-apartment](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.3.0-apartment).
@@ -83,8 +84,9 @@ battle freeze after re-entering through the portal, and reports kills/rescues
 so the server (commit acacacd or newer) credits XP per kill. v0.8.0 fills the
 in-battle XP bar from the server's XP. It needs a server at commit 4b82377 or
 newer, started with `tools/run_local_test.py`, which also provides the client's
-XP-per-level table. It uses the same saved local account and matching
-configuration splits.
+XP-per-level table. v0.9.0 makes the client's XP display updates safer when
+leaving a battle; its character editor needs a server at commit 0e71405 or
+newer. It uses the same saved local account and matching configuration splits.
 The client
 suppresses automatic idle closure and keeps its foreground screen awake. Keep
 wireless debugging connected: losing ADB forwarding can still cause a connection
