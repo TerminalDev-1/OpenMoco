@@ -45,6 +45,21 @@ class AccountTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 reopened.record_age_choice(1, 16)
 
+    def test_equipped_starter_cosmetics_persist_by_slot(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'accounts.sqlite3'
+            store = AccountStore(path)
+            first = store.authenticate(0, None)
+            self.assertEqual(store.record_cosmetic(first.account_id, 2900439), '3')
+            self.assertEqual(store.record_cosmetic(first.account_id, 2900443), '2')
+            self.assertEqual(store.record_cosmetic(first.account_id, 2900436), '3')
+            self.assertEqual(store.record_cosmetic(first.account_id, 2900415), 'dye_skin')
+            saved = AccountStore(path).authenticate(first.account_id, first.token).profile
+            self.assertEqual(saved['look'], {'3': 2900436, '2': 2900443, 'dye_skin': 2900415})
+            for cosmetic in (2900099, 6700000, -1):  # Not an owned starter item.
+                with self.assertRaises(ValueError):
+                    store.record_cosmetic(first.account_id, cosmetic)
+
     def test_create_and_reconnect_after_reopening(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder)/'accounts.sqlite3'

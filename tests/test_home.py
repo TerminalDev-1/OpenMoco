@@ -60,6 +60,50 @@ class HomeTests(unittest.TestCase):
         self.assertEqual([reader.compact() for _ in range(3)], [0, 0, 0])  # Suffix.
         self.assertEqual(reader.remaining, 0)
 
+    def test_vanity_items_fill_client_home_e0(self):
+        # 0x79716c: count, then entries 0x796ba8 (raw data reference and a
+        # compact sub-entry count). The rest of the profile is unchanged.
+        from home import STARTER_FACES, STARTER_HAIRSTYLES, STARTER_VANITY
+        from stream import Reader
+        self.assertEqual((len(STARTER_FACES), len(STARTER_HAIRSTYLES)), (26, 32))
+        tutorials = {'15600000': 0, '15600001': 14200006}
+        plain = own_home(1, tutorials=tutorials, xp=1901)
+        body = own_home(1, tutorials=tutorials, xp=1901, vanity=(2900435, 2900441))
+        last = (15600001).to_bytes(8, 'big') + (14200006).to_bytes(8, 'big')
+        start = body.index(last) + len(last)
+        reader = Reader(body[start:])
+        reader.raw(16)
+        [reader.compact() for _ in range(3)]
+        reader.string(), reader.string()
+        reader.compact()
+        self.assertEqual((reader.bit_boolean(), reader.compact()), (True, 2))
+        for item in (2900435, 2900441):
+            self.assertEqual((int.from_bytes(reader.raw(8), 'big'), reader.compact()), (item, 0))
+        self.assertEqual(len(body), len(plain) + 2 * 9)
+        self.assertEqual(len(own_home(1, vanity=STARTER_VANITY)), len(own_home(1)) + 77 * 9 + 1)  # 77 needs a two-byte count.
+        with self.assertRaises(ValueError):
+            own_home(1, vanity=(0,))
+
+    def test_equipped_look_fills_current_build_cosmetics(self):
+        # Build manager 0x76b378 -> current build 0x769988: two integers, the
+        # name, +0x18 dye strings, then +0x40 equipped cosmetic references.
+        from home import STARTER_DYES, STARTER_VANITY, equipped_look
+        from stream import Reader
+        default = equipped_look(None)
+        self.assertEqual(default, (2900417, 2900426, 2900422, 2900435))
+        chosen = equipped_look({'3': 2900439, '2': 2900443, 'dye_eye': 2900420})
+        self.assertEqual(chosen, (2900417, 2900426, 2900420, 2900439, 2900443))
+        self.assertEqual(equipped_look({'2': 2900439, 'dye_eye': 2900417}), default)  # Wrong keys.
+        body = own_home(1, vanity=STARTER_VANITY, look=chosen)
+        index = body.index((2900439).to_bytes(8, 'big') + (2900443).to_bytes(8, 'big'))
+        self.assertEqual(body[index - 1], 2)  # +0x40 count.
+        dyes = [STARTER_DYES[item][1] for item in chosen[:3]]
+        encoded = b''.join(len(d).to_bytes(4, 'big') + d.encode() for d in dyes)
+        self.assertEqual(body[index - 1 - len(encoded) - 1:index - 1], bytes([3]) + encoded)
+        self.assertEqual(body[index - 1 - len(encoded) - 5:index - 1 - len(encoded) - 1], bytes(4))  # Name ''.
+        with self.assertRaises(ValueError):
+            own_home(1, look=(2900439,))  # Not owned.
+
     def test_local_identity_is_in_both_home_id_fields(self):
         identity = (166 << 32) | 4
         encoded = own_home(identity)

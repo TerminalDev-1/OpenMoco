@@ -15,6 +15,68 @@ from stream import Writer
 OWN_HOME_TYPE = 24548
 SMART_BOW = 6700000  # Loaded battle-kit record; its weapon link is ArcherWeapon.
 XP_POINT = 300020    # resources.csv XpPoint (Meta), instance 20.
+# Free default faces (slot 3) and hairstyles (slot 2): the rAssetCosmetic
+# records with pool 0 and enabledForPlayers. The character editor (signup
+# screen, list builder 0x570be4) lists only owned vanity items of the chosen
+# slot (0x797cf0 over client-home +0xe0); with none it shows
+# TID_BUILDS_POPUP_NO_SKIN_CANDIDATES and an empty list.
+STARTER_FACES = (2900434, 2900435, 2900436, 2900437, 2900438, 2900439, 2900440,
+                 2900792, 2900793, 2900794, 2900795, 2900796, 2900797, 2900798,
+                 2901569, 2901570, 2901571, 2901572, 2901573, 2901574, 2901575,
+                 2901576, 2901577, 2901578, 2901579, 2901580)
+STARTER_HAIRSTYLES = (2900441, 2900442, 2900443, 2900444, 2900445, 2900446, 2900447,
+                      2900448, 2900449, 2900869, 2900870, 2900871, 2900872, 2900873,
+                      2900874, 2900875, 2900876, 2900877, 2900878, 2900879, 2900880,
+                      2900881, 2900882, 2900883, 2900884, 2900885, 2900886, 2900887,
+                      2900888, 2900889, 2901620, 2901621)
+# Free default skin, eye and hair colours: slot -3 dyes with pool 0. A build
+# keeps equipped dyes as their graphicAsset UUID strings (see _client_home).
+STARTER_DYES = {
+    2900415: ('skin', '4b9f0096-c119-fd32-813d-5e4ac4a503ec'),
+    2900416: ('skin', '4b9f0096-6eff-3136-cea4-9531df6bf6ee'),
+    2900417: ('skin', '4b9f0096-0303-aae8-c3f1-7346443d6290'),
+    2900418: ('skin', '4b9f0096-7606-b721-36de-d369d136fbf7'),
+    2900419: ('skin', '4b9f0096-3fe2-6c29-ff90-f33fc826c375'),
+    2900420: ('eye', '4b9f0096-1723-2356-7703-a48d2fc83608'),
+    2900421: ('eye', '4b9f0096-4009-fbd0-00fa-4229ccaf34ec'),
+    2900422: ('eye', '4b9f0096-4829-33f5-8894-030e84aca5b8'),
+    2900423: ('eye', '4b9f0096-3754-3c0a-77e6-2b31b46fe7e1'),
+    2900424: ('eye', '4b9f0096-40de-a598-e05e-75c897fece02'),
+    2900425: ('hair', '4b9f0096-2420-a384-e491-60a9a0b51e29'),
+    2900426: ('hair', '4b9f0096-91fe-e57f-51e1-f56baa110186'),
+    2900427: ('hair', '4b9f0096-7319-e582-d349-6fe9c9807d29'),
+    2900428: ('hair', '4b9f0096-f8d2-34b7-9876-56e1bc1853f9'),
+    2900429: ('hair', '4b9f0096-8d88-a927-0dab-044fa85b21e3'),
+    2900430: ('hair', '4b9f0096-33bc-7777-d36f-cea216caf472'),
+    2900431: ('hair', '4b9f0096-ec46-6a1f-4c56-066175cabe2c'),
+    2900432: ('hair', '4b9f0096-05ea-b1ff-8501-398bd560ba29'),
+    2900433: ('hair', '4b9f0096-931a-bd76-f31a-74b6756bcfc9'),
+}
+STARTER_VANITY = STARTER_FACES + STARTER_HAIRSTYLES + tuple(STARTER_DYES)
+# Shown until the player chooses: the head the apartment scene already
+# renders, and the dyes marked canBePreset (mid skin, brown eyes, brunette).
+DEFAULT_LOOK = {'3': 2900435, 'dye_skin': 2900417, 'dye_eye': 2900422, 'dye_hair': 2900426}
+
+
+def cosmetic_slot(cosmetic):
+    """Saved look key of an owned starter item: its native slot (data +0x30),
+    or dye_<kind> for slot -3 dyes, where one dye of each kind is equipped."""
+    if cosmetic in STARTER_FACES:
+        return '3'
+    if cosmetic in STARTER_HAIRSTYLES:
+        return '2'
+    if cosmetic in STARTER_DYES:
+        return 'dye_' + STARTER_DYES[cosmetic][0]
+    raise ValueError('Cosmetic is not an owned starter item')
+
+
+def equipped_look(saved):
+    """Current-build cosmetics from a saved {look key: cosmetic} profile entry."""
+    look = dict(DEFAULT_LOOK)
+    for key, cosmetic in (saved or {}).items():
+        if cosmetic in STARTER_VANITY and cosmetic_slot(cosmetic) == key:
+            look[key] = cosmetic
+    return tuple(look[key] for key in sorted(look, reverse=True))
 
 
 @dataclass(frozen=True)
@@ -84,7 +146,19 @@ def _quest_state(writer, main_steps):
         writer.bit_boolean(step.claimed)      # claimed
 
 
-def _client_home(writer, account_id, battle_kit, age_category, tutorials, main_steps):
+def _vanity_items(writer, items):
+    """Client-home +e0 vanity items (0x79716c; entry 0x796ba8).
+
+    Each entry is a raw cosmetic data reference (stream +0x120) and a count of
+    8-byte sub-entries (0x797034), which stays zero here.
+    """
+    writer.compact(len(items))
+    for item in items:
+        _ref(writer, item)
+        writer.compact(0)
+
+
+def _client_home(writer, account_id, battle_kit, age_category, tutorials, main_steps, vanity, look):
     writer.raw(struct.pack('>Q', account_id))  # Home's two raw ID words.
     # Empty resources, home events, and native default battle-kit entry.
     _zeros(writer, 3)
@@ -92,9 +166,24 @@ def _client_home(writer, account_id, battle_kit, age_category, tutorials, main_s
     writer.compact(1 if age_category else 0)
     if age_category:
         writer.integer(7).integer(age_category)
+    # Ends with the +0x88 build manager (0x76b378): build count, then the
+    # current build (0x769988): two integers and its name.
     _zeros(writer, 8)
     writer.string('')  # Default build name, native SCString encoder 0x8d6964.
-    _zeros(writer, 5)
+    # Current build +0x18: equipped dyes, each a string (0x83c214, at most 50
+    # characters) parsed into an asset handle; 543 replaces one per kind
+    # (0x769e70). Unparsable strings are skipped natively (0x86c8cc).
+    dyes = [STARTER_DYES[item][1] for item in look if item in STARTER_DYES]
+    writer.compact(len(dyes))
+    for dye in dyes:
+        writer.string(dye)
+    # Current build +0x40: other equipped cosmetic references. The character
+    # editor shows these (0x77f2b8 -> 0x76a214 by slot) and 543 updates them.
+    others = [item for item in look if item not in STARTER_DYES]
+    writer.compact(len(others))
+    for cosmetic in others:
+        _ref(writer, cosmetic)
+    _zeros(writer, 3)  # Current build +0x50, then manager +0x20 and +0x30.
     writer.raw(struct.pack('>Q', battle_kit))  # Selected battle-kit data record.
     _zeros(writer, 3)
     writer.bit_boolean(False)
@@ -112,7 +201,9 @@ def _client_home(writer, account_id, battle_kit, age_category, tutorials, main_s
     writer.compact(0)
     # Conditional collections at home +e0, +120, +18, +20, +28.
     # The native UI dereferences these even when their counts are zero.
-    for _ in range(5):
+    writer.bit_boolean(True)
+    _vanity_items(writer, vanity)
+    for _ in range(4):
         writer.bit_boolean(True).compact(0)
     writer.compact(0)  # +128 object 0x781f14: one count, always encoded.
     writer.bit_boolean(True).compact(0)  # +30 conditional collection.
@@ -143,7 +234,8 @@ def _avatar_and_suffix(writer, xp):
     _zeros(writer, 3)       # Own-home suffix.
 
 
-def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, main_steps=(), xp=0):
+def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, main_steps=(), xp=0,
+             vanity=(), look=()):
     if not isinstance(account_id, int) or not 0 <= account_id < 1 << 64:
         raise ValueError('Home account ID is outside the native 64-bit range')
     if battle_kit != SMART_BOW:
@@ -152,6 +244,10 @@ def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, m
         raise ValueError('Unsupported native onboarding category')
     if type(xp) is not int or not 0 <= xp <= 0x7fffffff:
         raise ValueError('Invalid saved XP')
+    if any(type(item) is not int or not 0 < item < 1 << 63 for item in vanity):
+        raise ValueError('Invalid vanity item reference')
+    if any(item not in vanity for item in look):
+        raise ValueError('Equipped cosmetic is not owned')
     for step in main_steps:
         for quest in step.quests:
             if not 0 <= quest.progress <= 0x7fffffff or not 0 < quest.target <= 0x7fffffff:
@@ -162,6 +258,7 @@ def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, m
     writer.bit_boolean(False).string('').bit_boolean(False)
     for _ in range(3):
         writer.integer(0)
-    _client_home(writer, account_id, battle_kit, age_category, entries, tuple(main_steps))
+    _client_home(writer, account_id, battle_kit, age_category, entries, tuple(main_steps),
+                 tuple(vanity), tuple(look))
     _avatar_and_suffix(writer, xp)
     return writer.bytes()

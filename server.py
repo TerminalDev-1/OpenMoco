@@ -44,6 +44,7 @@ GAME_CLOCK_REPLY = 28851     # Encoded by protocol.game_clock_reply.
 
 # Client turn command types (see commands.py).
 AGE_CHOICE_COMMAND = 541
+EQUIP_COSMETIC_COMMAND = 543
 TUTORIAL_COMMAND = 574
 MAIN_QUEST_SEEN_COMMAND = 575
 MAIN_QUEST_DONE_COMMAND = 576
@@ -257,9 +258,10 @@ class GameSession:
         self.log('sent encrypted local login reply (29125/v1); home data pending')
 
     def _own_home_body(self, profile):
-        from home import own_home
+        from home import STARTER_VANITY, equipped_look, own_home
         from progress import intro_main_steps
-        return own_home(self.account.account_id,
+        return own_home(self.account.account_id, vanity=STARTER_VANITY,
+                        look=equipped_look(profile.get('look')),
                         age_category=profile.get('age_category', 0),
                         tutorials=profile.get('tutorials', {}),
                         main_steps=intro_main_steps(profile),
@@ -342,6 +344,9 @@ class GameSession:
                 if command.command_type == AGE_CHOICE_COMMAND:
                     self.accounts.record_age_choice(account_id, command.fields['age'])
                     self.log('persisted local onboarding category')
+                elif command.command_type == EQUIP_COSMETIC_COMMAND:
+                    slot = self.accounts.record_cosmetic(account_id, command.fields['cosmetic'])
+                    self.log(f'persisted equipped cosmetic {slot}')
                 elif command.command_type == TUTORIAL_COMMAND:
                     self.accounts.record_tutorial(account_id, command.fields['tutorial'], command.fields['step'])
                     self.log('persisted tutorial transition')

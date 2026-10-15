@@ -30,6 +30,14 @@ class ClientTurnTests(unittest.TestCase):
         self.assertEqual(commands[1].fields, {'tutorial': 15600000, 'step': 0})
         self.assertEqual(commands[2].fields, {'tutorial': 15600001, 'step': 14200004})
 
+    def test_observed_character_editor_equip_turns(self):
+        # Native client: tapping a face, then a hairstyle, in the editor.
+        for payload, cosmetic in (('000000000000000266010000021f03a6097f9787e202', 2900439),
+                                  ('000000000000000544010000021f0384157f9b87e202', 2900443)):
+            command, = decode_client_turn(bytes.fromhex(payload)).commands
+            self.assertEqual((command.command_type, command.game_id, command.account_id), (543, -1, 0))
+            self.assertEqual(command.fields, {'cosmetic': cosmetic, 'slot': 0})
+
     def test_quiet_turn_and_invalid_count_or_suffix(self):
         self.assertEqual(decode_client_turn(bytes(10)).commands, ())
         for payload in (bytes(9) + b'\x7f', bytes(11)):

@@ -89,6 +89,29 @@ the tutorial. Existing 574 tutorial persistence must remain intact.
   bases and adds server battle XP to 0x73a364's result (display-only callers).
 - Server table progress.XP_LEVELS is provisional (200 per level, 29 levels).
 
+## Home level display (2026-10-15)
+
+- The badge/HUD level is level loop 0x788de8 over base XP plus 0x57e768
+  (battle getter 0x612758 in game mode 3, unclaimed quest rewards 0x57ed8c,
+  0x57ee8c). Base XP is HUD +0x178 and config +0; no native path found
+  copies the avatar XpPoint resource there, so it has no visible effect.
+- The bridge sets base XP only in battle. The HUD table at +0x1c8 reads
+  empty again shortly after being filled (per frame in the apartment), so a
+  positive apartment base is unsafe until its owner is traced (freeze rule).
+
+## Character editor and cosmetics (2026-10-15)
+
+- Signup list builder 0x570be4 lists owned vanity items of the chosen slot
+  (0x797cf0 over client-home +0xe0; slot 3 face, 2 hair). Entries 0x796ba8:
+  raw data reference + count of (int, int) sub-entries 0x797034.
+- Current build: client-home +0x88 (0x76b378) -> +0x10 (0x769988): ints
+  +0/+4, name, +0x18 dye strings (graphicAsset UUIDs, 0x83c214), +0x40
+  cosmetic references, +0x50 entries (0x794b14).
+- Command 543 (decoder 0x68732c): cosmetic reference, optional int "slot".
+  Handler 0x687128 rejects unowned items and replaces one dye per kind.
+- The server grants pool-0 faces/hairstyles/dyes, equips face 2900435 and
+  the canBePreset dyes by default, and persists 543 picks as profile `look`.
+
 ## COOL zone
 
 The user confirmed this is a separate area, not the wardrobe. Supplied battle

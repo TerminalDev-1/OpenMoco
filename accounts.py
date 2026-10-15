@@ -87,6 +87,18 @@ class AccountStore:
             profile['age_category'] = 3 if age < 16 else 2
             db.execute('UPDATE accounts SET profile=? WHERE id=?', (json.dumps(profile), account_id & 0xffffffff))
 
+    def record_cosmetic(self, account_id, cosmetic):
+        """Persist an equipped starter face or hairstyle from command 543.
+
+        The native handler 0x687128 rejects cosmetics missing from the
+        client-home vanity items, so only the server's starter items are kept.
+        """
+        from home import cosmetic_slot
+        slot = cosmetic_slot(cosmetic)
+        with self.edit_profile(account_id) as profile:
+            profile.setdefault('look', {})[str(slot)] = cosmetic
+        return slot
+
     def record_tutorial(self, account_id, tutorial, step):
         from progress import validate_tutorial
         validate_tutorial(tutorial, step)

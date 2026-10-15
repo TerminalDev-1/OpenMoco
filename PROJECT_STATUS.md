@@ -1,5 +1,86 @@
 # Project status — 2026-10-15
 
+## Character editor, bridge race fix, home XP and startup-crash findings
+Work by a side session on 2026-10-15 (evening). Normal client (all
+diagnostic flags false) installed on the tablet: base SHA-256 61c11c9b...,
+built with `--debuggable --local-network`; verify_test_client passes (1457
+unchanged payload entries). 71 tests pass (run per module; see below).
+
+1. Character editor (EditCharacter 14200010) now lists faces and hairstyles.
+   Native evidence: the signup screen's list builder 0x570be4 (tab titles
+   at 0x577f74, slot 3 = FACE, 2 = HAIR) counts owned items with 0x797cf0
+   over client-home +0xe0. With none it shows
+   TID_BUILDS_POPUP_NO_SKIN_CANDIDATES_%i and lists nothing. +0xe0 is the
+   vanity-item collection (0x79716c, entry 0x796ba8: raw data reference, then
+   a count of two-integer sub-entries 0x797034; "Invalid vanity item data
+   found!"). The server now owns the free default set: rAssetCosmetic records
+   with pool 0 and enabledForPlayers (26 faces, 32 hairstyles, 19 dyes).
+   The headless preview came from an empty current build: build manager
+   +0x88 (0x76b378) -> current build +0x10 (0x769988: two ints, name,
+   +0x18 dye strings, +0x40 cosmetic refs, +0x50). Equipped cosmetics go in
+   +0x40; equipped dyes are graphicAsset UUID strings in +0x18 (0x83c214,
+   max 50 chars; 0x769e70 keeps one per kind). Defaults: face 2900435 (the
+   head the apartment scene renders) and the canBePreset dyes (mid skin,
+   brown eyes, brunette hair). With them the preview has a coloured head.
+   Command 543 (factory case 0x67dd28, decoder 0x68732c: base fields, cosmetic
+   data reference, optional int "slot"; handler 0x687128 checks ownership
+   in +0xe0) is decoded; the server persists each pick as profile `look`
+   (face/hair/dye_<kind>, starter items only) and returns it in the current
+   build. Verified on the tablet: options appear for both buttons, a face and
+   a hairstyle apply, and both survive a cold relaunch. The two icons beside
+   the face list did not respond to taps; colour pickers are not verified.
+   The editor test picks were made on a temporary copy; the user's real
+   account was restored without a saved look, so the choice stays theirs.
+   Do not press READY for the user: that finishes their tutorial step.
+
+2. XpPoint (avatar 300020) has no visible effect, and the apartment badge
+   shows level 1. Why: the HUD/badge level comes from base XP + 0x57e768
+   (battle getter 0x612758 when game mode is 3, unclaimed quest rewards
+   0x57ed8c, battle-related 0x57ee8c) through level loop 0x788de8 with the
+   config/HUD level tables. Nothing found reads the avatar's resources on
+   that path. Base XP is HUD +0x178 / config +0, which only the bridge sets,
+   and only in battle. An apartment experiment (bridge fetching saved XP and
+   writing HUD +0x178 outside battle) was reverted, not shipped: about 1.5 s
+   after the bridge filled the HUD table (+0x1c8), the table read empty
+   again, in both the apartment and battle. That matches the earlier ~1200
+   per-visit refills, so something re-creates or clears it per frame. A
+   positive base with an empty table is the documented Mainloop freeze, so
+   it isn't safe until the owner of HUD +0x1c8 is traced. The other
+   0x788de8 caller, 0x758090 (from 0x6843e4), uses a per-item table at
+   [item+0x68]+0x28 and a home+0x18 -> +0xe8 record keyed by the item's ID.
+
+3. Bridge race fixed (client/loader_diagnostics.js). Server replies
+   arriving on the Frida JS thread now only update JS state; the config
+   table and base-XP writes run on Mainloop in the 0x73a364 hook, and only
+   for the battle that requested them (dropped after Leave Battle or a new
+   scene start). Also found and fixed: the 0x57f870 HUD hook never detached
+   in the apartment (it waited for a battle-only reply) and refilled the
+   HUD table with a fresh native allocation every frame (about 1,200 per
+   apartment visit). It now attaches only for battles, fills once per scene,
+   and detaches at non-battle scene starts. Verified on the exact installed
+   build: 6/6 scripted warm Leave Battle -> apartment -> portal -> battle
+   cycles with combat plus the first battle, one process, one connection,
+   one HUD table fill per battle, no rejected writes, badge level 4 and kills
+   credited. An earlier build of the same logic also passed 7/7. Soaks used
+   temporary GoToPortal copies of the account (kills reset per cycle); the
+   real state came from .local/accounts.before-bridge-fix.sqlite3 and
+   .local/accounts.before-home-xp.sqlite3 (soak copies: .local/accounts.after-
+   bridge-soak*.sqlite3).
+
+4. Early-startup SIGSEGV (probe build): not reproduced on the normal
+   client. 22 rapid relaunches (10 x force-stop/start with 4 s, 12 x 2.5 s)
+   all stayed alive with no Sentry crash envelope. The original crash
+   envelopes are gone from the tablet (only session envelopes remain), and
+   there are no dropbox tombstones for 2026-10-15. They happened only with
+   the --apartment-probe build relaunched in quick succession, before any
+   connection. Treat them as a probe-build artifact (unknown cause); recheck
+   if they appear on a normal build.
+
+Tests: `python -m unittest discover tests` hangs if a server test fails
+inside its async exchange; run modules one by one with a timeout to see the
+failure. Manual server: hidden, mode local-starter-look-and-bridge-fix, log
+captures/user-test-server-vanity.log, PID in .local/user-test-server.json.
+
 ## Leave Battle SIGSEGV fixed: own-home layout bug (server-only fix)
 Root cause: two compensating field-count errors in home.py's own-home
 encoder. Client-home +0x130 is object 0x7717b0, which reads six compact
