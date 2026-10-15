@@ -40,8 +40,18 @@ the level-4 fraction and grows with kills; a test write produced the native
 e950a79ac34d72d5 (probe flags false). Soak, PARTIAL: 5 warm leave-battle ->
 apartment -> portal round trips with combat (6 battle checks, all with live
 frame traffic, one connection, no freeze; badge reached level 5 and the bar
-restarted). It stopped because the tablet was switched to Settings; the
-required 10-cycle soak is not complete, so no APK release yet. The soak used a
+restarted). It stopped because the tablet was switched to Settings.
+Second soak (fresh, foreground-guarded): cycles 1-7 passed (live frames,
+one process). On the 8th Leave Battle the client crashed with SIGSEGV right
+after the server sent the own-home profile, before the home-scene request.
+Sentry native envelope (private .local/crash-xp-soak/native.envelope): libc
+0x96b24 <- 0xfd988 <- libg 0xa4e854, 0xa4bd7c, 0xa4bf34, 0x4035a4, 0x7f1b44,
+0x403908, 0x7fed7c, 0xa36144, 0xa35f24, 0x756074. 0x756074 is in the own-home
+handler (decoder 0x755e34), so the quest-bearing own-home (Intro_3 with live
+progress, sent on every Leave Battle during GoToPortal) is the prime suspect,
+not the XP-bar hooks. Seen once in 13 returns this session; unresolved.
+The user then set the pass bar at more than 4 clean cycles and asked to
+publish, so v0.8.0-xp-bar was released with this crash listed as known. The soak used a
 temporary copy of the account state (GoToPortal, kills capped below 50); the
 real state was restored from .local/accounts.before-xp-soak.sqlite3 with scene
 set back to the apartment.

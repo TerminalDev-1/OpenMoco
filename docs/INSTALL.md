@@ -7,14 +7,18 @@ The local encrypted guest login and keepalives work. The Python server's
 `--apartment` mode sends a local player and starter bow at the apartment spawn.
 The portal renders and travel into Downtown Chaos is verified. Age-onboarding
 categories, reported tutorial steps and the last scene persist. Tap the minimap,
-then Leave Battle to return home. The first monster renders and takes damage;
-it currently flees quickly. Full quest progression and authoritative gameplay
-remain unfinished. The build is debuggable; research probes are disabled.
+then Leave Battle to return home. Monsters and civilians fight in Downtown
+Chaos, and the server credits XP for each kill. The in-battle XP bar and level
+badge show the server's XP (the XP-per-level table is provisional). Once you've
+defeated 50 monsters and rescued 3 civilians, Leave Battle finishes the first
+tutorial and the client moves on to character creation, which still has no
+cosmetic data. Authoritative gameplay remains unfinished. The build is
+debuggable; research probes are disabled.
 
 ## Download and assemble
 
 Download the updated base APK, manifest, assembler and checksums from
-[v0.7.0-kill-xp](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.7.0-kill-xp).
+[v0.8.0-xp-bar](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.8.0-xp-bar).
 For a fresh installation, also download the three configuration APKs and four
 asset-pack parts from
 [v0.3.0-apartment](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.3.0-apartment).
@@ -76,8 +80,11 @@ Keep the server process running during manual testing. The local-network client
 now preserves the native socket status on reconnect, so bringing it back to the
 foreground can complete login without restarting the app. v0.7.0 also fixes a
 battle freeze after re-entering through the portal, and reports kills/rescues
-so the server (commit acacacd or newer) credits XP per kill. It uses the same
-saved local account and matching configuration splits.
+so the server (commit acacacd or newer) credits XP per kill. v0.8.0 fills the
+in-battle XP bar from the server's XP. It needs a server at commit 4b82377 or
+newer, started with `tools/run_local_test.py`, which also provides the client's
+XP-per-level table. It uses the same saved local account and matching
+configuration splits.
 The client
 suppresses automatic idle closure and keeps its foreground screen awake. Keep
 wireless debugging connected: losing ADB forwarding can still cause a connection

@@ -12,7 +12,8 @@ Two Codex client hooks broke battle play; both are removed. Do not restore them:
   at the 705d98 XP call) froze Mainloop at 100% CPU after warm battle reentry.
   It froze in 3 of 3 runs; v0.6.0 and the bridge without it passed 10 cycles.
 Verify stability with repeated leave-battle/portal-reentry cycles plus combat,
-not brief movement. Frida Process.enumerateThreads() returns no threads in this
+not brief movement. The user set the release bar on 2026-10-15: more than 4
+clean cycles is a pass (no need to complete 10). Still report any crash seen. Frida Process.enumerateThreads() returns no threads in this
 client, and a tgkill signal sampler crashed it: do not reuse those probes.
 Never leave a diagnostic or failed probe build installed for manual play, and
 never publish one. A caught native abort does not mean the client can continue.
