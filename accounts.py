@@ -97,6 +97,18 @@ class AccountStore:
             if key not in progress or progress[key] != 0:
                 progress[key] = step
 
+    def record_main_quest(self, account_id, command_type, step):
+        """Persist an authenticated 575 (step seen) or 576 (step completed) command."""
+        from progress import record_main_quest
+        with self.edit_profile(account_id) as profile:
+            record_main_quest(profile, command_type, step)
+
+    def complete_intro_quest(self, account_id):
+        """Advance the Portal tutorial if Intro_3 was earned. Returns True if advanced."""
+        from progress import complete_intro_quest
+        with self.edit_profile(account_id) as profile:
+            return complete_intro_quest(profile)
+
     def record_scene(self, account_id, scene_id):
         if scene_id not in (10900000, 10900001):
             raise ValueError('Unsupported local scene')

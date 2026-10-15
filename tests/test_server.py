@@ -11,6 +11,7 @@ from transport import LoginTransport
 from protocol import Frame, FrameDecoder
 from server import capture
 from home import own_home
+from progress import intro_main_steps
 from scene import apartment_scene, progression_tutorial_scene as tutorial_scene
 
 
@@ -62,7 +63,8 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                     server_nonce = LoginTransport.advance(server_nonce)
                     profile_body = cipher.decrypt(profile.payload, server_nonce)
                     progress = {'15600000': 0, '15600001': 14200006} if identity else {}
-                    self.assertEqual(profile_body, own_home(new_id, age_category=2 if identity else 0, tutorials=progress))
+                    self.assertEqual(profile_body, own_home(new_id, age_category=2 if identity else 0, tutorials=progress,
+                                                           main_steps=intro_main_steps({'tutorials': progress})))
                     scene = await read_frame()
                     self.assertEqual((scene.message_type, scene.version), (23491, 0))
                     server_nonce = LoginTransport.advance(server_nonce)
@@ -145,7 +147,8 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                     await writer.drain()
                     returned_scene = await read_frame()
                     receive_nonce = LoginTransport.advance(receive_nonce)
-                    self.assertEqual(cipher.decrypt(returned_profile.payload, receive_nonce), own_home(new_id, age_category=2, tutorials={'15600000': 0, '15600001': 14200006}))
+                    self.assertEqual(cipher.decrypt(returned_profile.payload, receive_nonce), own_home(new_id, age_category=2, tutorials={'15600000': 0, '15600001': 14200006},
+                                     main_steps=intro_main_steps({'tutorials': {'15600001': 14200006}})))
                     self.assertEqual(returned_scene.message_type, 23491)
                     receive_nonce = LoginTransport.advance(receive_nonce)
                     self.assertEqual(cipher.decrypt(returned_scene.payload, receive_nonce), apartment_scene(new_id))

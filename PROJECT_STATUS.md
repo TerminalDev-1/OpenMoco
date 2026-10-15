@@ -1,4 +1,68 @@
-# Project status — 2026-10-14
+# Project status — 2026-10-15
+
+## Server readability refactor; tutorial Portal step completes on the server
+Work on 2026-10-15 (Claude), using the wireless tablet (find it with
+`adb mdns services`, then `adb connect`; connection details are in ignored
+.local/tablet-connection.txt; ADB lives under the SDK path in
+.local/android-sdk.txt). Run the server with `.venv` Python: system Python
+lacks PyNaCl.
+
+Refactor, no behavior change: server.py's single 300-line `capture()` is now a
+`GameSession` class with one handler per stage/message, named message-type and
+scene constants, and a `send_session()` helper. `capture()`/`run()` keep their
+signatures. The dead `first_scene_ready` flag was removed (it never affected
+output). battle_bridge.py was split into validation, crediting and HTTP helpers
+with the same API. All 57 original tests passed unchanged after the server
+refactor; 64 tests pass now.
+
+Tutorial quest state (home.py, progress.py), verified on the tablet:
+- The own-home profile can now carry the Intro_3 main quest. Quest collection
+  home+a0 (decoder 0x78ecf8) is four header ints then quests; header +0 is the
+  next quest ID, and native append 0x78ff08 copies it into each quest's +0.
+  The failed 10-14 trial used ID 0 twice; IDs 0/1 with header 2 load fine.
+  Quest 0x78da48 field order is in `home._quest`. MainQuestManager home+f0
+  (0x784638/0x7850fc): data ref, compact, new bit, claimed bit.
+- During GoToPortal (14200006) the server sends Intro_3 with Intro_3_1
+  (kills/50) and Intro_3_2 (Civilian rescues/3). Progress = saved
+  battle_progress capped at targets (the tutorial area is the only battle and is
+  reached through GoToPortal, so those outcomes were earned during Intro_3).
+- Leave Battle with both objectives done: the server sets the Portal tutorial to
+  ClaimQuests (14200007) before sending own-home. The client showed Luna's
+  "ur hunter application's approved" chat and sent 574 ClaimQuests itself.
+  With only a claimed Intro_3 it waited in the tasks popup forever. Sending
+  Intro_3 claimed plus Tutorial_Name_10 (15400003) unlocked continued the chat
+  ("to make it official ... let's go!"). After "let's go!" the client sent
+  575 x4 (15400003, 15400000, 15400001, 15400004), 576 (15400004),
+  574 15600001 -> 0 (tutorial finished) and 574 15600002 -> 14200010
+  (EditCharacter). The character editor opens headless: no cosmetics yet.
+- 575/576 are now persisted as main_quests seen/done and replayed into the
+  MainQuestManager list on reconnect (the first five were replayed into the
+  account from capture 20261015T152305Z-2a29c68c). Their exact semantics are
+  inferred, not proven. A cold relaunch resumed in the character editor
+  (.local/claude-r1.png). Account backup before this:
+  .local/accounts.before-intro-complete.sqlite3.
+- Saved server XP is sent as the avatar XpPoint resource 300020 (resource entry
+  0x791cc8: ref + two raw ints). The client accepts it; no visible UI effect yet.
+
+XP bar: NOT done. The empty strip at the top of battle is the battle XP bar
+(strings battle_xp, battle_xp_counter, player_xp_hud_bar_new). Its update
+0x57f870 sums three XP values onto HUD +0x178 and has no direct/trampoline
+callers (vtable). The battle player's XP fields are serialized in the 23491
+snapshot by the SCPlayer visitor 0x7358c8 (+190 normal budget, +194, +198,
++19c monsterXpGained, +1a0 otherXpGained). Any edit near the budget in the
+4946-byte snapshot (one-byte-longer values or a same-length 00->32 change) made
+the client quit silently with no Sentry or logcat crash, consistent with a
+snapshot integrity check. Do not retry blind snapshot byte edits. Options:
+native-generated snapshots, or the client bridge writing server XP into the
+live SCPlayer after each report (needs a new APK).
+
+"Move battles onto the server": the server now owns crediting, totals, quest
+progress and tutorial completion. Combat simulation is still the client's.
+
+Manual server: hidden, mode local-intro-completion, log
+captures/user-test-server-claude.log; PID in .local/user-test-server.json.
+
+## Earlier status (2026-10-14)
 
 ## Battle crash and freeze fixed; XP now credited per kill
 Both battle stability problems from the Codex handoff are diagnosed and fixed in

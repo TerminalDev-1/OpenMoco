@@ -1,352 +1,513 @@
-"""Local capture listener with an opt-in, client-verified initial hello response."""
+"""OpenMoco private server: local game listener for the 13.5.1 test client.
+
+Each TCP connection is one `GameSession`. A session moves through these stages:
+
+1. Hello: the client sends 10100; we reply 20100 with a random challenge.
+2. Login: the client sends encrypted 10101; we verify it with the local server
+   key, validate the local guest account and reply 29125.
+3. Session: every later frame is SecretBox-encrypted. In apartment mode we send
+   the player's own home (24548) and the saved scene (23491), then react to
+   tutorial commands, scene travel, leave-battle requests and the game clock.
+
+Without --handshake the listener only records raw bytes. Every connection
+writes a capture (<session>.bin, .server.bin, .session.bin and .json) under the
+output directory; captures stay in ignored local folders.
+"""
 import argparse
 import asyncio
 from datetime import datetime, timezone
 import json
 from pathlib import Path
-import uuid
 import secrets
 import time
+import uuid
+
 from protocol import Frame, FrameDecoder, decode_client_hello, server_hello
 
+# Client -> server message types.
+CLIENT_HELLO = 10100
+CLIENT_LOGIN = 10101
+CLIENT_KEEPALIVE = 10108
+SCENE_SELECTION = 13222      # Portal destination or flagged home request.
+LEAVE_BATTLE = 13223         # Minimap "Leave Battle"; body 00 is supported.
+SCENE_LOADED = 13224         # Empty body: the new scene finished loading.
+CLIENT_TURN = 16543          # Batched commands (541 age, 574 tutorial, 575/576 main quests).
+GAME_CLOCK_REQUEST = 18851
+FRAME_READY = 18853
 
-async def capture(reader, writer, output, handshake=False, server_key=None, accounts=None, transport_probe=False, home_probe=None, profile_probe=None, apartment=False, battle_bridge=None):
-    session = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ') + '-' + uuid.uuid4().hex[:8]
-    peer = writer.get_extra_info('peername')
-    total = 0
-    decoder = FrameDecoder()
-    frames = []
-    framing_error = None
-    reason = 'peer_closed'
-    sent = []
-    state = 'awaiting_client_hello' if handshake else 'capture_only'
-    hello = None
-    crypto = None
-    login_prefix = None
-    local_account = None
-    clock_started = time.monotonic()
-    confirmed_frame = 0
-    awaiting_scene_loaded = False
-    first_scene_ready = False
-    pending_home_scene = False
-    last_clock_request = None
-    current_scene = 10900000 if apartment else None
-    print(f'Connected: {peer}; capture {session}', flush=True)
-    try:
-        with (output / (session + '.bin')).open('wb') as stream:
-            while True:
-                # Manual testing sessions must remain open while the tablet is idle.
-                chunk = await reader.read(65536)
-                if not chunk:
-                    break
-                stream.write(chunk)
-                stream.flush()
-                total += len(chunk)
-                print(f'{session}: received {len(chunk)} bytes ({total} total)', flush=True)
-                if framing_error is None:
-                    try:
-                        for frame in decoder.feed(chunk):
-                            record = {'message_type': frame.message_type, 'version': frame.version,
-                                      'payload_bytes': len(frame.payload)}
-                            frames.append(record)
-                            print(f'{session}: frame {record}', flush=True)
-                            if handshake and state == 'awaiting_client_hello':
-                                if frame.message_type != 10100 or frame.version != 0:
-                                    raise ValueError('Expected version-0 client hello (10100)')
-                                hello = decode_client_hello(frame.payload)
-                                challenge = secrets.token_bytes(24)
-                                if server_key is not None:
-                                    from transport import LoginTransport
-                                    crypto = LoginTransport(server_key, challenge)
-                                response = server_hello(challenge)
-                                encoded = response.encode()
-                                (output / (session + '.server.bin')).write_bytes(encoded)
-                                writer.write(encoded)
-                                await writer.drain()
-                                sent.append({'message_type': response.message_type, 'version': 0,
-                                             'payload_bytes': len(response.payload)})
-                                state = 'hello_sent'
-                                print(f'{session}: sent server hello; awaiting next client frame', flush=True)
-                            elif handshake and state == 'hello_sent':
-                                if frame.message_type != 10101 or frame.version != 9 or len(frame.payload) < 48:
-                                    raise ValueError('Expected encrypted 10101 version-9 login envelope')
-                                record['client_public_key_bytes'] = 32
-                                state = 'encrypted_login_received'
-                                print(f'{session}: encrypted login received; awaiting local verification' if crypto is not None else
-                                      f'{session}: encrypted login captured; no local key configured', flush=True)
-                                if crypto is not None:
-                                    from protocol import decode_login_prefix
-                                    plaintext = crypto.decode_login(frame.payload)
-                                    login_prefix = decode_login_prefix(plaintext)
-                                    (output / (session + '.login.bin')).write_bytes(plaintext)
-                                    state = 'login_decrypted'
-                                    print(f'{session}: verified and decrypted local-key login: {login_prefix}', flush=True)
-                                    if accounts is not None:
-                                        from protocol import decode_login_request
-                                        request = decode_login_request(plaintext)
-                                        account = accounts.authenticate(request.account_id, request.token)
-                                        local_account = {'account_id': account.account_id, 'created': account.created}
-                                        state = 'local_account_validated'
-                                        print(f'{session}: local guest account validated; client login reply still pending', flush=True)
-                                    if transport_probe:
-                                        # Empty decoder at native 0x8df280; this checks crypto, not login success.
-                                        response = Frame(20108, 0, crypto.encode_initial_reply(b''))
-                                        encoded = response.encode()
-                                        with (output / (session + '.server.bin')).open('ab') as replies:
-                                            replies.write(encoded)
-                                        writer.write(encoded)
-                                        await writer.drain()
-                                        sent.append({'message_type': 20108, 'version': 0, 'payload_bytes': len(response.payload)})
-                                        state = 'encrypted_transport_probe_sent'
-                                        print(f'{session}: sent encrypted empty keepalive transport probe; no login success reply', flush=True)
-                                    elif accounts is not None:
-                                        from protocol import login_reply
-                                        reply = login_reply(account, request.version_fields)
-                                        response = Frame(reply.message_type, reply.version, crypto.encode_initial_reply(reply.payload))
-                                        encoded = response.encode()
-                                        with (output / (session + '.server.bin')).open('ab') as replies:
-                                            replies.write(encoded)
-                                        writer.write(encoded)
-                                        await writer.drain()
-                                        sent.append({'message_type': response.message_type, 'version': response.version,
-                                                     'payload_bytes': len(response.payload)})
-                                        state = 'local_login_reply_sent'
-                                        print(f'{session}: sent encrypted local login reply (29125/v1); home data pending', flush=True)
-                                        if profile_probe is not None or apartment:
-                                            from home import own_home
-                                            # Bind the validated starter profile to this local guest.
-                                            profile_body = own_home(account.account_id, age_category=account.profile.get('age_category', 0), tutorials=account.profile.get('tutorials', {})) if apartment or profile_probe == own_home(0) else profile_probe
-                                            response = Frame(24548, 0, crypto.encode_session(profile_body))
-                                            encoded = response.encode()
-                                            with (output / (session + '.server.bin')).open('ab') as replies:
-                                                replies.write(encoded)
-                                            writer.write(encoded)
-                                            await writer.drain()
-                                            sent.append({'message_type': 24548, 'version': 0, 'payload_bytes': len(response.payload)})
-                                            print(f'{session}: sent account-bound starter profile' if apartment else f'{session}: sent native-evidenced own-home probe; client acceptance pending', flush=True)
-                                        if home_probe is not None or apartment:
-                                            from scene import apartment_scene, progression_tutorial_scene
-                                            if apartment:
-                                                current_scene = account.profile.get('scene_id', 10900000)
-                                                scene_body = progression_tutorial_scene(account.account_id) if current_scene == 10900001 else apartment_scene(account.account_id)
-                                            else:
-                                                scene_body = home_probe
-                                            if battle_bridge is not None and current_scene == 10900001:
-                                                battle_bridge.begin(account.account_id, session)
-                                            response = Frame(23491, 0, crypto.encode_session(scene_body))
-                                            encoded = response.encode()
-                                            with (output / (session + '.server.bin')).open('ab') as replies:
-                                                replies.write(encoded)
-                                            writer.write(encoded)
-                                            await writer.drain()
-                                            sent.append({'message_type': 23491, 'version': 0, 'payload_bytes': len(response.payload)})
-                                            state = ('tutorial_scene_sent' if current_scene == 10900001 else 'apartment_scene_sent') if apartment else 'home_scene_probe_sent'
-                                            print(f'{session}: sent {len(scene_body)}-byte account-bound apartment' if apartment else f'{session}: sent native-evidenced scene-start probe; client acceptance pending', flush=True)
-                            elif crypto is not None and crypto.reply_sent:
-                                plaintext = crypto.decode_session(frame.payload)
-                                record['decrypted_bytes'] = len(plaintext)
-                                with (output / (session + '.session.bin')).open('ab') as clear:
-                                    clear.write(Frame(frame.message_type, frame.version, plaintext).encode())
-                                print(f'{session}: verified session frame {frame.message_type}, {len(plaintext)} decrypted bytes', flush=True)
-                                if apartment and frame.message_type == 16543 and frame.version == 0:
-                                    from commands import decode_client_turn
-                                    try:
-                                        turn = decode_client_turn(plaintext)
-                                        for command in turn.commands:
-                                            if command.account_id not in (0, account.account_id):
-                                                continue
-                                            if command.command_type == 541:
-                                                accounts.record_age_choice(account.account_id, command.fields['age'])
-                                                print(f'{session}: persisted local onboarding category', flush=True)
-                                            elif command.command_type == 574:
-                                                accounts.record_tutorial(account.account_id, command.fields['tutorial'], command.fields['step'])
-                                                print(f'{session}: persisted tutorial transition', flush=True)
-                                    except ValueError as error:
-                                        print(f'{session}: turn unsupported: {error}', flush=True)
-                                if apartment and frame.message_type == 13222 and frame.version == 0:
-                                    from scene_requests import decode_scene_request
-                                    try:
-                                        selection = decode_scene_request(plaintext)
-                                    except ValueError as error:
-                                        print(f'{session}: scene selection unsupported: {error}', flush=True)
-                                    else:
-                                        if pending_home_scene and selection.flag and selection.scene_id == 10900005:
-                                            from scene import apartment_scene
-                                            response = Frame(23491, 0, crypto.encode_session(apartment_scene(account.account_id)))
-                                            encoded = response.encode()
-                                            with (output / (session + '.server.bin')).open('ab') as replies:
-                                                replies.write(encoded)
-                                            writer.write(encoded)
-                                            await writer.drain()
-                                            sent.append({'message_type': 23491, 'version': 0, 'payload_bytes': len(response.payload)})
-                                            pending_home_scene = False
-                                            current_scene = 10900000
-                                            if battle_bridge is not None:
-                                                battle_bridge.end(account.account_id, session)
-                                            accounts.record_scene(account.account_id, current_scene)
-                                            confirmed_frame = 0
-                                            awaiting_scene_loaded = True
-                                            # This snapshot starts at frame zero, not at
-                                            # the elapsed age of the TCP connection.
-                                            clock_started = time.monotonic()
-                                            state = 'apartment_scene_sent'
-                                            print(f'{session}: returned to apartment after client home-scene request', flush=True)
-                                        if selection.scene_id == 10900001 and current_scene != 10900001:
-                                            from scene import progression_tutorial_scene
-                                            if battle_bridge is not None:
-                                                battle_bridge.begin(account.account_id, session)
-                                            response = Frame(23491, 0, crypto.encode_session(progression_tutorial_scene(account.account_id)))
-                                            encoded = response.encode()
-                                            with (output / (session + '.server.bin')).open('ab') as replies:
-                                                replies.write(encoded)
-                                            writer.write(encoded)
-                                            await writer.drain()
-                                            sent.append({'message_type': 23491, 'version': 0, 'payload_bytes': len(response.payload)})
-                                            current_scene = 10900001
-                                            accounts.record_scene(account.account_id, current_scene)
-                                            confirmed_frame = 0
-                                            awaiting_scene_loaded = True
-                                            # A fresh battle has its own simulation clock.
-                                            clock_started = time.monotonic()
-                                            state = 'tutorial_scene_sent'
-                                            print(f'{session}: sent account-bound TutorialAreaBasic after portal selection', flush=True)
-                                if apartment and frame.message_type == 13223 and frame.version == 0:
-                                    # Native 0x764214: two flags and optional selection.
-                                    # The actual map's Leave Battle button sent 00.
-                                    if plaintext != b'\x00':
-                                        print(f'{session}: unsupported leave-battle options', flush=True)
-                                    elif current_scene != 10900000 and not pending_home_scene:
-                                        from home import own_home
-                                        saved = accounts.authenticate(account.account_id, account.token).profile
-                                        responses = [
-                                            (24548, own_home(account.account_id, age_category=saved.get('age_category', 0), tutorials=saved.get('tutorials', {}))),
-                                        ]
-                                        for message_type, body in responses:
-                                            response = Frame(message_type, 0, crypto.encode_session(body))
-                                            encoded = response.encode()
-                                            with (output / (session + '.server.bin')).open('ab') as replies:
-                                                replies.write(encoded)
-                                            writer.write(encoded)
-                                            sent.append({'message_type': message_type, 'version': 0, 'payload_bytes': len(response.payload)})
-                                        await writer.drain()
-                                        # OwnHome prompts the native asynchronous exit.
-                                        # The client then sends a flagged SocialHub selection.
-                                        # Wait for that request before starting Home, rather
-                                        # than racing teardown with an unsolicited scene.
-                                        pending_home_scene = True
-                                        state = 'awaiting_home_scene_request'
-                                        print(f'{session}: sent home profile; awaiting client home-scene request', flush=True)
-                                scene_ready = False
-                                if frame.message_type == 13224 and frame.version == 0 and not plaintext:
-                                    # Actual client scene-loaded notification: old-scene
-                                    # clock/ready messages precede this boundary.
-                                    confirmed_frame = 0
-                                    # Loading can pause while the app is backgrounded.
-                                    # Start time at the loaded boundary, not TCP login.
-                                    clock_started = time.monotonic()
-                                    awaiting_scene_loaded = False
-                                    first_scene_ready = True
-                                if frame.message_type == 18853:
-                                    from protocol import decode_frame_ready
-                                    ready_frame = decode_frame_ready(plaintext)
-                                    # Scene starts use frame zero. Old-scene ready
-                                    # messages can still be in flight after travel;
-                                    # acknowledging them advances the new simulation
-                                    # by thousands of frames and can freeze its actors.
-                                    if first_scene_ready and not awaiting_scene_loaded:
-                                        first_scene_ready = False
-                                        # The client can hit its prediction limit here
-                                        # before another clock request; acknowledge this
-                                        # reset immediately using the latest clock echo.
-                                        scene_ready = True
-                                    if not awaiting_scene_loaded:
-                                        confirmed_frame = max(confirmed_frame, ready_frame)
-                                        # Resume can exhaust prediction before the next
-                                        # clock poll too. Confirm every ready report.
-                                        scene_ready = True
-                                if frame.message_type == 18851:
-                                    last_clock_request = plaintext
-                                if frame.message_type == 18851 or (scene_ready and last_clock_request is not None):
-                                    from protocol import game_clock_reply
-                                    response = game_clock_reply(last_clock_request, int((time.monotonic() - clock_started) * 1000), confirmed_frame)
-                                    response = Frame(response.message_type, response.version, crypto.encode_session(response.payload))
-                                    encoded = response.encode()
-                                    with (output / (session + '.server.bin')).open('ab') as replies:
-                                        replies.write(encoded)
-                                    writer.write(encoded)
-                                    await writer.drain()
-                                    sent.append({'message_type': response.message_type, 'version': response.version, 'payload_bytes': len(response.payload)})
-                                    # Preserve the verified transport keepalive during game-clock traffic.
-                                    keepalive = Frame(20108, 0, crypto.encode_session(b''))
-                                    encoded = keepalive.encode()
-                                    with (output / (session + '.server.bin')).open('ab') as replies:
-                                        replies.write(encoded)
-                                    writer.write(encoded)
-                                    await writer.drain()
-                                    sent.append({'message_type': 20108, 'version': 0, 'payload_bytes': len(keepalive.payload)})
-                                if frame.message_type == 10108 and not plaintext:
-                                    response = Frame(20108, 0, crypto.encode_session(b''))
-                                    encoded = response.encode()
-                                    with (output / (session + '.server.bin')).open('ab') as replies:
-                                        replies.write(encoded)
-                                    writer.write(encoded)
-                                    await writer.drain()
-                                    sent.append({'message_type': 20108, 'version': 0, 'payload_bytes': len(response.payload)})
-                    except ValueError as error:
-                        framing_error = str(error)
-                        reason = 'protocol_error'
-                        break
+# Server -> client message types.
+SERVER_HELLO = 20100
+SERVER_KEEPALIVE = 20108
+SCENE_START = 23491
+OWN_HOME = 24548
+GAME_CLOCK_REPLY = 28851     # Encoded by protocol.game_clock_reply.
 
-    except (ConnectionError, OSError) as error:
-        reason = str(error)
-    finally:
-        if battle_bridge is not None and local_account is not None:
-            battle_bridge.end(local_account["account_id"], session)
-        writer.close()
+# Client turn command types (see commands.py).
+AGE_CHOICE_COMMAND = 541
+TUTORIAL_COMMAND = 574
+MAIN_QUEST_SEEN_COMMAND = 575
+MAIN_QUEST_DONE_COMMAND = 576
+
+# Scene data references supported by this server.
+APARTMENT = 10900000         # Home
+TUTORIAL_AREA = 10900001     # TutorialAreaBasic, "Downtown Chaos"
+SOCIAL_HUB = 10900005        # Selection the client sends when returning home
+
+
+def _new_session_id():
+    stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+    return stamp + '-' + uuid.uuid4().hex[:8]
+
+
+class GameSession:
+    """State and message handlers for one client connection."""
+
+    def __init__(self, reader, writer, output, handshake=False, server_key=None,
+                 accounts=None, transport_probe=False, home_probe=None,
+                 profile_probe=None, apartment=False, battle_bridge=None):
+        self.reader, self.writer, self.output = reader, writer, output
+        self.handshake = handshake
+        self.server_key = server_key
+        self.accounts = accounts
+        self.transport_probe = transport_probe
+        self.home_probe = home_probe
+        self.profile_probe = profile_probe
+        self.apartment = apartment
+        self.battle_bridge = battle_bridge
+
+        self.session = _new_session_id()
+        self.peer = writer.get_extra_info('peername')
+        self.decoder = FrameDecoder()
+        self.total = 0
+        self.frames = []          # Metadata for every received frame.
+        self.sent = []            # Metadata for every sent frame.
+        self.framing_error = None
+        self.reason = 'peer_closed'
+        self.state = 'awaiting_client_hello' if handshake else 'capture_only'
+
+        # Login results.
+        self.hello = None
+        self.crypto = None
+        self.login_prefix = None
+        self.account = None
+        self.local_account = None
+
+        # Scene and simulation clock. A new scene starts at frame zero.
+        self.current_scene = APARTMENT if apartment else None
+        self.clock_started = time.monotonic()
+        self.confirmed_frame = 0
+        self.awaiting_scene_loaded = False
+        self.pending_home_scene = False
+        self.last_clock_request = None
+
+    # ----- logging and capture files -------------------------------------
+
+    def log(self, message):
+        print(f'{self.session}: {message}', flush=True)
+
+    def _path(self, suffix):
+        return self.output / (self.session + suffix)
+
+    def _record_sent(self, frame):
+        encoded = frame.encode()
+        with self._path('.server.bin').open('ab') as replies:
+            replies.write(encoded)
+        self.writer.write(encoded)
+        self.sent.append({'message_type': frame.message_type, 'version': frame.version,
+                          'payload_bytes': len(frame.payload)})
+
+    async def send_plain(self, frame):
+        self._record_sent(frame)
+        await self.writer.drain()
+
+    async def send_session(self, message_type, body, version=0):
+        """Encrypt `body` with the session key and send it."""
+        await self.send_plain(Frame(message_type, version, self.crypto.encode_session(body)))
+
+    # ----- connection loop ------------------------------------------------
+
+    async def run(self):
+        print(f'Connected: {self.peer}; capture {self.session}', flush=True)
         try:
-            await writer.wait_closed()
+            with self._path('.bin').open('wb') as stream:
+                while True:
+                    # Manual testing sessions must remain open while the tablet is idle.
+                    chunk = await self.reader.read(65536)
+                    if not chunk:
+                        break
+                    stream.write(chunk)
+                    stream.flush()
+                    self.total += len(chunk)
+                    self.log(f'received {len(chunk)} bytes ({self.total} total)')
+                    if self.framing_error is None and not await self._feed(chunk):
+                        break
+        except (ConnectionError, OSError) as error:
+            self.reason = str(error)
+        finally:
+            await self._close()
+
+    async def _feed(self, chunk):
+        """Decode and handle complete frames. Returns False on a protocol error."""
+        try:
+            for frame in self.decoder.feed(chunk):
+                record = {'message_type': frame.message_type, 'version': frame.version,
+                          'payload_bytes': len(frame.payload)}
+                self.frames.append(record)
+                self.log(f'frame {record}')
+                await self._dispatch(frame, record)
+        except ValueError as error:
+            self.framing_error = str(error)
+            self.reason = 'protocol_error'
+            return False
+        return True
+
+    async def _dispatch(self, frame, record):
+        if self.handshake and self.state == 'awaiting_client_hello':
+            await self.on_client_hello(frame)
+        elif self.handshake and self.state == 'hello_sent':
+            await self.on_login(frame, record)
+        elif self.crypto is not None and self.crypto.reply_sent:
+            await self.on_session_frame(frame, record)
+
+    async def _close(self):
+        if self.battle_bridge is not None and self.local_account is not None:
+            self.battle_bridge.end(self.local_account['account_id'], self.session)
+        self.writer.close()
+        try:
+            await self.writer.wait_closed()
         except ConnectionError:
             pass
-        metadata = {'peer': peer, 'bytes': total, 'close_reason': reason,
-                    'frames': frames, 'framing_error': framing_error,
-                    'incomplete_frame_bytes': len(decoder.pending),
-                    'sent_frames': sent, 'state': state, 'client_hello': hello,
-                    'login_prefix': login_prefix,
-                    'local_account': local_account,
-                    'note': 'Apartment and portal travel verified; full progression persistence and authoritative gameplay remain incomplete.' if apartment else 'Local login development; home data and gameplay remain unimplemented.' if handshake
-                            else 'Raw incoming TCP bytes. No protocol responses were sent.'}
-        (output / (session + '.json')).write_text(json.dumps(metadata, indent=2), encoding='utf-8')
-        print(f'Closed: {session}; {total} bytes; {reason}', flush=True)
+        if self.apartment:
+            note = ('Apartment and portal travel verified; full progression persistence '
+                    'and authoritative gameplay remain incomplete.')
+        elif self.handshake:
+            note = 'Local login development; home data and gameplay remain unimplemented.'
+        else:
+            note = 'Raw incoming TCP bytes. No protocol responses were sent.'
+        metadata = {'peer': self.peer, 'bytes': self.total, 'close_reason': self.reason,
+                    'frames': self.frames, 'framing_error': self.framing_error,
+                    'incomplete_frame_bytes': len(self.decoder.pending),
+                    'sent_frames': self.sent, 'state': self.state, 'client_hello': self.hello,
+                    'login_prefix': self.login_prefix,
+                    'local_account': self.local_account,
+                    'note': note}
+        self._path('.json').write_text(json.dumps(metadata, indent=2), encoding='utf-8')
+        print(f'Closed: {self.session}; {self.total} bytes; {self.reason}', flush=True)
+
+    # ----- stage 1: hello -------------------------------------------------
+
+    async def on_client_hello(self, frame):
+        if frame.message_type != CLIENT_HELLO or frame.version != 0:
+            raise ValueError('Expected version-0 client hello (10100)')
+        self.hello = decode_client_hello(frame.payload)
+        challenge = secrets.token_bytes(24)
+        if self.server_key is not None:
+            from transport import LoginTransport
+            self.crypto = LoginTransport(self.server_key, challenge)
+        await self.send_plain(server_hello(challenge))
+        self.state = 'hello_sent'
+        self.log('sent server hello; awaiting next client frame')
+
+    # ----- stage 2: encrypted login ---------------------------------------
+
+    async def on_login(self, frame, record):
+        if frame.message_type != CLIENT_LOGIN or frame.version != 9 or len(frame.payload) < 48:
+            raise ValueError('Expected encrypted 10101 version-9 login envelope')
+        record['client_public_key_bytes'] = 32
+        self.state = 'encrypted_login_received'
+        if self.crypto is None:
+            self.log('encrypted login captured; no local key configured')
+            return
+        self.log('encrypted login received; awaiting local verification')
+
+        from protocol import decode_login_prefix, decode_login_request
+        plaintext = self.crypto.decode_login(frame.payload)
+        self.login_prefix = decode_login_prefix(plaintext)
+        self._path('.login.bin').write_bytes(plaintext)
+        self.state = 'login_decrypted'
+        self.log(f'verified and decrypted local-key login: {self.login_prefix}')
+
+        request = None
+        if self.accounts is not None:
+            request = decode_login_request(plaintext)
+            self.account = self.accounts.authenticate(request.account_id, request.token)
+            self.local_account = {'account_id': self.account.account_id,
+                                  'created': self.account.created}
+            self.state = 'local_account_validated'
+            self.log('local guest account validated; client login reply still pending')
+
+        if self.transport_probe:
+            # Empty decoder at native 0x8df280; this checks crypto, not login success.
+            await self.send_plain(Frame(SERVER_KEEPALIVE, 0, self.crypto.encode_initial_reply(b'')))
+            self.state = 'encrypted_transport_probe_sent'
+            self.log('sent encrypted empty keepalive transport probe; no login success reply')
+        elif self.accounts is not None:
+            await self._send_login_reply(request)
+            if self.profile_probe is not None or self.apartment:
+                await self._send_initial_home()
+            if self.home_probe is not None or self.apartment:
+                await self._send_initial_scene()
+
+    async def _send_login_reply(self, request):
+        from protocol import login_reply
+        reply = login_reply(self.account, request.version_fields)
+        await self.send_plain(Frame(reply.message_type, reply.version,
+                                    self.crypto.encode_initial_reply(reply.payload)))
+        self.state = 'local_login_reply_sent'
+        self.log('sent encrypted local login reply (29125/v1); home data pending')
+
+    def _own_home_body(self, profile):
+        from home import own_home
+        from progress import intro_main_steps
+        return own_home(self.account.account_id,
+                        age_category=profile.get('age_category', 0),
+                        tutorials=profile.get('tutorials', {}),
+                        main_steps=intro_main_steps(profile),
+                        xp=profile.get('battle_progress', {}).get('xp', 0))
+
+    async def _send_initial_home(self):
+        from home import own_home
+        # Bind the validated starter profile to this local guest.
+        if self.apartment or self.profile_probe == own_home(0):
+            body = self._own_home_body(self.account.profile)
+        else:
+            body = self.profile_probe
+        await self.send_session(OWN_HOME, body)
+        if self.apartment:
+            self.log('sent account-bound starter profile')
+        else:
+            self.log('sent native-evidenced own-home probe; client acceptance pending')
+
+    async def _send_initial_scene(self):
+        from scene import apartment_scene, progression_tutorial_scene
+        account_id = self.account.account_id
+        if self.apartment:
+            # Resume the scene saved by the previous session.
+            self.current_scene = self.account.profile.get('scene_id', APARTMENT)
+            if self.current_scene == TUTORIAL_AREA:
+                body = progression_tutorial_scene(account_id)
+            else:
+                body = apartment_scene(account_id)
+        else:
+            body = self.home_probe
+        if self.battle_bridge is not None and self.current_scene == TUTORIAL_AREA:
+            self.battle_bridge.begin(account_id, self.session)
+        await self.send_session(SCENE_START, body)
+        if not self.apartment:
+            self.state = 'home_scene_probe_sent'
+            self.log('sent native-evidenced scene-start probe; client acceptance pending')
+            return
+        self.state = 'tutorial_scene_sent' if self.current_scene == TUTORIAL_AREA else 'apartment_scene_sent'
+        self.log(f'sent {len(body)}-byte account-bound apartment')
+
+    # ----- stage 3: encrypted session -------------------------------------
+
+    async def on_session_frame(self, frame, record):
+        plaintext = self.crypto.decode_session(frame.payload)
+        record['decrypted_bytes'] = len(plaintext)
+        with self._path('.session.bin').open('ab') as clear:
+            clear.write(Frame(frame.message_type, frame.version, plaintext).encode())
+        self.log(f'verified session frame {frame.message_type}, {len(plaintext)} decrypted bytes')
+
+        if self.apartment and frame.version == 0:
+            if frame.message_type == CLIENT_TURN:
+                self.on_client_turn(plaintext)
+            elif frame.message_type == SCENE_SELECTION:
+                await self.on_scene_selection(plaintext)
+            elif frame.message_type == LEAVE_BATTLE:
+                await self.on_leave_battle(plaintext)
+
+        # Clock and keepalive handling applies in every logged-in mode.
+        scene_ready = False
+        if frame.message_type == SCENE_LOADED and frame.version == 0 and not plaintext:
+            self.on_scene_loaded()
+        if frame.message_type == FRAME_READY:
+            scene_ready = self.on_frame_ready(plaintext)
+        if frame.message_type == GAME_CLOCK_REQUEST:
+            self.last_clock_request = plaintext
+        if frame.message_type == GAME_CLOCK_REQUEST or (scene_ready and self.last_clock_request is not None):
+            await self._send_clock_reply()
+        if frame.message_type == CLIENT_KEEPALIVE and not plaintext:
+            await self.send_session(SERVER_KEEPALIVE, b'')
+
+    def on_client_turn(self, plaintext):
+        """Persist the supported commands from an authenticated client turn."""
+        from commands import decode_client_turn
+        account_id = self.account.account_id
+        try:
+            turn = decode_client_turn(plaintext)
+            for command in turn.commands:
+                if command.account_id not in (0, account_id):
+                    continue
+                if command.command_type == AGE_CHOICE_COMMAND:
+                    self.accounts.record_age_choice(account_id, command.fields['age'])
+                    self.log('persisted local onboarding category')
+                elif command.command_type == TUTORIAL_COMMAND:
+                    self.accounts.record_tutorial(account_id, command.fields['tutorial'], command.fields['step'])
+                    self.log('persisted tutorial transition')
+                elif command.command_type in (MAIN_QUEST_SEEN_COMMAND, MAIN_QUEST_DONE_COMMAND):
+                    self.accounts.record_main_quest(account_id, command.command_type, command.fields['step'])
+                    self.log(f'persisted main-quest step {command.command_type}')
+        except ValueError as error:
+            self.log(f'turn unsupported: {error}')
+
+    async def on_scene_selection(self, plaintext):
+        from scene_requests import decode_scene_request
+        try:
+            selection = decode_scene_request(plaintext)
+        except ValueError as error:
+            self.log(f'scene selection unsupported: {error}')
+            return
+        if self.pending_home_scene and selection.flag and selection.scene_id == SOCIAL_HUB:
+            await self._enter_apartment()
+        if selection.scene_id == TUTORIAL_AREA and self.current_scene != TUTORIAL_AREA:
+            await self._enter_tutorial_area()
+
+    async def _enter_apartment(self):
+        """Second half of return-home: the client asked for its home scene."""
+        from scene import apartment_scene
+        account_id = self.account.account_id
+        await self.send_session(SCENE_START, apartment_scene(account_id))
+        self.pending_home_scene = False
+        self.current_scene = APARTMENT
+        if self.battle_bridge is not None:
+            self.battle_bridge.end(account_id, self.session)
+        self.accounts.record_scene(account_id, self.current_scene)
+        self._reset_scene_clock()
+        self.state = 'apartment_scene_sent'
+        self.log('returned to apartment after client home-scene request')
+
+    async def _enter_tutorial_area(self):
+        """Portal travel from the apartment into Downtown Chaos."""
+        from scene import progression_tutorial_scene
+        account_id = self.account.account_id
+        if self.battle_bridge is not None:
+            self.battle_bridge.begin(account_id, self.session)
+        await self.send_session(SCENE_START, progression_tutorial_scene(account_id))
+        self.current_scene = TUTORIAL_AREA
+        self.accounts.record_scene(account_id, self.current_scene)
+        self._reset_scene_clock()
+        self.state = 'tutorial_scene_sent'
+        self.log('sent account-bound TutorialAreaBasic after portal selection')
+
+    async def on_leave_battle(self, plaintext):
+        """First half of return-home: send own-home, then wait for the client.
+
+        Native 0x764214 reads two flags and an optional selection; the actual
+        map's Leave Battle button sent 00. OwnHome prompts the client's
+        asynchronous exit, after which it sends a flagged SocialHub selection.
+        We wait for that request instead of racing teardown with a scene.
+        """
+        if plaintext != b'\x00':
+            self.log('unsupported leave-battle options')
+            return
+        if self.current_scene == APARTMENT or self.pending_home_scene:
+            return
+        account_id = self.account.account_id
+        if self.accounts.complete_intro_quest(account_id):
+            self.log('Intro_3 earned: Portal tutorial advanced to ClaimQuests')
+        saved = self.accounts.authenticate(account_id, self.account.token).profile
+        await self.send_session(OWN_HOME, self._own_home_body(saved))
+        self.pending_home_scene = True
+        self.state = 'awaiting_home_scene_request'
+        self.log('sent home profile; awaiting client home-scene request')
+
+    # ----- simulation clock -----------------------------------------------
+
+    def _reset_scene_clock(self):
+        """A fresh scene snapshot starts at frame zero, not at the TCP age."""
+        self.confirmed_frame = 0
+        self.awaiting_scene_loaded = True
+        self.clock_started = time.monotonic()
+
+    def on_scene_loaded(self):
+        # Old-scene clock/ready messages precede this boundary. Loading can
+        # pause while the app is backgrounded, so time starts here.
+        self.confirmed_frame = 0
+        self.clock_started = time.monotonic()
+        self.awaiting_scene_loaded = False
+
+    def on_frame_ready(self, plaintext):
+        """Track the client's ready frame. Returns True if it must be acknowledged.
+
+        Old-scene ready reports can still arrive after travel; acknowledging
+        them would advance the new simulation by thousands of frames and freeze
+        its actors, so they are ignored until the scene-loaded boundary. After
+        that, every report is confirmed immediately: the client can exhaust its
+        prediction window (on first load or after resume) before it polls the
+        clock again.
+        """
+        from protocol import decode_frame_ready
+        ready_frame = decode_frame_ready(plaintext)
+        if self.awaiting_scene_loaded:
+            return False
+        self.confirmed_frame = max(self.confirmed_frame, ready_frame)
+        return True
+
+    async def _send_clock_reply(self):
+        from protocol import game_clock_reply
+        elapsed_ms = int((time.monotonic() - self.clock_started) * 1000)
+        reply = game_clock_reply(self.last_clock_request, elapsed_ms, self.confirmed_frame)
+        await self.send_session(reply.message_type, reply.payload, reply.version)
+        # Preserve the verified transport keepalive during game-clock traffic.
+        await self.send_session(SERVER_KEEPALIVE, b'')
 
 
-async def run(host, port, output, handshake=False, server_key=None, account_store=None, transport_probe=False, home_probe=None, profile_probe=None, apartment=False, battle_bridge=None):
+async def capture(reader, writer, output, handshake=False, server_key=None, accounts=None,
+                  transport_probe=False, home_probe=None, profile_probe=None, apartment=False,
+                  battle_bridge=None):
+    """Serve one client connection (kept as a function for callers and tests)."""
+    session = GameSession(reader, writer, output, handshake, server_key, accounts,
+                          transport_probe, home_probe, profile_probe, apartment, battle_bridge)
+    await session.run()
+
+
+async def run(host, port, output, handshake=False, server_key=None, account_store=None,
+              transport_probe=False, home_probe=None, profile_probe=None, apartment=False,
+              battle_bridge=None):
     output.mkdir(parents=True, exist_ok=True)
     if server_key is not None and account_store is None:
         from accounts import AccountStore
-        account_store = AccountStore(Path(__file__).resolve().parent/'.local/accounts.sqlite3')
-    server = await asyncio.start_server(lambda r, w: capture(r, w, output, handshake, server_key, account_store, transport_probe, home_probe, profile_probe, apartment, battle_bridge), host, port)
-    print(f'Local listener: {host}:{port}; mode={"experimental hello" if handshake else "capture"}', flush=True)
+        account_store = AccountStore(Path(__file__).resolve().parent / '.local/accounts.sqlite3')
+
+    async def connected(reader, writer):
+        await capture(reader, writer, output, handshake, server_key, account_store,
+                      transport_probe, home_probe, profile_probe, apartment, battle_bridge)
+
+    server = await asyncio.start_server(connected, host, port)
+    mode = 'experimental hello' if handshake else 'capture'
+    print(f'Local listener: {host}:{port}; mode={mode}', flush=True)
     async with server:
         await server.serve_forever()
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description=__doc__)
+def main():
+    root = Path(__file__).resolve().parent
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--host', default='127.0.0.1')
-    parser.add_argument('--port', type=int, default=9339, help='Local capture port; the observed game port 30000 is redirected here')
-    parser.add_argument('--output', type=Path, default=Path(__file__).resolve().parent / 'captures')
-    parser.add_argument('--handshake', action='store_true', help='Send the evidenced 20100 hello; capture the next client message')
-    parser.add_argument('--login', action='store_true', help='Verify and decrypt login using a local server key')
-    parser.add_argument('--apartment', action='store_true', help='Send the minimum local player/apartment state; requires --login')
-    parser.add_argument('--server-key', type=Path, default=Path(__file__).resolve().parent/'.local/server-key.json')
+    parser.add_argument('--port', type=int, default=9339,
+                        help='Local capture port; the observed game port 30000 is redirected here')
+    parser.add_argument('--output', type=Path, default=root / 'captures')
+    parser.add_argument('--handshake', action='store_true',
+                        help='Send the evidenced 20100 hello; capture the next client message')
+    parser.add_argument('--login', action='store_true',
+                        help='Verify and decrypt login using a local server key')
+    parser.add_argument('--apartment', action='store_true',
+                        help='Send the minimum local player/apartment state; requires --login')
+    parser.add_argument('--server-key', type=Path, default=root / '.local/server-key.json')
     args = parser.parse_args()
     if args.apartment and not args.login:
         parser.error('--apartment requires --login')
+    key = None
+    if args.login:
+        from transport import load_key
+        key = load_key(args.server_key)
     try:
-        key = None
-        if args.login:
-            from transport import load_key
-            key = load_key(args.server_key)
-        asyncio.run(run(args.host, args.port, args.output, args.handshake or args.login, key, apartment=args.apartment))
+        asyncio.run(run(args.host, args.port, args.output, args.handshake or args.login, key,
+                        apartment=args.apartment))
     except KeyboardInterrupt:
         pass
+
+
+if __name__ == '__main__':
+    main()

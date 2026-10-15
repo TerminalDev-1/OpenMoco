@@ -31,8 +31,15 @@ counts are trusted client reports. Client-collected XP is recorded per battle
 epoch for comparison only. The in-game XP bar is not updated by server XP yet.
 Python journals outcomes by authenticated battle epoch with cumulative
 high-water marks. Combat remains simulated by the client.
-Do not mark tutorial complete from readiness alone: native quest state, Luna
-and XP UI binding still need implementation. Read the latest status section.
+Update 2026-10-15: the user asked for tutorial completion once the tutorial
+objectives are earned. The server now sends Intro_3 quests in own-home and,
+on Leave Battle with 50 kills and 3 rescues, advances Portal to ClaimQuests.
+The native client then finishes the Portal tutorial and starts character
+creation (verified on the tablet). Never advance it without the earned
+objectives. The in-battle XP bar is still unfilled: editing battle-snapshot
+bytes makes the client quit, so don't retry that. Read the latest status section.
+The server code was refactored for readability (GameSession class); the user
+wants existing logic kept, not rewritten.
 
 ## Current scene-transition priority
 The verified reconnect/background-resume APK is published as v0.6.0-reconnect:

@@ -55,6 +55,20 @@ remain decoded without execution. Implement persisted, earned quest progress
 and reward application before allowing Luna's completion prompt to advance
 the tutorial. Existing 574 tutorial persistence must remain intact.
 
+## Implemented: Intro_3 and Portal tutorial completion (2026-10-15)
+
+- Quest collection home+a0 (0x78ecf8): header next-quest-ID plus three ints,
+  then Quests (0x78da48). Quest +0 is a unique ID assigned from the header by
+  0x78ff08. MainQuestManager home+f0 (0x784638) entries (0x7850fc): step data
+  reference, compact, new bit, claimed bit.
+- GoToPortal: Intro_3 new, with Intro_3_1 kills/50 and Intro_3_2 rescues/3.
+- Leave Battle with both objectives earned: Portal -> ClaimQuests; own-home
+  carries Intro_3 claimed and Tutorial_Name_10 unlocked. The client finishes
+  the Portal tutorial and starts the Name tutorial (EditCharacter).
+- Client commands 575 (step seen) and 576 (step done) carry main_quest_steps
+  references. Their names are inferred from observed order; they're persisted
+  and replayed on reconnect.
+
 ## COOL zone
 
 The user confirmed this is a separate area, not the wardrobe. Supplied battle
