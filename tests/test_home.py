@@ -1,5 +1,6 @@
 import unittest
-from home import own_home
+from home import PLAYER_LEVEL_TRACK, own_home
+from progress import XP_LEVELS
 
 
 class HomeTests(unittest.TestCase):
@@ -56,9 +57,44 @@ class HomeTests(unittest.TestCase):
         self.assertEqual((reader.compact(), reader.compact()), (0, 1))
         self.assertEqual(int.from_bytes(reader.raw(8), 'big'), 300020)
         self.assertEqual((reader.integer(), reader.integer()), (1901, 0))
-        self.assertEqual([reader.compact() for _ in range(15)], [0] * 15)
+        self.assertEqual([reader.compact() for _ in range(3)], [0] * 3)
+        # +40 tracks: one player-level track (0x78b29c) for the home XP badge.
+        self.assertEqual(reader.compact(), 1)
+        self.assertEqual([reader.compact() for _ in range(5)], [0, 0, 1, 0, -1])
+        self.assertEqual(reader.raw(1), bytes(1))  # Six absent optional fields.
+        self.assertEqual([reader.compact() for _ in range(5)], [0] * 5)
+        self.assertEqual([reader.compact() for _ in range(3)], [1, 0, 0])  # +68 type 1.
+        self.assertEqual(reader.raw(8), bytes(8))
+        self.assertEqual([reader.compact() for _ in range(2)], [0, 0])
+        self.assertEqual(reader.raw(8), bytes(8))
+        self.assertEqual([reader.compact() for _ in range(reader.compact())], list(XP_LEVELS))
+        self.assertEqual(reader.raw(8), bytes(8))
+        self.assertEqual([reader.compact() for _ in range(7)], [0] * 7)
+        self.assertEqual((reader.compact(), reader.compact()), (PLAYER_LEVEL_TRACK, 0))
+        self.assertEqual([reader.compact() for _ in range(11)], [0] * 11)
         self.assertEqual([reader.compact() for _ in range(3)], [0, 0, 0])  # Suffix.
         self.assertEqual(reader.remaining, 0)
+
+    def test_saved_xp_is_the_player_level_track_record(self):
+        # Client-home +e8 (0x78723c) follows the +a0 quest collection; its
+        # record 0x788054 keyed by the track ID holds the XP the home HUD reads.
+        from stream import Reader
+        kit = (6700000).to_bytes(8, 'big')
+        for xp, expected in ((0, []), (1901, [PLAYER_LEVEL_TRACK, 1901, 0])):
+            body = own_home(1, xp=xp)
+            reader = Reader(body[body.index(kit) + 8:])
+            reader.compact(), reader.compact(), reader.compact(), reader.bit_boolean()
+            reader.compact(), reader.compact()
+            self.assertEqual([reader.compact() for _ in range(5)], [0] * 5)  # Empty +a0.
+            count = reader.compact()
+            self.assertEqual(count, 1 if xp else 0)
+            if xp:
+                self.assertEqual([reader.compact() for _ in range(3)], expected)
+                self.assertFalse(reader.bit_boolean())
+                self.assertEqual([reader.compact() for _ in range(2)], [0, 0])
+                self.assertFalse(reader.bit_boolean())
+                self.assertEqual([reader.compact() for _ in range(7)], [0] * 7)
+            self.assertEqual(reader.compact(), 0)  # +f0 main quests.
 
     def test_vanity_items_fill_client_home_e0(self):
         # 0x79716c: count, then entries 0x796ba8 (raw data reference and a

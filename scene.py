@@ -45,7 +45,7 @@ _PORTAL_SUFFIX = bytes.fromhex(
 )
 
 
-def apartment_scene(account_id, portal=True):
+def apartment_scene(account_id, portal=True, level=1):
     """Bind the two evidenced accountId fields to a valid local namespace.
 
     Native metadata serializer 0x73ab98 starts with accountId; the second
@@ -55,8 +55,14 @@ def apartment_scene(account_id, portal=True):
     """
     if not isinstance(account_id, int) or not 128 <= account_id >> 32 <= 255 or not account_id & 0xffffffff:
         raise ValueError('Apartment requires a nonzero local guest identity')
+    # The suffix starts in the player metadata (visitor 0x73ab98) after
+    # accountId: level (+0x14) and realLevel (+0x20), each a present compact.
+    # The overhead name badge (0x5acee0) shows level outside battle.
+    if type(level) is not int or not 1 <= level < 64:
+        raise ValueError('Apartment level must fit the one-byte native field')
     identity = Writer().compact(account_id, 64).bytes()
-    return _PREFIX + identity + _MIDDLE + identity + (_PORTAL_SUFFIX if portal else _SUFFIX)
+    suffix = _PORTAL_SUFFIX if portal else _SUFFIX
+    return _PREFIX + identity + _MIDDLE + identity + bytes([level, level]) + suffix[2:]
 
 
 _TUTORIAL_PREFIX = bytes.fromhex(

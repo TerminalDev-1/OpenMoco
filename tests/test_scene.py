@@ -1,4 +1,5 @@
 import unittest
+from stream import Writer
 
 from scene import apartment_scene, tutorial_scene, monster_tutorial_scene, populated_tutorial_scene, encounter_tutorial_scene, HOME_SPAWN
 from stream import Reader
@@ -100,6 +101,15 @@ class SceneTests(unittest.TestCase):
         second = Reader(scene[329:])
         self.assertEqual(second.compact(64), identity)
         self.assertEqual(HOME_SPAWN, (22 * 65536 + 32768, 67 * 65536 + 32768))
+        # Player metadata level/realLevel follow the linked identity.
+        identity_bytes = Writer().compact(identity, 64).bytes()
+        for level in (1, 4, 63):
+            body = apartment_scene(identity, level=level)
+            start = body.rindex(identity_bytes) + len(identity_bytes)
+            self.assertEqual(body[start:start + 3], bytes([level, level, 2]))
+            self.assertEqual(len(body), len(apartment_scene(identity)))
+        with self.assertRaises(ValueError):
+            apartment_scene(identity, level=64)
         self.assertEqual(len(apartment_scene(identity, portal=False)), 487)
 
     def test_local_namespace_boundary_and_large_id(self):

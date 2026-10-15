@@ -1,5 +1,46 @@
 # Project status — 2026-10-15
 
+## Apartment level badge shows saved XP (server-only)
+Work on 2026-10-15 (late evening). No client change; the installed tablet base
+is still the published v0.9.0 normal build (61c11c9b...).
+
+Why the badge stayed at 1: there are two readers, and both lacked server data.
+- Home HUD: the HUD rebuild (0x57e1f4..0x57e600) replaces the shared-pointer
+  tables HUD +0x198/+0x1c8 on every rebuild. That is what emptied the
+  bridge-filled table about 1.5 s later. At home it takes base XP and levels
+  from the profile: the avatar +0x40 track with +0x68 type 1 (0x78d170), and
+  the client-home +0xe8 record with the same ID. We sent neither.
+- Overhead name badge (0x5acee0): the character metadata `level` from the
+  scene snapshot. Only the local player in a battle with XP gets the config
+  loop. Our apartment snapshot said 1.
+Fix: home.py sends the player-level track (local ID 1, provisional
+XP_LEVELS) and its record (XP) when saved XP > 0. scene.apartment_scene writes
+level/realLevel = progress.level_for_xp(XP) (same-length bytes; battle
+snapshots untouched). See docs/PROGRESSION_PROTOCOL.md "Home level display"
+for the decoders and layouts. Every test module passes.
+
+Verified on the tablet:
+- Temporary --apartment-probe build (not published; the normal base was
+  reinstalled): own-home decodes to exactly 1245/1245. The client holds track 1
+  (type 1, 29 levels) and the record (XP 1901), and the home HUD reads base
+  1901, level 4, from a stable 29-entry table. Hooking generic decoders
+  (0x779e68, 0x78b29c, 0x78cdd4, 0x78d04c, 0x78723c) crashed startup with
+  SIGBUS; keep probes to own-home/client-home/avatar.
+- Normal client: the apartment badge shows 4 for 1901 XP (.local/ht-normal-home.png).
+  Soak on a temporary GoToPortal copy (kills reset per cycle): first battle
+  plus 8 scripted warm Leave Battle -> apartment -> portal -> battle cycles
+  with combat. One process, one connection, frames kept growing, no crash or
+  freeze. With XP set to 1999, a kill crossed 2000 and the next apartment
+  showed 5 (.local/ht-soak-2-home.png).
+Real account restored from .local/accounts.before-home-track-soak.sqlite3
+(15600002 -> 14200011, saved look, XP 1901); soak copy kept in
+.local/accounts.after-home-track-soak.sqlite3. A cold launch reopened the
+hunter-name screen. Manual server: hidden, mode local-home-level-track, log
+captures/user-test-server-home-level.log, PID in .local/user-test-server.json.
+Not done: the real level curve and track ID are unknown (provisional table).
+The battle name badge shows the snapshot level 1 until the first credited
+kill (battle snapshot not edited, per the AGENTS.md rule).
+
 ## Character editor, bridge race fix, home XP and startup-crash findings
 Work by a side session on 2026-10-15 (evening). Normal client (all
 diagnostic flags false) installed on the tablet: base SHA-256 61c11c9b...,

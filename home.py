@@ -15,6 +15,9 @@ from stream import Writer
 OWN_HOME_TYPE = 24548
 SMART_BOW = 6700000  # Loaded battle-kit record; its weapon link is ArcherWeapon.
 XP_POINT = 300020    # resources.csv XpPoint (Meta), instance 20.
+# Local ID of the player-level track (avatar +0x40) and its client-home +0xe8
+# progress record. The official ID is unknown; the client only matches the two.
+PLAYER_LEVEL_TRACK = 1
 # Free default faces (slot 3) and hairstyles (slot 2): the rAssetCosmetic
 # records with pool 0 and enabledForPlayers. The character editor (signup
 # screen, list builder 0x570be4) lists only owned vanity items of the chosen
@@ -128,8 +131,21 @@ def _quest(writer, quest_id, quest):
     _zeros(writer, 2)                     # +88, +8c
 
 
-def _quest_state(writer, main_steps):
-    """Home +a0 quest collection, +e8 auxiliary quests and +f0 main quests."""
+def _track_record(writer, track, xp):
+    """Client-home +e8 entry 0x788054: track progress, keyed by track ID.
+
+    +0 track ID, +4 XP (native add-XP 0x7565b8 adds to it), +8, bit +c, +10
+    (a linked track ID; 0 = none), +14, bit +18, +1c, then six empty vectors.
+    """
+    writer.compact(track).compact(xp).compact(0)
+    writer.bit_boolean(False)
+    writer.compact(0).compact(0)
+    writer.bit_boolean(False)
+    _zeros(writer, 1 + 6)
+
+
+def _quest_state(writer, main_steps, xp=0):
+    """Home +a0 quest collection, +e8 track progress and +f0 main quests."""
     quests = [quest for step in main_steps for quest in step.quests]
     # +a0 header: next quest ID, then three unknown integers.
     writer.compact(len(quests))
@@ -137,7 +153,10 @@ def _quest_state(writer, main_steps):
     writer.compact(len(quests))
     for quest_id, quest in enumerate(quests):
         _quest(writer, quest_id, quest)
-    writer.compact(0)  # +e8 auxiliary quests.
+    # +e8 track progress (0x78723c): the player-level record holds saved XP.
+    writer.compact(1 if xp else 0)
+    if xp:
+        _track_record(writer, PLAYER_LEVEL_TRACK, xp)
     writer.compact(len(main_steps))  # +f0 MainQuestManager entries.
     for step in main_steps:
         _ref(writer, step.reference)
@@ -158,7 +177,7 @@ def _vanity_items(writer, items):
         writer.compact(0)
 
 
-def _client_home(writer, account_id, battle_kit, age_category, tutorials, main_steps, vanity, look):
+def _client_home(writer, account_id, battle_kit, age_category, tutorials, main_steps, vanity, look, xp):
     writer.raw(struct.pack('>Q', account_id))  # Home's two raw ID words.
     # Empty resources, home events, and native default battle-kit entry.
     _zeros(writer, 3)
@@ -188,7 +207,7 @@ def _client_home(writer, account_id, battle_kit, age_category, tutorials, main_s
     _zeros(writer, 3)
     writer.bit_boolean(False)
     _zeros(writer, 2)  # +90 count, +98.
-    _quest_state(writer, main_steps)
+    _quest_state(writer, main_steps, xp)
     _zeros(writer, 4)  # +f8, +100 (header + count), +110.
     # Home +0x118, collection 0x7966e8, entry 0x7969a0.
     # Each entry encodes tutorial first, step second, as raw 64-bit refs.
@@ -230,8 +249,46 @@ def _avatar_and_suffix(writer, xp):
     if xp:
         _ref(writer, XP_POINT)
         writer.integer(xp).integer(0)
-    _zeros(writer, 1 + 14)  # Key/value collection, then the rest of the avatar.
-    _zeros(writer, 3)       # Own-home suffix.
+    _zeros(writer, 3)  # Key/value collection, +28 (0x796584), +38 (0x78575c).
+    # +40 tracks (0x78d04c). The home XP badge reads the player-level track.
+    writer.compact(1 if xp else 0)
+    if xp:
+        _level_track(writer, PLAYER_LEVEL_TRACK)
+    _zeros(writer, 11)  # The rest of the avatar.
+    _zeros(writer, 3)   # Own-home suffix.
+
+
+def _level_track(writer, track):
+    """Avatar +40 entry 0x78b29c, the player-level track.
+
+    The home HUD (0x57e33c) and the player-level getter (0x756a30) use the
+    first track whose +68 type is 1, with +24 == 0 and +28 > 0. Its +68
+    levels (+28 data, +34 count) are the XP per level for level loop
+    0x788de8, and its XP is the client-home +e8 record with the same ID.
+    Without it the home HUD level table is empty and the badge stays at 1.
+    The meaning of +20, +28, +2c and +d8 is not known; +28 only has to be
+    positive and +d8 keeps the constructor default -1.
+    """
+    from progress import XP_LEVELS
+    writer.compact(0).compact(0).compact(1).compact(0).compact(-1)  # +20 +24 +28 +2c +d8
+    for _ in range(2):
+        # +30, +38: structured objects 0x8381cc (versioned decoder 0x8e55bc);
+        # version, integer and string are each an absent optional field.
+        writer.boolean(False).boolean(False).boolean(False)
+    _zeros(writer, 4 + 1)  # +40..+58 collections (0x779590), +60.
+    # +68 (0x78cdd4): type 1, two integers, data reference, two integers,
+    # data reference, the levels, then a raw 64-bit value.
+    writer.compact(1).compact(0).compact(0)
+    _ref(writer, 0)
+    writer.compact(0).compact(0)
+    _ref(writer, 0)
+    writer.compact(len(XP_LEVELS))
+    for xp in XP_LEVELS:
+        writer.compact(xp)
+    _ref(writer, 0)
+    _zeros(writer, 6 + 1)  # +70..+c0 collections, +d0 (0x77a090).
+    writer.compact(track)  # Base 0x779e68: +8 ID, then an empty +10 collection.
+    writer.compact(0)
 
 
 def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, main_steps=(), xp=0,
@@ -259,6 +316,6 @@ def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, m
     for _ in range(3):
         writer.integer(0)
     _client_home(writer, account_id, battle_kit, age_category, entries, tuple(main_steps),
-                 tuple(vanity), tuple(look))
+                 tuple(vanity), tuple(look), xp)
     _avatar_and_suffix(writer, xp)
     return writer.bytes()

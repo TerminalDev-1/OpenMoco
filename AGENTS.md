@@ -58,9 +58,11 @@ Update 2026-10-15 (evening): the character editor lists faces/hairstyles from
 server-granted pool-0 vanity items (client-home +0xe0) and command 543 picks
 persist in the current build; the bridge writes native XP memory only on
 Mainloop for the live battle (verified with 6+7 clean soak cycles). The
-apartment badge still shows level 1: XpPoint isn't read by the level path,
-and an apartment base write is unsafe until the HUD table (+0x1c8) owner is
-traced. Never press READY in the editor for the user.
+apartment badge now shows the saved-XP level (server-only, verified
+2026-10-15): own-home sends the avatar +0x40 player-level track and its
+client-home +0xe8 XP record, and the apartment snapshot's metadata level is
+set from XP. No bridge write is needed at home. Never press READY in the
+editor for the user.
 
 ## Current scene-transition priority
 The verified reconnect/background-resume APK is published as v0.6.0-reconnect:

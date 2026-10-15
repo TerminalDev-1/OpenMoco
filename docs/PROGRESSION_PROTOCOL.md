@@ -98,6 +98,32 @@ the tutorial. Existing 574 tutorial persistence must remain intact.
 - The bridge sets base XP only in battle. The HUD table at +0x1c8 reads
   empty again shortly after being filled (per frame in the apartment), so a
   positive apartment base is unsafe until its owner is traced (freeze rule).
+- Traced: HUD +0x198/+0x1c8 are shared pointers that the HUD rebuild
+  (0x57e1f4..0x57e600) replaces with a newly built table. In battle (game mode
+  3) the table and base come from config 0x49959c. At home (mode 0) they come
+  from the profile: track = 0x78d170(avatar +0x40), the first entry whose
+  [+0x68]+0 == 1, +0x24 == 0 and +0x28 > 0. Its levels are [+0x68]+0x28
+  (count +0x34). Base XP is the client-home +0xe8 record whose ID matches
+  track +8 (value +4, lookup 0x7872f8). With no track, the base is 0 and the
+  table is empty, hence the level-1 badge. 0x756a30 is the native player-level
+  getter over the same pair; 0x7565b8 is the native add-XP routine.
+- home.py now sends this pair when saved XP is positive: track
+  PLAYER_LEVEL_TRACK (local ID 1, entry 0x78b29c) with the provisional
+  XP_LEVELS, and a record 0x788054 (ID, XP). The meaning of track +0x20,
+  +0x28, +0x2c and +0xd8 is unknown (+0x28 = 1, +0xd8 = -1, the constructor
+  default). A probe build measured an exact decode (own-home ends at
+  1245/1245) and a stable home HUD table (29 levels, base 1901, level 4).
+- The overhead name badge is a different reader (0x5acee0..0x5acf68). It
+  shows the character metadata level (+0x14). Only for the local player, and
+  only when 0x57e768() >= 1 (battle XP in a battle), does it run the config
+  level loop instead. The apartment therefore needs the level in its scene
+  snapshot. Player metadata (visitor 0x73ab98: accountId, teamId,
+  battlePlayerId, level, trophyBadgeLevel, collectorLevel, realLevel,
+  totalLevel, faction, name) uses a presence bit in the shared boolean byte
+  plus a compact value per field. In the apartment suffix, the two bytes after
+  the linked identity are level and realLevel. scene.apartment_scene now
+  writes progress.level_for_xp(saved XP) there, capped at 63 to stay one byte.
+  Battle snapshots are unchanged.
 
 ## Character editor and cosmetics (2026-10-15)
 

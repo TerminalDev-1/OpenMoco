@@ -69,9 +69,15 @@ class QuestEncodingTests(unittest.TestCase):
         self.assertEqual(reader.compact(), 2)
         self.assertEqual([reader.compact() for _ in range(4)], [0, 1, 7, 50])
 
+    def test_level_for_xp_matches_native_level_loop(self):
+        from progress import level_for_xp
+        self.assertEqual([level_for_xp(x) for x in (0, 199, 200, 599, 600, 1901)], [1, 1, 2, 2, 3, 4])
+        self.assertEqual(level_for_xp(87000), 30)  # Past the table the last step repeats.
+
     def test_saved_xp_is_the_avatar_xp_point_resource(self):
         body = own_home(1, xp=1551)
-        self.assertEqual(len(body), len(own_home(1)) + 16)
+        # XpPoint resource (16 bytes) plus the player-level track and record.
+        self.assertGreater(len(body), len(own_home(1)) + 16)
         self.assertIn((300020).to_bytes(8, 'big') + (1551).to_bytes(4, 'big') + bytes(4), body)
         with self.assertRaises(ValueError):
             own_home(1, xp=-1)

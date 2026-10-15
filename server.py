@@ -99,6 +99,7 @@ class GameSession:
         self.confirmed_frame = 0
         self.awaiting_scene_loaded = False
         self.pending_home_scene = False
+        self.home_level = 1  # Set from saved XP whenever own-home is built.
         self.last_clock_request = None
 
     # ----- logging and capture files -------------------------------------
@@ -259,7 +260,10 @@ class GameSession:
 
     def _own_home_body(self, profile):
         from home import STARTER_VANITY, equipped_look, own_home
-        from progress import intro_main_steps
+        from progress import intro_main_steps, level_for_xp
+        # The apartment scene that follows shows this level over the player.
+        # Capped to keep its snapshot field one byte (see scene.apartment_scene).
+        self.home_level = min(63, level_for_xp(profile.get('battle_progress', {}).get('xp', 0)))
         return own_home(self.account.account_id, vanity=STARTER_VANITY,
                         look=equipped_look(profile.get('look')),
                         age_category=profile.get('age_category', 0),
@@ -289,7 +293,7 @@ class GameSession:
             if self.current_scene == TUTORIAL_AREA:
                 body = progression_tutorial_scene(account_id)
             else:
-                body = apartment_scene(account_id)
+                body = apartment_scene(account_id, level=self.home_level)
         else:
             body = self.home_probe
         if self.battle_bridge is not None and self.current_scene == TUTORIAL_AREA:
@@ -372,7 +376,7 @@ class GameSession:
         """Second half of return-home: the client asked for its home scene."""
         from scene import apartment_scene
         account_id = self.account.account_id
-        await self.send_session(SCENE_START, apartment_scene(account_id))
+        await self.send_session(SCENE_START, apartment_scene(account_id, level=self.home_level))
         self.pending_home_scene = False
         self.current_scene = APARTMENT
         if self.battle_bridge is not None:

@@ -49,6 +49,16 @@ MAX_LEVEL = 29
 XP_LEVELS = tuple(XP_LEVEL_1_OFFSET * level for level in range(1, MAX_LEVEL + 1))
 
 
+def level_for_xp(xp, levels=XP_LEVELS):
+    """Displayed level for total XP, as native level loop 0x788de8 counts it
+    (the last entry repeats past the end of the table), plus one."""
+    level = 0
+    while xp >= levels[min(level, len(levels) - 1)]:
+        xp -= levels[min(level, len(levels) - 1)]
+        level += 1
+    return level + 1
+
+
 def validate_tutorial(tutorial, step):
     if type(tutorial) is not int or tutorial not in TUTORIAL_STEPS:
         raise ValueError('Unsupported tutorial reference')
