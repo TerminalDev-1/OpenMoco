@@ -44,8 +44,18 @@ The owning object and its live player binding still need to be traced before
 using these offsets. They are not confirmed offsets in a Character or Player
 entity. Resource data distinguishes XpPoint (Meta, instance 20) from the
 XpDropSmall/Big/Huge collectible records (instances 21/22/23). Native resource
-entry decoding 0x791cc8 reads a data reference and two integer values; confirm
-their semantics before changing the own-home avatar/resource encoder.
+entry decoding 0x791cc8 reads a data reference and two integer values. The
+own-home avatar now carries saved XP as XpPoint 300020 (value, 0); a tablet
+probe confirmed 0x791cc8 decodes it into the avatar's resource list. Its
+visible effect is still unverified (the apartment badge stays at level 1).
+
+Own-home layout fixes (2026-10-15, measured with native stream offsets):
+client-home +0x130 is object 0x7717b0 with six integers, and the empty avatar
+after its resource list is the key/value count (0x779ab4) plus 14 zero bytes.
+The earlier encoder wrote one and twenty, which kept the total length but put
+the avatar start five bytes early. That only mattered once the avatar held
+data: the XP reference was misread as a key/value collection and the decoder
+read 16 bytes past the payload, crashing when those heap bytes were not zero.
 
 The supplied Intro_3 quest entries have QuestType 1 and target values 50 and 3.
 Both require TutorialAreaBasic; the second also requires Civilian events.

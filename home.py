@@ -114,9 +114,12 @@ def _client_home(writer, account_id, battle_kit, age_category, tutorials, main_s
     # The native UI dereferences these even when their counts are zero.
     for _ in range(5):
         writer.bit_boolean(True).compact(0)
-    writer.compact(0)  # +128 auxiliary collection, always encoded.
+    writer.compact(0)  # +128 object 0x781f14: one count, always encoded.
     writer.bit_boolean(True).compact(0)  # +30 conditional collection.
-    _zeros(writer, 1)  # +130 auxiliary collection.
+    # +130 object 0x7717b0 reads six integers. Writing one moved the avatar
+    # start five bytes early (the native decoder read through 0x7717b0 into
+    # the avatar), which made it misread the XP resource and over-read the payload.
+    _zeros(writer, 6)
 
 
 def _avatar_and_suffix(writer, xp):
@@ -124,14 +127,20 @@ def _avatar_and_suffix(writer, xp):
 
     The avatar's first collection holds resources (entry 0x791cc8: data
     reference and two raw integers). Earned XP is the XpPoint resource
-    (resources.csv instance 20). Every other avatar collection stays empty.
+    (resources.csv instance 20). Every other avatar field stays empty: the
+    key/value collection (0x779ab4) and the rest of the avatar, which the native
+    decoder reads as 14 zero bytes when empty (measured on the tablet).
+    The own-home suffix is three integers: the 0x79b1d0 object count, +54, +10.
+    The native reader has no bounds checks, so these counts must be exact:
+    reading past the payload consumes stale heap bytes.
     """
     writer.compact(0)
     writer.compact(1 if xp else 0)
     if xp:
         _ref(writer, XP_POINT)
         writer.integer(xp).integer(0)
-    _zeros(writer, 23)
+    _zeros(writer, 1 + 14)  # Key/value collection, then the rest of the avatar.
+    _zeros(writer, 3)       # Own-home suffix.
 
 
 def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, main_steps=(), xp=0):

@@ -1,5 +1,63 @@
 # Project status — 2026-10-15
 
+## Leave Battle SIGSEGV fixed: own-home layout bug (server-only fix)
+Root cause: two compensating field-count errors in home.py's own-home
+encoder. Client-home +0x130 is object 0x7717b0, which reads six compact
+integers; we wrote one. The avatar after its resource list is a key/value
+count (0x779ab4) plus 14 zero bytes; we wrote twenty. The total length was
+unchanged, so the all-zero starter still matched the native sample byte for
+byte. But the avatar started five bytes early. Once the avatar carried the
+XpPoint resource (added earlier on 2026-10-15), the native avatar decoder
+read the XP reference's `04` byte as a 4-entry key/value count. It never
+decoded the resource, and it read 16 bytes past the end of the payload.
+The native ByteStream readers (vtable 0xecd7d8: +0x110 compact 0x8d7f24,
++0xf0 raw int, +0x120 raw long) have no bounds checks. The over-read
+therefore consumed whatever heap bytes followed the buffer: usually zeros
+(harmless), once about 6 KB of junk (survived), and in the soak crash a stale
+tagged heap pointer. Its bytes `.. a4 b2 44 71 ..` decode as count 560292
+(x22 = 0x88ca4 in the envelope), and the next byte 0x71 decodes as type -15.
+Factory 0x79b1d0 returned NULL, and 0x756074 dereferenced it. So the crash
+was deterministic misparsing plus heap-content-dependent luck, not a
+teardown race and not the quest objects.
+
+Evidence: a temporary --apartment-probe build (not published; the normal
+v0.8.0 base e950a79a is reinstalled) logged the stream offset (+0x14) and
+length (+0x18) at 0x755e34, 0x77e0b8, 0x77c010, 0x78ecf8, 0x784638 and
+0x791cc8. Before the fix, the 292-byte payload was decoded to offset 308,
+0x791cc8 never ran, and avatar resources=0. The client's own native
+re-encode (309 bytes) decoded exactly, and its client-home tail and avatar
+matched the corrected layout. After the fix, the same state decodes to
+exactly 292, 0x791cc8 runs at 258, and the avatar holds XpPoint = 1901.
+The quest and MainQuestManager sections were already exact (85..172).
+Payloads without saved XP are byte-identical to before.
+
+Fix: home.py (+0x130 = six integers; avatar remainder = 15 zero bytes, then
+the three-integer suffix), plus a regression test that walks the client-home
+tail, avatar and suffix in native order. 67 tests pass.
+
+Tablet verification, normal v0.8.0 client (probes off), temporary GoToPortal
+copy of the account with kills/rescues reset before every battle: 9 warm
+Leave Battle -> apartment -> portal -> battle cycles with combat on one
+process and one connection. That includes the first manual cycle and 8
+scripted cycles, past the earlier failure at cycle 8. No crash and no freeze;
+frame traffic kept growing. The real account state was restored from
+.local/accounts.before-crash-probe.sqlite3, and the soak copy is kept in
+.local/accounts.after-crashfix-soak.sqlite3. A cold launch resumed in the
+character editor as before. Manual server restarted hidden to load the fix:
+mode local-own-home-layout-fix, log captures/user-test-server-crashfix.log,
+PID in .local/user-test-server.json.
+
+Also seen: two early-startup SIGSEGVs (fault 0x0 on Mainloop, about 1.4 s
+after launch, before any network connection) while relaunching the probe build
+in quick succession. They are unrelated to own-home (no message received) and
+not reproduced on the normal build in this session; the cause is not known.
+Not done: the XpPoint resource now really reaches the client, but its visible
+effect is unverified (the apartment badge still shows level 1).
+Follow-up risk (not the cause here): the client bridge's 2-second
+setInterval keeps calling applyXpDisplay (native writes to the XP config)
+from the Frida JS thread after Leave Battle, because `battle` is cleared only
+on the next scene start.
+
 ## In-battle XP bar fills from server XP; root cause of the old XP freeze found
 Found with a temporary --apartment-probe build loading pushed scripts
 (never published; the normal build replaced it on the tablet).
@@ -47,9 +105,8 @@ after the server sent the own-home profile, before the home-scene request.
 Sentry native envelope (private .local/crash-xp-soak/native.envelope): libc
 0x96b24 <- 0xfd988 <- libg 0xa4e854, 0xa4bd7c, 0xa4bf34, 0x4035a4, 0x7f1b44,
 0x403908, 0x7fed7c, 0xa36144, 0xa35f24, 0x756074. 0x756074 is in the own-home
-handler (decoder 0x755e34), so the quest-bearing own-home (Intro_3 with live
-progress, sent on every Leave Battle during GoToPortal) is the prime suspect,
-not the XP-bar hooks. Seen once in 13 returns this session; unresolved.
+handler (decoder 0x755e34). Resolved later the same day: an own-home layout
+bug that the XpPoint resource exposed (see the section above).
 The user then set the pass bar at more than 4 clean cycles and asked to
 publish, so v0.8.0-xp-bar was released with this crash listed as known:
 https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.8.0-xp-bar

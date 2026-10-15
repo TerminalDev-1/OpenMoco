@@ -20,8 +20,10 @@ never publish one. A caught native abort does not mean the client can continue.
 Latest client: v0.8.0-xp-bar (pre-release, target 5755bbe, base e950a79a...),
 https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.8.0-xp-bar. Six
 assets passed remote size/SHA-256 checks; seven unchanged splits/parts stay
-linked from v0.3.0-apartment. Known issue: one SIGSEGV on Leave Battle during
-GoToPortal (own-home handler), see PROJECT_STATUS.md.
+linked from v0.3.0-apartment. Its Leave Battle SIGSEGV (own-home handler) was a
+server encoding bug, fixed in home.py on 2026-10-15 with no client change: the
+native reader has no bounds checks, so own-home field counts must be exact.
+Verify new own-home fields with a native stream-offset probe (PROJECT_STATUS.md).
 The previous fixed client is published as v0.7.0-kill-xp (pre-release, target 2fcc986):
 https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.7.0-kill-xp
 Six assets passed remote size/SHA-256 checks; the seven unchanged splits/parts
