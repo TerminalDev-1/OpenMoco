@@ -1,5 +1,33 @@
 # Project status — 2026-10-16
 
+## Next: server-side jobs, mission quests and chaos cores (2026-10-16, research notes)
+User direction: rewards and future systems stay server side. Findings so far:
+- Commands: 583 (decoder 0x687fa8) reports a feature-unlock screen shown
+  ("featureunlocks" reference, e.g. 6300009 the MERCH SHOP); 593 (0x6864ac)
+  carries one data reference (SocialHub 10900005 in the COOL zone). Both are
+  decoded now, so those turns are no longer dropped; neither is persisted yet,
+  so the MERCH SHOP unlock popup can show again.
+- Chaos cores are the weapons' UPGRADE CORES (TID_PANDORA_CHAOS_CORE "Upgrade
+  Core", resources PowerGem and the Damage/Healing/Cooldown/AttackSpeed gems;
+  texts: monsters drop them, "The tougher the monster, the more likely").
+  The weapon detail page shows three core slots; the owned-weapon entry
+  0x768794 has two raw-int-counted reference lists (+0x08, +0x18), the likely
+  equipped cores. The COOL zone's CORES item (HomeItem type 11, chaos-core
+  storage) is the storage. To do: the cores inventory schema, server drop
+  rolls per credited kill, and equip handling.
+- Mission quests: main_quest_step_quests QuestType 1 (185 of 393) is "defeat N
+  in location", with optional QuestMonsterCond/QuestEventTypeCond; the server
+  already sends such quests for Intro_3 (+0xa0 quests, +0xf0 steps). After
+  Tutorial_1 (the real account has claimed up to Tutorial_1_8, 15400016) the
+  next line is Shrinecanyon (Manny). Shrinecanyon_6_1's DragonlingProtect is a
+  protect event (TID_PROTECT_ARCHEOLOGIST), not a kill, so kill reports alone
+  cannot drive every QuestType 1 quest. Other types (13 dungeon, 19, 16 gear,
+  9, 15, 20 PvP ...) are not understood yet.
+- Jobs (daily jobs, "Complete Jobs / DONEZO" in the portal) are not researched
+  yet; their own-home collection is unknown.
+- Shop offers: the SHOP screen opens empty; offers are server data
+  (client shop_items/billing tables), not researched yet.
+
 ## COOL zone (SocialHub 10900005) unlocked as home after ToHQ (2026-10-16, verified on the tablet)
 Server-only. scene.cool_zone_scene: the item-free Home frame renamed to
 SocialHub 10900005, every home-spawn pair moved to the w00_cool_zone_v2 map's

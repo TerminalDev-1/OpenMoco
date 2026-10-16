@@ -42,7 +42,7 @@ def decode_client_turn(payload):
     for _ in range(count):
         offset = reader.position
         command_type = reader.integer()
-        if command_type not in (524, 541, 543, 560, 569, 572, 574, 575, 576, 591):
+        if command_type not in (524, 541, 543, 560, 569, 572, 574, 575, 576, 583, 591, 593):
             raise UnsupportedCommand(command_type, offset)
         tick, game_id, account_id = (
             reader.compact(64) if reader.boolean() else 0 for _ in range(3)
@@ -65,6 +65,10 @@ def decode_client_turn(payload):
             fields = {'tutorial': reader.compact(64), 'step': reader.compact(64)}
         elif command_type in (575, 576):  # 0x688590 / 0x6849c8.
             fields['step'] = reader.compact(64)
+        elif command_type == 583:  # 0x687fa8: feature unlock shown, "featureunlocks" ref.
+            fields['feature'] = reader.compact(64)
+        elif command_type == 593:  # 0x6864ac: one data reference (type 0x6d).
+            fields['reference'] = reader.compact(64)
         commands.append(Command(command_type, tick, game_id, account_id, fields))
     if reader.remaining:
         raise ValueError('Unexpected client-turn suffix')

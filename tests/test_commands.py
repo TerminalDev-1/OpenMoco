@@ -46,6 +46,15 @@ class ClientTurnTests(unittest.TestCase):
         self.assertEqual(claim.fields, {'quests': (0,)})
         self.assertEqual(tutorial.fields, {'tutorial': 15600008, 'step': 14200028})
 
+    def test_observed_cool_zone_turns(self):
+        # Native client in the COOL zone: 593 names SocialHub; 583 reports the
+        # MERCH SHOP feature-unlock screen (feature_unlock_screens instance 9).
+        payload = bytes.fromhex('000000000000000008030000023cdb087f00000251087fa5c8b20a0000024f087f00')
+        self.assertEqual([c.command_type for c in decode_client_turn(payload).commands], [572, 593, 591])
+        self.assertEqual(decode_client_turn(payload).commands[1].fields, {'reference': 10900005})
+        unlock, = decode_client_turn(bytes.fromhex('00000000000000061b0100000247039b187fa9858106')).commands
+        self.assertEqual((unlock.command_type, unlock.fields), (583, {'feature': 6300009}))
+
     def test_quiet_turn_and_invalid_count_or_suffix(self):
         self.assertEqual(decode_client_turn(bytes(10)).commands, ())
         for payload in (bytes(9) + b'\x7f', bytes(11)):
