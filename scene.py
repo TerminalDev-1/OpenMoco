@@ -59,6 +59,22 @@ _WARDROBE_SUFFIX = bytes.fromhex(
     "0000000000000000000000000000000000000000000000000000"
 )
 
+# Portal, wardrobe and the weapons rack (HomeItem 2010, type 5 Armoury, prefab
+# sc3d/pf_keyitem_weaponloadout at the home map's weapon-loadout marker
+# (1331761,4538660)). Encoded by the client's own scene encoder after a
+# temporary probe added the item to the live apartment frame (2026-10-16).
+# The client labels it WEAPONS and opens its WEAPONS screen next to it.
+_ARMOURY_SUFFIX = bytes.fromhex(
+    "0101020000000c4c6f63616c2048756e7465720000000004acc9e30aaec9e30a"
+    "afc9e30aadc9e30a00040000000000000000000000000000a0efb106a0efb106"
+    "0000fc03038091d8bf0100a699b70199e6ac0414fb5d268a65c3f9f625886b20"
+    "e2b934c3024f8191d8bf0100b3cccd01b3cca504fb5d268a12b06052d20f1eaf"
+    "3a4c7f5cf1018291d8bf0100b1c8a201a484aa0414fb5d268ade98e5c01ea755"
+    "b7ad5b0c80052400000000000000000000017f00000000000000000000000001"
+    "0000000000000000000000000000000000000000000000000000000000000000"
+    "000000000000000000000000000000000000000000000000000000"
+)
+
 DEFAULT_PLAYER_NAME = 'Local Hunter'
 _NAME_FIELD = len(DEFAULT_PLAYER_NAME).to_bytes(4, 'big') + DEFAULT_PLAYER_NAME.encode()
 
@@ -75,7 +91,7 @@ def _with_player_name(suffix, name):
     return suffix.replace(_NAME_FIELD, len(encoded).to_bytes(4, 'big') + encoded)
 
 
-def apartment_scene(account_id, portal=True, level=1, name=DEFAULT_PLAYER_NAME, wardrobe=True):
+def apartment_scene(account_id, portal=True, level=1, name=DEFAULT_PLAYER_NAME, wardrobe=True, armoury=True):
     """Bind the two evidenced accountId fields to a valid local namespace.
 
     Native metadata serializer 0x73ab98 starts with accountId; the second
@@ -93,7 +109,10 @@ def apartment_scene(account_id, portal=True, level=1, name=DEFAULT_PLAYER_NAME, 
     identity = Writer().compact(account_id, 64).bytes()
     # The overhead badge shows the metadata name that follows the levels.
     if portal:
-        template = _WARDROBE_SUFFIX if wardrobe else _PORTAL_SUFFIX
+        if wardrobe and armoury:
+            template = _ARMOURY_SUFFIX
+        else:
+            template = _WARDROBE_SUFFIX if wardrobe else _PORTAL_SUFFIX
     else:
         template = _SUFFIX
     suffix = _with_player_name(template, name)

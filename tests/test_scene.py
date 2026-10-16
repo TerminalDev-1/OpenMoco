@@ -93,7 +93,10 @@ class SceneTests(unittest.TestCase):
         # Native template identities occur before the player metadata and in it.
         identity = (128 << 32) | 1
         scene = apartment_scene(identity)
-        self.assertEqual(len(scene), 553)
+        self.assertEqual(len(scene), 586)
+        self.assertIn(bytes.fromhex('fb5d268ade98e5c01ea755b7ad5b0c80'), scene)  # Weapons rack prefab.
+        self.assertIn(bytes.fromhex('8291d8bf0100b1c8a201a484aa04'), scene)  # Item 201000002 at its marker.
+        self.assertEqual(len(apartment_scene(identity, armoury=False)), 553)
         self.assertIn(b'Local Hunter', scene)
         self.assertIn(bytes.fromhex('fb5d268a65c3f9f625886b20e2b934c3'), scene)  # Portal prefab.
         self.assertIn(bytes.fromhex('fb5d268a12b06052d20f1eaf3a4c7f5c'), scene)  # Wardrobe prefab.

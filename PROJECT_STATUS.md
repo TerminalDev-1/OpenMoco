@@ -1,5 +1,16 @@
 # Project status — 2026-10-16
 
+## Apartment weapons rack (2026-10-16, verified on the tablet, partial)
+Server-only. The home map has a third key-item marker, pf_keyitem_weaponloadout
+at (1331761,4538660). A temporary probe (.local/armoury-probe.js on the never-
+published --apartment-probe build) added HomeItem 2010 type 5 (Armoury) with
+prefab sc3d/pf_keyitem_weaponloadout there and saved the client's own
+re-encoded apartment (576 bytes); scene._ARMOURY_SUFFIX reproduces it byte for
+byte (item 201000002, prefab asset fb5d268ade98e5c0...). The normal v0.10.0
+client renders the rack labelled WEAPONS, and walking up to it opens the
+WEAPONS screen. Known defect: the screen's list is empty (no owned weapons
+are sent yet). The normal base 876b08de is reinstalled.
+
 ## Server-decided battle XP via native XP event 1217; Shrine Canyon kills credited (2026-10-16, verified on the tablet)
 User decision: keep the deterministic-port research parked; the client reports
 only raw kill counts, and the server makes every XP decision and gives the XP
