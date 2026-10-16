@@ -14,6 +14,8 @@ from stream import Writer
 
 OWN_HOME_TYPE = 24548
 SMART_BOW = 6700000  # Loaded battle-kit record; its weapon link is ArcherWeapon.
+# Weapons the account owns (client-home +0x78). Only the starter bow so far.
+OWNED_WEAPONS = (SMART_BOW,)
 XP_POINT = 300020    # resources.csv XpPoint (Meta), instance 20.
 # Local ID of the player-level track (avatar +0x40) and its client-home +0xe8
 # progress record. The official ID is unknown; the client only matches the two.
@@ -182,7 +184,19 @@ def _vanity_items(writer, items):
         writer.compact(0)
 
 
-def _client_home(writer, account_id, battle_kit, age_category, tutorials, main_steps, vanity, look, xp):
+def _owned_weapons(writer, kits):
+    """Client-home +0x78 entries 0x768794: battle-kit data reference, two
+    adjacent booleans (+0x28, +0x29), then two raw-int-counted reference
+    lists (+0x08, +0x18). Their meaning is unknown; they stay false/empty."""
+    writer.compact(len(kits))
+    for kit in kits:
+        _ref(writer, kit)
+        writer.bit_boolean(False).bit_boolean(False)
+        writer.integer(0).integer(0)
+
+
+def _client_home(writer, account_id, battle_kit, age_category, tutorials, main_steps, vanity, look, xp,
+                 weapons=OWNED_WEAPONS):
     writer.raw(struct.pack('>Q', account_id))  # Home's two raw ID words.
     # Empty resources, home events, and native default battle-kit entry.
     _zeros(writer, 3)
@@ -190,9 +204,14 @@ def _client_home(writer, account_id, battle_kit, age_category, tutorials, main_s
     writer.compact(1 if age_category else 0)
     if age_category:
         writer.integer(7).integer(age_category)
-    # Ends with the +0x88 build manager (0x76b378): build count, then the
-    # current build (0x769988): two integers and its name.
-    _zeros(writer, 8)
+    # Collections +0x48 (0x770c74), +0x58 (0x7852c4) and +0x68 (0x777610).
+    _zeros(writer, 3)
+    # +0x78 owned weapons (0x768de8, entries 0x768794), listed by the WEAPONS
+    # screen (0x4a53e4 reads client-home +0x78).
+    _owned_weapons(writer, weapons)
+    # +0x80 (0x7798ac), then the +0x88 build manager (0x76b378): build count,
+    # then the current build (0x769988): two integers and its name.
+    _zeros(writer, 4)
     writer.string('')  # Default build name, native SCString encoder 0x8d6964.
     # Current build +0x18: equipped dyes, each a string (0x83c214, at most 50
     # characters) parsed into an asset handle; 543 replaces one per kind
@@ -334,11 +353,13 @@ def _level_track(writer, track, season_seconds=1):
 
 
 def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, main_steps=(), xp=0,
-             vanity=(), look=(), name=None, season_seconds=1, worlds=()):
+             vanity=(), look=(), name=None, season_seconds=1, worlds=(), weapons=OWNED_WEAPONS):
     if not isinstance(account_id, int) or not 0 <= account_id < 1 << 64:
         raise ValueError('Home account ID is outside the native 64-bit range')
     if battle_kit != SMART_BOW:
         raise ValueError('Only the evidenced starter battle kit is supported')
+    if any(kit not in OWNED_WEAPONS for kit in weapons):
+        raise ValueError('Unsupported owned weapon')
     if age_category not in (0, 2, 3):
         raise ValueError('Unsupported native onboarding category')
     if type(xp) is not int or not 0 <= xp <= 0x7fffffff:
@@ -362,7 +383,7 @@ def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, m
     for _ in range(3):
         writer.integer(0)
     _client_home(writer, account_id, battle_kit, age_category, entries, tuple(main_steps),
-                 tuple(vanity), tuple(look), xp)
+                 tuple(vanity), tuple(look), xp, tuple(weapons))
     if any(scene not in PORTAL_WORLDS for scene in worlds):
         raise ValueError('Unsupported portal world')
     _avatar_and_suffix(writer, xp, season_seconds, tuple(worlds))

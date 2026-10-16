@@ -8,8 +8,18 @@ prefab sc3d/pf_keyitem_weaponloadout there and saved the client's own
 re-encoded apartment (576 bytes); scene._ARMOURY_SUFFIX reproduces it byte for
 byte (item 201000002, prefab asset fb5d268ade98e5c0...). The normal v0.10.0
 client renders the rack labelled WEAPONS, and walking up to it opens the
-WEAPONS screen. Known defect: the screen's list is empty (no owned weapons
-are sent yet). The normal base 876b08de is reinstalled.
+WEAPONS screen.
+Owned weapons (server-only, home.py): the WEAPONS list (refresh 0x4a53e4)
+reads client-home +0x78 (decoder 0x768de8, entries 0x768794: battle-kit data
+reference, two adjacent booleans +0x28/+0x29, then two raw-int-counted
+reference lists +0x08/+0x18). It is the fourth count after the key/value
+collection (after +0x48 0x770c74, +0x58 0x7852c4, +0x68 0x777610). The server
+now sends SmartBow 6700000 there. Probe build, own-home offset probe: exact
+decode (1517/1517). The WEAPONS list shows SPEEDSHOT, and its detail page
+opens (Ranged Damage, health 20000, EQUIPPED, MASTERY) with three empty
+UPGRADE CORES slots: chaos cores are these weapon upgrade cores (resources
+PowerGem "Upgrade Core" and the Damage/Healing/Cooldown/AttackSpeed gems). The
+two reference lists of 0x768794 are the likely core slots (not verified).
 
 ## Server-decided battle XP via native XP event 1217; Shrine Canyon kills credited (2026-10-16, verified on the tablet)
 User decision: keep the deterministic-port research parked; the client reports

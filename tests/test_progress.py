@@ -59,7 +59,7 @@ class QuestEncodingTests(unittest.TestCase):
         empty = own_home(1)
         self.assertGreater(len(body), len(empty))
         # Locate the +a0 header: it follows the battle kit and the +90/+98 fields.
-        kit = body.index((6700000).to_bytes(8, 'big')) + 8
+        kit = body.rindex((6700000).to_bytes(8, 'big')) + 8
         reader = Reader(body[kit:])
         self.assertEqual([reader.compact() for _ in range(3)], [0, 0, 0])
         reader.bit_boolean()

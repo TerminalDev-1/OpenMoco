@@ -31,7 +31,16 @@ class HomeTests(unittest.TestCase):
         # Native encoder sample, with all required empty conditional collections
         # present and the evidenced SmartBow selection. No account secrets.
         expected = bytes.fromhex("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000663be000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010001000100010001000001000000000000000000000000000000000000000000000000000000")
-        self.assertEqual(own_home(0), expected)
+        self.assertEqual(own_home(0, weapons=()), expected)
+
+    def test_owned_weapons_fill_client_home_78(self):
+        # Entries 0x768794 after the +48/+58/+68 counts; verified on the tablet
+        # with an exact native decode (stream offset probe) and the WEAPONS list.
+        sample = own_home(0, weapons=())
+        body = own_home(0)
+        entry = (1).to_bytes(1, 'big') + (6700000).to_bytes(8, 'big') + bytes(1) + bytes(8)
+        self.assertEqual(len(body), len(sample) + len(entry) - 1)
+        self.assertIn(entry, body)
 
     def test_avatar_resource_follows_native_client_home_tail(self):
         # Native field order after the tutorial collection: client-home
@@ -82,7 +91,7 @@ class HomeTests(unittest.TestCase):
         kit = (6700000).to_bytes(8, 'big')
         for xp, expected in ((0, []), (1901, [PLAYER_LEVEL_TRACK, 1901, 0])):
             body = own_home(1, xp=xp)
-            reader = Reader(body[body.index(kit) + 8:])
+            reader = Reader(body[body.rindex(kit) + 8:])
             reader.compact(), reader.compact(), reader.compact(), reader.bit_boolean()
             reader.compact(), reader.compact()
             self.assertEqual([reader.compact() for _ in range(5)], [0] * 5)  # Empty +a0.
