@@ -38,6 +38,14 @@ class ClientTurnTests(unittest.TestCase):
             self.assertEqual((command.command_type, command.game_id, command.account_id), (543, -1, 0))
             self.assertEqual(command.fields, {'cosmetic': cosmetic, 'slot': 0})
 
+    def test_observed_main_quest_claim_turn(self):
+        # Native client: claim_quest (569, quest index 0), then PortalSet3 Set3.
+        payload = bytes.fromhex('00000000000000062502000002391ba5187f01000000023ea5187f88a6f00e9cb3c50d')
+        claim, tutorial = decode_client_turn(payload).commands
+        self.assertEqual((claim.command_type, claim.tick, claim.game_id), (569, 1573, -1))
+        self.assertEqual(claim.fields, {'quests': (0,)})
+        self.assertEqual(tutorial.fields, {'tutorial': 15600008, 'step': 14200028})
+
     def test_quiet_turn_and_invalid_count_or_suffix(self):
         self.assertEqual(decode_client_turn(bytes(10)).commands, ())
         for payload in (bytes(9) + b'\x7f', bytes(11)):

@@ -42,7 +42,7 @@ def decode_client_turn(payload):
     for _ in range(count):
         offset = reader.position
         command_type = reader.integer()
-        if command_type not in (524, 541, 543, 560, 572, 574, 575, 576, 591):
+        if command_type not in (524, 541, 543, 560, 569, 572, 574, 575, 576, 591):
             raise UnsupportedCommand(command_type, offset)
         tick, game_id, account_id = (
             reader.compact(64) if reader.boolean() else 0 for _ in range(3)
@@ -56,6 +56,11 @@ def decode_client_turn(payload):
         elif command_type == 543:  # 0x68732c: equip a cosmetic (data type 0x1d).
             fields['cosmetic'] = reader.compact(64)
             fields['slot'] = reader.compact() if reader.boolean() else 0
+        elif command_type == 569:  # 0x67c790: claim main quests, +28 index list.
+            count = reader.compact()
+            if not 0 <= count <= 64:
+                raise ValueError('Invalid main-quest claim count')
+            fields['quests'] = tuple(reader.compact() for _ in range(count))
         elif command_type == 574:  # 0x6866b8: tutorial and step data refs.
             fields = {'tutorial': reader.compact(64), 'step': reader.compact(64)}
         elif command_type in (575, 576):  # 0x688590 / 0x6849c8.

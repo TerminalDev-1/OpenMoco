@@ -1,5 +1,57 @@
 # Project status — 2026-10-16
 
+## Next steps: endless monster spawning and the Shrine Canyon card (2026-10-16)
+User request: monsters should keep spawning without end, like the official
+game, instead of a scene with a fixed initial pack (about a dozen monsters).
+
+Endless spawning (next implementation step). The client already has the
+native mechanism: Zone entities (type 2008, data 1700000 + zones.csv
+_instanceId) replenish their monsters in zone tick 0x74ea90. Each zone
+resolves its map index and spawn points lazily (0x74ecc0 -> 0x7507c8).
+Downtown proved it: four tutorial zones kept 25..63 enemies alive for two
+minutes (see "Recurring encounters" in docs/PROGRESSION_PROTOCOL.md). A zone
+only spawns if the loaded map lists it, so the Downtown zones do nothing
+in Shrine Canyon. Plan:
+1. For each battle map, read its zone table (RogueMap +0xa0 data pointers,
+   count +0xac, index 0 unused; 0x7be968 searches it) and its spawn markers
+   (+0x130 pointers, count +0x13c; marker +8/+0xc tile, +0x10 tag). This can
+   be read from the live map with a temporary probe, or decoded offline
+   from server_scene/<map>.map_bin in the install-time asset pack.
+2. Send a Zone entity for every enemy zone that the map lists, encoded by the
+   client's own encoder (probe build, then a Python template). Then the
+   client refills the map by itself, everywhere, for as long as the battle
+   lasts. Keep the initial pack small; the zones do the rest.
+3. Check by observation: live enemy counts must keep recovering after kills
+   over several minutes, and repeated Leave Battle/portal cycles (the more
+   than 4 clean cycles bar) must stay stable. Kill XP keeps coming from
+   the bridge's per-epoch reports.
+4. Later: Python-side spawn budgets per zone (NPCCountPercent,
+   NPCSpawnFrequencySec, elite chances, invasion events from
+   battle_scenes.csv) once combat becomes server-authoritative. Do not
+   resend scene-start to "respawn"; that resets the player and the battle.
+Shrine Canyon (10900006) is the first map for this. A side session prepared
+a probe (zone table, spawn markers, native re-encode) but has not run it yet.
+
+Shrine Canyon card says "Continue the recruitment process" (reported by the
+user). That text is TID_DUNGEON_SELECTOR_MAP_LOCKED_PORTAL_NOT_ACTIVE. Step
+IDs are 14200000 + tutorial_steps.csv _instanceId: the account was at
+14200025 WaitForMaps3 (HunterTrack3 finished, action WaitForNextTutorial,
+PortalStates INACTIVE), not a claim step. The client had already claimed
+the track step and reported main-quest step 15400014 (Tutorial_1_6_35) as
+seen and done. It adds the next step (15400015 Tutorial_1_7, tutorial ToHQ)
+only when it rebuilds its quests from own-home. At the previous login it
+did the same for 15400013. The user relaunched the client, and ToHQ
+started with the portal pulsing again. No server change was needed. Live
+quest advancement without a relaunch is still missing (the server sends no
+quest update after a claim).
+
+Server bug fixed: command 569 (main-quest claim, sent with the client
+analytics event claim_quest) was unsupported, so the server dropped the
+whole turn, including a 574 PortalSet3 -> Set3 transition. Factory case
+0x67e46c, vtable 0xeae2c0, field decoder 0x67c790: base fields, then a
+compact count and compact quest indices at +0x28 (observed [0]). commands.py
+decodes it. Execution (0x67c7cc) and quest rewards are not implemented.
+
 ## Portal season timer, Shrine Canyon map card and apartment wardrobe (2026-10-16)
 User report: after the hunter name, the portal listed nothing and showed
 "Season ends in 0 s"; the wardrobe was missing. Verified on the tablet
