@@ -153,3 +153,29 @@ Unknowns still open: the three unresolved 28853 int encodings; the 18855 and
 frame-JSON formats; whether the official server ever sends 1216 debug events;
 how 1217 XP grants interact with the empty client level table (see
 "In-battle XP bar" in PROJECT_STATUS.md).
+
+## Implemented: server XP through LogicXpEvent 1217 (verified 2026-10-16)
+
+battle_events.xp_event encodes 28852: raw int frame, compact count 1,
+presence bit, compact type 1217, then the archive fields (int: presence bit
+for "differs from 0" plus compact value; bool: one bit). All bits share the
+stream's persistent packed boolean byte (writer 0x8d7160, reader 0x8d724c);
+compacts are 0x8d7bd8 / 0x8d7f24. Example: frame 1234, 300 XP is
+`000004d2 01 05 8113 ac04`.
+
+Fields at the primary object: +0x10 base (0 for decoded events, which makes
+the client roll back to the event frame), +0x14 battlePlayerId, +0x18 xp,
++0x1c questSpeciality, +0x20 dropCoins (defaults 0/false from 0x18e044 and
+0x18e040). Execute 0x74e0cc walks the 2009 players, matches metadata
+(player +0x1e8) +0x10 with battlePlayerId (0 for the local player; every
+captured 18854 also names controller 0) and calls 0x739fc4, which adds xp to
+player +0x1a0. The event lives in the per-frame event map (0x71e830), so
+rollback re-applies it.
+
+Frame choice: 0x71e830 reports an error for frames at or below the oldest
+history frame, and 0x71eb90 (called after adding) reports one when no
+history frame is at or above the event frame. The server therefore uses the
+client's latest 18853 frame minus 2 (18853 is the client's clock frame minus
+1, sender 0x60f8ac), and only when that is newer than the frame it last
+confirmed in 28851. Verified: no crash or freeze over 5 warm canyon cycles,
+and the native XP counter shows exactly the server's XP.

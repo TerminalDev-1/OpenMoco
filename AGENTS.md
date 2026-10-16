@@ -84,9 +84,14 @@ PROJECT_STATUS.md before changing key 70, portal sets or 591 handling.
 Update 2026-10-16 (combat authority research): battles are a deterministic
 rollback simulation verified by server frame checksums (28854); the server
 never sends hits, health or deaths. Server-decided combat therefore needs a
-bit-exact port of the native battle logic matched against client checksums.
-Keep battle_bridge.py until that exists. Do not send 28853/28854 or inject
-logic events without reading docs/BATTLE_PROTOCOL.md first.
+bit-exact port of the native battle logic matched against client checksums;
+the user parked that port. Do not send 28853/28854 or inject other logic
+events without reading docs/BATTLE_PROTOCOL.md first.
+Update 2026-10-16 (user decision, verified): the client bridge reports only
+raw kill counts (any character ID); the server validates them per scene,
+caps them by battle time, prices them from the loot tables, saves them and
+sends the XP to the battle as native XP event 1217 (28852). Shrine Canyon
+kills now earn XP. Keep the XP level table install in the client.
 
 ## Current scene-transition priority
 The verified reconnect/background-resume APK is published as v0.6.0-reconnect:

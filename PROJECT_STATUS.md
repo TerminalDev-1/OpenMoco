@@ -1,5 +1,49 @@
 # Project status — 2026-10-16
 
+## Server-decided battle XP via native XP event 1217; Shrine Canyon kills credited (2026-10-16, verified on the tablet)
+User decision: keep the deterministic-port research parked; the client reports
+only raw kill counts, and the server makes every XP decision and gives the XP
+back to the battle with the game's own XP event.
+
+Client (loader_diagnostics.js, normal build 876b08de...):
+- posts raw cumulative killedEnemies counts for every character ID (no
+  compiled-in allowlist, at most 256 IDs) and no collected XP;
+- the collected-XP hook (0x74a0e4) and the battle-XP addition on 0x73a364 are
+  gone. 0x73a364 now only applies the server's base XP on Mainloop;
+- the bridge now also activates for battles that start with monster zones only
+  (2008), not just with monsters (2002). Shrine Canyon starts with zones only,
+  so before this the bridge never activated there.
+- kept: the XP level table install (needed before XP can be positive), the
+  local routing, idle-close and map-control hooks.
+Server (battle_bridge.py, battle_events.py, server.py):
+- per-scene tables: Downtown monsters/civilians as before; canyon monsters
+  10800022/27 (Weak 2), 10800038/269 (Strong 10), bosses 10800449 (88),
+  10800056/087 (176), from zones.csv 149..165 -> characters.csv LootProfile ->
+  loot_profiles.csv XP / 1000. Meat, the protected dragonling and spirits earn
+  nothing. Unknown IDs are ignored, not rejected.
+- high-water marks per battle epoch, and credited kills capped at 20 + 4/s of
+  battle time (excess is credited later as time allows).
+- newly credited XP is queued on the game session and sent at the next
+  frame-ready as 28852 with one LogicXpEvent 1217 (battlePlayerId 0, xp) at
+  frame ready-2, provided that frame is newer than the last confirmed one.
+  Execute 0x74e0cc -> 0x739fc4 adds it to player +0x1a0 inside the
+  simulation; the HUD bar, the level badge and the native "+N" counter show it.
+Verification (temporary account copy, then restored to
+.local/accounts.before-xpevent-20261016.sqlite3, hash 8bf390af...):
+- old v0.9.0 client + new server in Downtown: events accepted, no crash; the
+  bar counted XP twice (old hook + native), which proved 1217 adds XP natively.
+- new client: Downtown and Shrine Canyon kills credited ("+2 kills, +4 kill
+  XP" in the canyon); 5 scripted warm Leave Battle -> apartment -> portal ->
+  canyon cycles with combat, one process (18807), one connection, XP sent in
+  every battle; the native counter showed "+2" for 2 server XP (no doubling).
+  Screenshots .local/xpe-*.png, xpc-*-home/battle.png; log
+  captures/user-test-server-xpevent-client2.log.
+Still client-reported: the kill counts themselves (the server cannot see
+kills without running the battle simulation, see the section below). The
+apartment-to-battle level badge in the canyon showed 5 once battle XP > 0.
+Manual server: hidden, mode server-xp-events, log
+captures/user-test-server-server-xp-events.log, PID in .local/user-test-server.json.
+
 ## Server-authoritative combat: research result (2026-10-16, blocked)
 Requested: the server, not the client, decides hits, damage, deaths, kills,
 rescues and XP, then battle_bridge.py is removed. Research only so far; no
@@ -24,11 +68,12 @@ different simulation would be ignored (no checksum) or desync the client.
 That is a full reverse-engineering port of the 0x6b0000..0x7f0000 logic and
 cannot be verified piecewise, because one checksum covers the whole frame.
 
-Status: battle_bridge.py and the client reporting hooks stay; Downtown kill
-credit keeps working; Shrine Canyon kills still earn nothing (bridge
-allowlist). Open choice for the user: start the deterministic port, or an
-interim step (extend the bridge allowlist to the canyon, or use XP event 1217
-for the in-battle bar).
+Status: superseded by the section above (server-decided XP, raw kill
+reports, XP event 1217). The deterministic port was started as research
+only and parked at the user's request: the frame checksum is a
+rotate-left-by-1-and-add hash over every archive field (ChecksumEncoder
+vtable 0xecd950), written through the same binary archive (writer vtable
+0xecef00) as the wire frames.
 
 ## Shrine Canyon battle scene with native recurring zones (2026-10-16, verified on the tablet)
 Server-only (scene.py, server.py); no client change. Shrine Canyon W01_OA01

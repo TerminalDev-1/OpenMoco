@@ -43,6 +43,7 @@ SERVER_KEEPALIVE = 20108
 SCENE_START = 23491
 OWN_HOME = 24548
 GAME_CLOCK_REPLY = 28851     # Encoded by protocol.game_clock_reply.
+BATTLE_EVENTS = 28852        # Logic events for one frame (battle_events.py).
 
 # Client turn command types (see commands.py).
 AGE_CHOICE_COMMAND = 541
@@ -57,6 +58,7 @@ TUTORIAL_AREA = 10900001     # TutorialAreaBasic, "Downtown Chaos"
 SHRINE_CANYON = 10900006     # W01_OA01, the portal's map card
 BATTLE_SCENES = (TUTORIAL_AREA, SHRINE_CANYON)
 SOCIAL_HUB = 10900005        # Selection the client sends when returning home
+XP_EVENT_LAG = 2             # Frames behind the client's ready frame for XP events.
 
 
 def _new_session_id():
@@ -106,6 +108,7 @@ class GameSession:
         self.home_level = 1  # Set from saved XP whenever own-home is built.
         self.home_name = DEFAULT_PLAYER_NAME
         self.last_clock_request = None
+        self.pending_battle_xp = 0  # Server-credited XP not yet sent to the battle.
 
     # ----- logging and capture files -------------------------------------
 
@@ -307,7 +310,7 @@ class GameSession:
         else:
             body = self.home_probe
         if self.battle_bridge is not None and self.current_scene in BATTLE_SCENES:
-            self.battle_bridge.begin(account_id, self.session)
+            self.battle_bridge.begin(account_id, self.session, self.current_scene, self.queue_battle_xp)
         await self.send_session(SCENE_START, body)
         if not self.apartment:
             self.state = 'home_scene_probe_sent'
@@ -340,7 +343,10 @@ class GameSession:
         if frame.message_type == SCENE_LOADED and frame.version == 0 and not plaintext:
             self.on_scene_loaded()
         if frame.message_type == FRAME_READY:
+            previous_frame = self.confirmed_frame
             scene_ready = self.on_frame_ready(plaintext)
+            if scene_ready:
+                await self._send_battle_xp(previous_frame)
         if frame.message_type == GAME_CLOCK_REQUEST:
             self.last_clock_request = plaintext
         if frame.message_type == GAME_CLOCK_REQUEST or (scene_ready and self.last_clock_request is not None):
@@ -430,7 +436,7 @@ class GameSession:
         from scene import battle_scene
         account_id = self.account.account_id
         if self.battle_bridge is not None:
-            self.battle_bridge.begin(account_id, self.session)
+            self.battle_bridge.begin(account_id, self.session, scene, self.queue_battle_xp)
         await self.send_session(SCENE_START, battle_scene(account_id, scene))
         self.current_scene = scene
         self.accounts.record_scene(account_id, self.current_scene)
@@ -464,6 +470,7 @@ class GameSession:
 
     def _reset_scene_clock(self):
         """A fresh scene snapshot starts at frame zero, not at the TCP age."""
+        self.pending_battle_xp = 0  # Saved already; only the old battle's bar misses it.
         self.confirmed_frame = 0
         self.awaiting_scene_loaded = True
         self.clock_started = time.monotonic()
@@ -491,6 +498,28 @@ class GameSession:
             return False
         self.confirmed_frame = max(self.confirmed_frame, ready_frame)
         return True
+
+    # ----- server XP in the running battle ----------------------------------
+
+    def queue_battle_xp(self, xp):
+        """Called by the battle bridge with newly credited kill XP."""
+        self.pending_battle_xp += xp
+
+    async def _send_battle_xp(self, previous_frame):
+        """Give queued XP to the battle as native XP event 1217 (28852).
+
+        The event goes into a frame the client has already simulated (its
+        ready frame minus XP_EVENT_LAG) but that is newer than the last frame
+        we confirmed, so the frame is still in the client's rollback history.
+        The client rolls back to it and re-simulates with the XP added.
+        """
+        from battle_events import xp_event
+        target = self.confirmed_frame - XP_EVENT_LAG
+        if not self.pending_battle_xp or self.current_scene not in BATTLE_SCENES or target <= previous_frame:
+            return
+        xp, self.pending_battle_xp = self.pending_battle_xp, 0
+        await self.send_session(BATTLE_EVENTS, xp_event(target, xp))
+        self.log(f'sent {xp} server battle XP at frame {target}')
 
     async def _send_clock_reply(self):
         from protocol import game_clock_reply

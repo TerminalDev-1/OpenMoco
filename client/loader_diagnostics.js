@@ -98,7 +98,6 @@ rpc.exports = {
                 if (!/^[0-9a-f]{64}$/.test(token)) throw new Error('Invalid battle bridge token');
                 for (const [offset, signature] of [[0x5bf784,'ffc301d1fd7b01a9fc6f02a9fa6703a9'],
                     [0x738e58,'fd7bbca9f85f01a9f65702a9f44f03a9'],
-                    [0x74a0e4,'ff4302d1fd7b03a9fc6f04a9fa6705a9'],
                     [0x73a364,'fd7bbea9f30b00f9fd030091089c41b9'],
                     [0x5c10f4,'080440f9680000b4001940f9c0035fd6'],
                     [0x57f870,'ff0302d1eb2b036de923046dfd7b05a9']]) {
@@ -107,12 +106,10 @@ rpc.exports = {
                     if (bytes !== signature) throw new Error('Unsupported battle bridge signature');
                 }
                 const vector = new NativeFunction(owner.base.add(0x725fac),'pointer',['pointer','int']);
-                const allowed = new Set([10800020,10800021,10800026,10800117,10800120,10800138,
-                    10800036,10800268,10800309,10800310,10800311,10800312,10800313]);
                 let battle = null, busy = false;
-                // XP bar display, supplied by the server: XP before this battle,
-                // server-credited battle XP, and the per-level XP table.
-                let xpDisplay = null;
+                // XP bar display, supplied by the server: XP before this battle and
+                // the per-level XP table. Battle XP itself arrives as the game's own
+                // XP event (28852/1217), decided by the server from raw kill reports.
                 const nativeNew = new NativeFunction(owner.base.add(0xe771c0),'pointer',['uint64']);
                 // The client's XP level table (0x5c10f4: [[mgr+8]+0x30]; +0 base XP,
                 // +8 int vector {data,+8 capacity,+c count}) arrives empty. Level loop
@@ -195,14 +192,13 @@ rpc.exports = {
                     if (!Number.isInteger(result.xp_before_battle) || result.xp_before_battle < 0) return;
                     if (hudBase === null) hudBase = result.xp_before_battle;
                     watchHud();
-                    pendingXp = {battle: current, base: result.xp_before_battle, battleXp: result.battle_xp};
+                    pendingXp = {battle: current, base: result.xp_before_battle};
                 }
                 function applyPendingXp() {
                     const pending = pendingXp;
                     pendingXp = null;
                     if (pending.battle !== battle || !installXpLevels()) return;
                     xpConfig().writeS32(pending.base);
-                    xpDisplay = {battleXp: pending.battleXp};
                 }
                 function dataId(data) {
                     const ref = data.add(0x18);
@@ -218,7 +214,9 @@ rpc.exports = {
                     for (let i=0; i<size; i++) {
                         const entry = start.add(i*8).readPointer();
                         const id = dataId(entry.add(0x10).readPointer());
-                        if (allowed.has(Number(id))) result[id] = (result[id] || 0) + entry.add(0x18).readS32();
+                        // Raw counts for every killed character; the server decides what they are worth.
+                        if (!(id in result) && Object.keys(result).length >= 256) continue;
+                        result[id] = (result[id] || 0) + entry.add(0x18).readS32();
                     }
                     return result;
                 }
@@ -252,7 +250,7 @@ rpc.exports = {
                         }
                         if (battle === current && current.epoch !== null) {
                             const result = await request('POST',{account_id:current.account,epoch:current.epoch,
-                                counts:current.counts,xp:current.xp});
+                                counts:current.counts});
                             if (battle === current) applyXpDisplay(result, current);
                             if (battle === current && result.xp !== current.savedXp) {
                                 current.savedXp = result.xp;
@@ -263,7 +261,6 @@ rpc.exports = {
                     finally { busy = false; }
                 },2000);
                 Interceptor.attach(owner.base.add(0x5bf784),{onEnter(args) {
-                    xpDisplay = null;
                     pendingXp = null;
                     hudReady = false;
                     hudBase = null;
@@ -272,11 +269,13 @@ rpc.exports = {
                     try {
                         const frame = args[1].add(0xa0).readPointer().add(0x28).readPointer();
                         const players = vector(frame,2009);
-                        if (vector(frame,2002).add(12).readS32() === 0 || players.add(12).readS32() === 0) battle = null;
+                        // Battles have monsters (2002) or monster zones (2008; Shrine Canyon starts with zones only).
+                        const hostile = vector(frame,2002).add(12).readS32() + vector(frame,2008).add(12).readS32();
+                        if (hostile === 0 || players.add(12).readS32() === 0) battle = null;
                         else {
                             const player = players.readPointer().readPointer();
                             battle = {account:player.add(0x1e8).readPointer().readU64().toString(),epoch:null,
-                                counts:counts(player),xp:0,initialXp:player.add(0x19c).readS32(),savedXp:-1};
+                                counts:counts(player),savedXp:-1};
                             log('Private-server battle progress bridge active');
                         }
                     } catch (error) { battle = null; log('Battle bridge scene rejected: '+error); }
@@ -290,28 +289,14 @@ rpc.exports = {
                     try { if (belongs(this.player)) battle.counts = counts(this.player); }
                     catch (error) { log('Battle outcome rejected: '+error); }
                 }});
-                // 74a0e4 applies a collectible to its owning SCPlayer. The native
-                // +19c total changes here for XP drops (resource kinds 11..13).
-                // Use a high-water mark, not death-time XP calculation or effects.
-                Interceptor.attach(owner.base.add(0x74a0e4),{onEnter(args) {
-                    this.player = args[0].add(0x50).readPointer();
-                },onLeave() {
-                    try {
-                        if (this.player.isNull() || !belongs(this.player)) return;
-                        battle.xp = Math.min(60000,Math.max(battle.xp,
-                            this.player.add(0x19c).readS32() - battle.initialXp));
-                    } catch (error) { log('Collected battle XP rejected: '+error); }
-                }});
-                // 0x73a364 returns the local player's battle XP for the HUD bar, level
-                // badge and XP counter only (callers 0x612758, 0x60d2a8, 0x60ebf0).
-                // Adding server XP to the result leaves simulation state untouched,
-                // so prediction rollback cannot undo it.
-                // It also applies queued server XP on Mainloop (see applyXpDisplay).
-                Interceptor.attach(owner.base.add(0x73a364),{onLeave(retval) {
+                // 0x73a364 returns the local player's battle XP for the HUD (callers
+                // 0x612758, 0x60d2a8, 0x60ebf0). It runs on Mainloop only while a battle
+                // HUD is live, so queued server base XP is applied here. Its result is
+                // not changed: server XP is already in the simulation (event 1217).
+                Interceptor.attach(owner.base.add(0x73a364),{onLeave() {
                     if (pendingXp !== null) {
                         try { applyPendingXp(); } catch (error) { log('XP display rejected: '+error); }
                     }
-                    if (xpDisplay !== null && xpDisplay.battleXp > 0) retval.replace(retval.toInt32() + xpDisplay.battleXp);
                 }});
                 battleBridgeInstalled = true;
                 log('Private-server battle bridge installed');

@@ -1,91 +1,138 @@
-"""Server-side battle progress, fed by the private-server client's outcome reports.
+"""Server-side battle progress from the client's raw kill reports.
 
-Combat itself still runs in the client. The client bridge (loader_diagnostics.js)
-reads its native kill/rescue counters and posts cumulative counts here over a
-loopback HTTP endpoint on port 9340. The server owns everything after that: it
-decides what each report is worth, keeps the totals, and turns them into
-tutorial quest progress (progress.py) and the saved XP sent in the home profile.
+Combat itself still runs in the client (a deterministic rollback simulation,
+see docs/BATTLE_PROTOCOL.md; the server would have to run the same simulation
+to see kills itself). The client bridge (loader_diagnostics.js) only reads its
+native killedEnemies counters and posts the raw cumulative count per
+character data ID to this loopback HTTP endpoint on port 9340. It decides
+nothing: every XP decision is made here.
 
-Reports are trusted local input, not proof of server-authoritative kills. A
-battle epoch plus cumulative high-water marks make retries and replayed
-prediction events harmless: only the increase over the best previous report
-in the same battle is credited.
-
-XP is credited per reported kill, not per collected drop. Enabling the
-client's XP drops in the tutorial area froze its game thread after battle
-reentry.
+For each report the server
+- accepts only the monsters and civilians of the battle scene the account is
+  in (anything else, e.g. Meat or spirits, is ignored),
+- credits only the increase over the battle's best previous report (a battle
+  epoch plus cumulative high-water marks make retries and replayed prediction
+  events harmless),
+- caps the credited kills by the battle's elapsed time (KILL_RATE),
+- prices each kill from characters.csv LootProfile -> loot_profiles.csv XP,
+- saves XP, kills and rescues (progress.py turns them into quest progress),
+- and gives the XP back to the running battle as the game's own XP event
+  (battle_events.py, logic event 1217), so the native XP bar fills from
+  server XP.
 """
 import asyncio
 from contextlib import suppress
 import hmac
 import json
 import secrets
+import time
 
 from progress import KILL_TARGET, RESCUE_TARGET, XP_LEVELS
 
-# characters.csv LootProfile -> loot_profiles.csv XP (Weak 2000, WeakMedium
-# 4000, Strong 10000). Native 6a58c8 scales that value and divides by 10000;
-# loot XP / 1000 matches the observed ~1.6 collected XP per kill. Daily-budget
-# multipliers, level adjustment and randomized rounding are not reproduced.
-KILL_XP = {
-    10800020: 2, 10800021: 2, 10800026: 2, 10800117: 2, 10800120: 2,  # Weak
-    10800138: 4,                                                      # WeakMedium
-    10800036: 10, 10800268: 10,                                       # Strong
-}
-MONSTERS = frozenset(KILL_XP)
-CIVILIANS = frozenset(range(10800309, 10800314))  # Human civilians, not Spirits.
-REPORTABLE = frozenset(str(character) for character in MONSTERS | CIVILIANS)
+TUTORIAL_AREA = 10900001   # Downtown Chaos
+SHRINE_CANYON = 10900006   # W01_OA01
 
-MAX_COLLECTED_XP = 60000   # Native per-battle XP budget.
+# characters.csv LootProfile -> loot_profiles.csv XP / 1000 (Weak 2000,
+# WeakMedium 4000, Strong 10000, BossOpenSmall 88000, BossOpen 176000).
+# Native 6a58c8 scales the loot XP and divides by 10000; loot XP / 1000 matches
+# the observed ~1.6 collected XP per weak kill. Daily-budget multipliers, level
+# adjustment and randomized rounding are not reproduced.
+SCENE_KILL_XP = {
+    TUTORIAL_AREA: {
+        10800020: 2, 10800021: 2, 10800026: 2, 10800117: 2, 10800120: 2,  # Weak
+        10800138: 4,                                                      # WeakMedium
+        10800036: 10, 10800268: 10,                                       # Strong
+    },
+    # Monsters of the canyon zones sent by scene.canyon_scene (zones.csv
+    # 149..165). Meat (Resource), the protected dragonling and the running
+    # spirits are not monsters and earn nothing here.
+    SHRINE_CANYON: {
+        10800022: 2, 10800027: 2,                     # Weak melee / ranged
+        10800038: 10, 10800269: 10,                   # Strong jumper / slammer
+        10800449: 88, 10800056: 176, 10800087: 176,   # Zone 165 bosses
+    },
+}
+# Human tutorial civilians (not Spirits) count as rescues in Downtown.
+SCENE_RESCUES = {
+    TUTORIAL_AREA: frozenset(range(10800309, 10800314)),
+    SHRINE_CANYON: frozenset(),
+}
+
+KILL_RATE = 4      # Credited kills per second of battle, after the burst.
+KILL_BURST = 20
 MAX_COUNT = 100000
+MAX_ENTRIES = 256
 MAX_BODY = 16384
 BRIDGE_PATH = '/openmoco/battle'
 
 
-def _validate_report(counts, xp):
-    """Return clean {character_id_str: count} or raise ValueError."""
-    if type(xp) is not int or not 0 <= xp <= MAX_COLLECTED_XP:
-        raise ValueError('Invalid cumulative native XP')
-    if not isinstance(counts, dict) or len(counts) > len(REPORTABLE):
+def _validate_report(counts):
+    """Return clean {character_id: count} or raise ValueError.
+
+    The client reports every character it has killed; IDs that are not part
+    of the battle scene are ignored when credited.
+    """
+    if not isinstance(counts, dict) or len(counts) > MAX_ENTRIES:
         raise ValueError('Invalid outcome counts')
     clean = {}
     for key, count in counts.items():
-        if str(key) not in REPORTABLE:
-            raise ValueError('Unsupported character outcome')
+        if not isinstance(key, str) or not key.isdigit() or not 0 < int(key) < 1 << 40:
+            raise ValueError('Invalid character data ID')
         if type(count) is not int or not 0 <= count <= MAX_COUNT:
             raise ValueError('Invalid cumulative outcome')
-        clean[str(key)] = count
+        clean[int(key)] = count
     return clean
 
 
-def _credit(previous, counts):
-    """Compare cumulative counts with the battle's best previous report.
+def _credit(scene, record, counts, elapsed):
+    """Credit a report against one battle's record.
 
-    Returns (merged high-water marks, new kills, new rescues, kill XP).
+    record = {'seen': high-water counts, 'credited': credited counts}, keyed
+    by character ID string. Returns (new record, kills, rescues, kill XP).
     """
-    merged = dict(previous)
+    kill_xp_table, rescuable = SCENE_KILL_XP[scene], SCENE_RESCUES[scene]
+    seen = dict(record.get('seen', {}))
+    credited = dict(record.get('credited', {}))
+    for character, count in counts.items():
+        if character in kill_xp_table or character in rescuable:
+            key = str(character)
+            seen[key] = max(seen.get(key, 0), count)
+    budget = KILL_BURST + int(KILL_RATE * max(0.0, elapsed)) - sum(credited.values())
     kills = rescues = kill_xp = 0
-    for key, count in counts.items():
-        delta = max(0, count - previous.get(key, 0))
-        merged[key] = max(count, previous.get(key, 0))
+    for key in sorted(seen):
+        gain = min(seen[key] - credited.get(key, 0), budget)
+        if gain <= 0:
+            continue
+        budget -= gain
+        credited[key] = credited.get(key, 0) + gain
         character = int(key)
-        if character in MONSTERS:
-            kills += delta
-            kill_xp += delta * KILL_XP[character]
+        if character in kill_xp_table:
+            kills += gain
+            kill_xp += gain * kill_xp_table[character]
         else:
-            rescues += delta
-    return merged, kills, rescues, kill_xp
+            rescues += gain
+    return {'seen': seen, 'credited': credited}, kills, rescues, kill_xp
 
 
-def _battle_xp(counts):
-    """Kill XP credited so far in one battle, from its high-water counts."""
-    return sum(count * KILL_XP[int(key)] for key, count in counts.items() if int(key) in MONSTERS)
+def _battle_xp(scene, record):
+    """Kill XP credited so far in one battle."""
+    table = SCENE_KILL_XP[scene]
+    return sum(count * table.get(int(key), 0) for key, count in record.get('credited', {}).items())
+
+
+class Battle:
+    """One authenticated battle epoch of one account."""
+
+    def __init__(self, session, scene, grant):
+        self.session, self.scene, self.grant = session, scene, grant
+        self.epoch = secrets.token_hex(16)
+        self.started = time.monotonic()
 
 
 class BattleBridge:
     def __init__(self, accounts, token):
         self.accounts, self.token = accounts, token
-        self.active = {}  # account_id -> (game session, battle epoch)
+        self.active = {}  # account_id -> Battle
         with accounts.connect() as db:
             db.execute('CREATE TABLE IF NOT EXISTS battle_reports '
                        '(epoch TEXT PRIMARY KEY, account INTEGER NOT NULL, '
@@ -93,16 +140,22 @@ class BattleBridge:
 
     # ----- battle lifetime (called by the game session) --------------------
 
-    def begin(self, account_id, session):
-        """Start a new battle epoch when the account enters TutorialAreaBasic."""
-        epoch = secrets.token_hex(16)
-        self.active[account_id] = (session, epoch)
+    def begin(self, account_id, session, scene=TUTORIAL_AREA, grant=None):
+        """Start a new battle epoch when the account enters a battle scene.
+
+        `grant(xp)` is called with every newly credited kill XP so the game
+        session can send it to the running battle.
+        """
+        if scene not in SCENE_KILL_XP:
+            raise ValueError('Unsupported battle scene')
+        battle = Battle(session, scene, grant)
+        self.active[account_id] = battle
         with self.accounts.connect() as db:
-            db.execute('INSERT INTO battle_reports VALUES (?,?,?,0)', (epoch, account_id, '{}'))
-        return epoch
+            db.execute('INSERT INTO battle_reports VALUES (?,?,?,0)', (battle.epoch, account_id, '{}'))
+        return battle.epoch
 
     def end(self, account_id, session):
-        if account_id in self.active and self.active[account_id][0] == session:
+        if account_id in self.active and self.active[account_id].session == session:
             del self.active[account_id]
 
     # ----- requests from the client bridge -------------------------------
@@ -111,50 +164,54 @@ class BattleBridge:
         """Battle start: epoch, saved totals and the XP display data."""
         if account_id not in self.active:
             raise ValueError('No authenticated battle for this account')
-        epoch = self.active[account_id][1]
+        battle = self.active[account_id]
         with self.accounts.edit_profile(account_id) as profile:
             saved = dict(profile.get('battle_progress', {}))
         with self.accounts.connect() as db:
-            row = db.execute('SELECT counts FROM battle_reports WHERE epoch=?', (epoch,)).fetchone()
-        battle_xp = _battle_xp(json.loads(row[0])) if row else 0
-        return dict(saved, epoch=epoch, **self._xp_display(saved.get('xp', 0), battle_xp))
+            row = db.execute('SELECT counts FROM battle_reports WHERE epoch=?', (battle.epoch,)).fetchone()
+        battle_xp = _battle_xp(battle.scene, json.loads(row[0])) if row else 0
+        return dict(saved, epoch=battle.epoch, **self._xp_display(saved.get('xp', 0), battle_xp))
 
     @staticmethod
     def _xp_display(total_xp, battle_xp):
-        """What the client's XP bar shows: XP before this battle plus XP earned in it."""
+        """XP before this battle (the bar's base), server XP granted in it, and the levels."""
         return {'xp_before_battle': total_xp - battle_xp, 'battle_xp': battle_xp,
                 'xp_levels': list(XP_LEVELS)}
 
-    def report(self, account_id, epoch, counts, xp):
-        """Credit a cumulative report and return the account's saved totals."""
-        if account_id not in self.active or self.active[account_id][1] != epoch:
+    def report(self, account_id, epoch, counts):
+        """Credit a cumulative raw kill report and return the account's saved totals."""
+        battle = self.active.get(account_id)
+        if battle is None or battle.epoch != epoch:
             raise ValueError('Stale or unauthenticated battle')
-        counts = _validate_report(counts, xp)
+        counts = _validate_report(counts)
+        elapsed = time.monotonic() - battle.started
         row_id = account_id & 0xffffffff
         # Profile and high-water marks commit together under one SQLite lock.
         with self.accounts.connect() as db:
             db.execute('BEGIN IMMEDIATE')
-            row = db.execute('SELECT account,counts,xp FROM battle_reports WHERE epoch=?', (epoch,)).fetchone()
+            row = db.execute('SELECT account,counts FROM battle_reports WHERE epoch=?', (epoch,)).fetchone()
             if row is None or row[0] != account_id:
                 raise ValueError('Unknown battle epoch')
-            merged, kills, rescues, kill_xp = _credit(json.loads(row[1]), counts)
+            record, kills, rescues, kill_xp = _credit(battle.scene, json.loads(row[1]), counts, elapsed)
             saved_row = db.execute('SELECT profile FROM accounts WHERE id=?', (row_id,)).fetchone()
             if saved_row is None:
                 raise ValueError('Unknown account')
             profile = json.loads(saved_row[0])
             progress = profile.setdefault('battle_progress', {})
-            # Client-collected XP stays in battle_reports for comparison only.
             progress['xp'] = progress.get('xp', 0) + kill_xp
             progress['kills'] = progress.get('kills', 0) + kills
             progress['rescues'] = progress.get('rescues', 0) + rescues
             progress['tutorial_ready'] = progress['kills'] >= KILL_TARGET and progress['rescues'] >= RESCUE_TARGET
             db.execute('UPDATE accounts SET profile=? WHERE id=?', (json.dumps(profile), row_id))
             db.execute('UPDATE battle_reports SET counts=?,xp=? WHERE epoch=?',
-                       (json.dumps(merged), max(xp, row[2]), epoch))
+                       (json.dumps(record), _battle_xp(battle.scene, record), epoch))
         if kills or rescues:
             print(f'Battle progress: +{kills} kills, +{rescues} rescues, +{kill_xp} kill XP; '
                   f'tutorial_ready={progress["tutorial_ready"]}', flush=True)
-        return dict(progress, epoch=epoch, **self._xp_display(progress['xp'], _battle_xp(merged)))
+        if kill_xp and battle.grant is not None:
+            battle.grant(kill_xp)
+        return dict(progress, epoch=epoch,
+                    **self._xp_display(progress['xp'], _battle_xp(battle.scene, record)))
 
     # ----- loopback HTTP endpoint -----------------------------------------
 
@@ -188,7 +245,7 @@ class BattleBridge:
             body = json.loads(await asyncio.wait_for(reader.readexactly(length), 5))
             account_id = int(body['account_id'])
             if method == 'POST':
-                result = self.report(account_id, body['epoch'], body['counts'], body['xp'])
+                result = self.report(account_id, body['epoch'], body['counts'])
             elif method == 'GET':
                 result = self.state(account_id)
             else:
