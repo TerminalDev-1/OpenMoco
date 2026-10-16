@@ -17,10 +17,11 @@ clean cycles is a pass (no need to complete 10). Still report any crash seen. Fr
 client, and a tgkill signal sampler crashed it: do not reuse those probes.
 Never leave a diagnostic or failed probe build installed for manual play, and
 never publish one. A caught native abort does not mean the client can continue.
-Latest client: v0.9.0-character-editor (pre-release, target 1c9dc70, base
-61c11c9b...), https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.9.0-character-editor
-(Mainloop-only bridge XP writes); six assets passed remote size/SHA-256
-checks and the tablet runs this exact base. Previous: v0.8.0-xp-bar
+Latest client: v0.10.0-server-xp (pre-release, target 6ce3a68, base
+876b08de...), https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.10.0-server-xp
+(raw kill reports only; server XP via native event 1217); six assets passed
+remote size/SHA-256 checks and the tablet runs this exact base. Before it:
+v0.9.0-character-editor (target 1c9dc70, base 61c11c9b...). Previous: v0.8.0-xp-bar
 (target 5755bbe, base e950a79a...). Seven unchanged splits/parts stay
 linked from v0.3.0-apartment. Its Leave Battle SIGSEGV (own-home handler) was a
 server encoding bug, fixed in home.py on 2026-10-15 with no client change: the

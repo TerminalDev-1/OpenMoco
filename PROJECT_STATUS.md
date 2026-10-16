@@ -41,6 +41,8 @@ Verification (temporary account copy, then restored to
 Still client-reported: the kill counts themselves (the server cannot see
 kills without running the battle simulation, see the section below). The
 apartment-to-battle level badge in the canyon showed 5 once battle XP > 0.
+Published as https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.10.0-server-xp
+(six assets, remote size/SHA-256 verified; unchanged splits from v0.3.0).
 Manual server: hidden, mode server-xp-events, log
 captures/user-test-server-server-xp-events.log, PID in .local/user-test-server.json.
 
