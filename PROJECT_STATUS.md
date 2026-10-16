@@ -1,5 +1,35 @@
 # Project status — 2026-10-16
 
+## Server-authoritative combat: research result (2026-10-16, blocked)
+Requested: the server, not the client, decides hits, damage, deaths, kills,
+rescues and XP, then battle_bridge.py is removed. Research only so far; no
+server or client change, nothing sent to the tablet. Full evidence:
+docs/BATTLE_PROTOCOL.md.
+
+Finding: a battle is a deterministic rollback simulation. The official server
+sends input events (28852/28855), input acknowledgements (28853), confirmed
+frames (28851) and checksums of its own simulated frame (28854). It never
+sends health, hits, deaths or positions. The client hashes its whole
+serialized frame (0x8e56e0: every entity plus the frame random) and compares
+it with 28854; a mismatch makes it request frame JSON (18853 frame 0x7fffffff)
+and report a desync (18855), after which it ignores server battle events.
+Server-injectable logic events (factory 0x7eeaec) are join/leave, add
+character, controller input 1214, level up 1215, debug 1216, XP grant 1217,
+map event 1218, CSV changes 1219/1220 and player update 1221; none reports a
+kill, and each runs inside the shared simulation.
+
+Consequence: Python can only decide combat by porting the native battle
+logic bit for bit and matching the client's checksums. A plausible but
+different simulation would be ignored (no checksum) or desync the client.
+That is a full reverse-engineering port of the 0x6b0000..0x7f0000 logic and
+cannot be verified piecewise, because one checksum covers the whole frame.
+
+Status: battle_bridge.py and the client reporting hooks stay; Downtown kill
+credit keeps working; Shrine Canyon kills still earn nothing (bridge
+allowlist). Open choice for the user: start the deterministic port, or an
+interim step (extend the bridge allowlist to the canyon, or use XP event 1217
+for the in-battle bar).
+
 ## Shrine Canyon battle scene with native recurring zones (2026-10-16, verified on the tablet)
 Server-only (scene.py, server.py); no client change. Shrine Canyon W01_OA01
 (10900006) no longer reuses the renamed Downtown snapshot. scene.canyon_scene

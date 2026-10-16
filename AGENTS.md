@@ -81,6 +81,13 @@ opens. With map slots present the client auto-advances the portal-set
 tutorial quests and can reach ToHQ (COOL zone, unserved): see
 PROJECT_STATUS.md before changing key 70, portal sets or 591 handling.
 
+Update 2026-10-16 (combat authority research): battles are a deterministic
+rollback simulation verified by server frame checksums (28854); the server
+never sends hits, health or deaths. Server-decided combat therefore needs a
+bit-exact port of the native battle logic matched against client checksums.
+Keep battle_bridge.py until that exists. Do not send 28853/28854 or inject
+logic events without reading docs/BATTLE_PROTOCOL.md first.
+
 ## Current scene-transition priority
 The verified reconnect/background-resume APK is published as v0.6.0-reconnect:
 https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.6.0-reconnect.
