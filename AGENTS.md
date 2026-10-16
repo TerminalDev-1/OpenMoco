@@ -93,6 +93,12 @@ raw kill counts (any character ID); the server validates them per scene,
 caps them by battle time, prices them from the loot tables, saves them and
 sends the XP to the battle as native XP event 1217 (28852). Shrine Canyon
 kills now earn XP. Keep the XP level table install in the client.
+Update 2026-10-16 (user request: rewards stay server side; weapons, shop and
+COOL zone): the apartment has the native weapons rack, the WEAPONS screen lists
+the server-owned starter bow (client-home +0x78), and the COOL zone (SocialHub)
+is served as home once ToHQ is reached, with its shop, portal, wardrobe,
+weapons and cores items. Shop offers, jobs, quests and chaos cores are next;
+see the newest PROJECT_STATUS.md sections.
 
 ## Current scene-transition priority
 The verified reconnect/background-resume APK is published as v0.6.0-reconnect:

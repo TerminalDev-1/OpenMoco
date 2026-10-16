@@ -305,6 +305,9 @@ class GameSession:
             self.current_scene = self.account.profile.get('scene_id', APARTMENT)
             if self.current_scene in BATTLE_SCENES:
                 body = battle_scene(account_id, self.current_scene)
+            elif self.current_scene == SOCIAL_HUB:
+                from scene import cool_zone_scene
+                body = cool_zone_scene(account_id, level=self.home_level, name=self.home_name)
             else:
                 body = apartment_scene(account_id, level=self.home_level, name=self.home_name)
         else:
@@ -413,7 +416,13 @@ class GameSession:
             self.log(f'scene selection unsupported: {error}')
             return
         if self.pending_home_scene and selection.flag and selection.scene_id == SOCIAL_HUB:
-            await self._enter_apartment()
+            if self._cool_zone_unlocked():
+                await self._enter_cool_zone()
+            else:
+                await self._enter_apartment()
+        elif (not selection.flag and selection.scene_id == SOCIAL_HUB and self.current_scene == APARTMENT
+              and self._cool_zone_unlocked()):
+            await self._enter_cool_zone()
         if selection.scene_id in BATTLE_SCENES and self.current_scene not in BATTLE_SCENES:
             await self._enter_tutorial_area(selection.scene_id)
 
@@ -430,6 +439,30 @@ class GameSession:
         self._reset_scene_clock()
         self.state = 'apartment_scene_sent'
         self.log('returned to apartment after client home-scene request')
+
+    def _cool_zone_unlocked(self):
+        """The COOL zone (SocialHub) opens once the ToHQ tutorial is reached.
+
+        ToHQ (tutorials.csv 9) is the tutorial that sends the player there;
+        the client reports its steps with command 574 like every tutorial.
+        """
+        from progress import cool_zone_unlocked
+        saved = self.accounts.authenticate(self.account.account_id, self.account.token).profile
+        return cool_zone_unlocked(saved)
+
+    async def _enter_cool_zone(self):
+        """Home for players past the tutorial: the COOL zone (SocialHub)."""
+        from scene import cool_zone_scene
+        account_id = self.account.account_id
+        await self.send_session(SCENE_START, cool_zone_scene(account_id, level=self.home_level, name=self.home_name))
+        self.pending_home_scene = False
+        self.current_scene = SOCIAL_HUB
+        if self.battle_bridge is not None:
+            self.battle_bridge.end(account_id, self.session)
+        self.accounts.record_scene(account_id, self.current_scene)
+        self._reset_scene_clock()
+        self.state = 'cool_zone_scene_sent'
+        self.log('entered the COOL zone')
 
     async def _enter_tutorial_area(self, scene=TUTORIAL_AREA):
         """Portal travel from the apartment into a Downtown street scene."""
@@ -455,7 +488,7 @@ class GameSession:
         if plaintext != b'\x00':
             self.log('unsupported leave-battle options')
             return
-        if self.current_scene == APARTMENT or self.pending_home_scene:
+        if self.current_scene in (APARTMENT, SOCIAL_HUB) or self.pending_home_scene:
             return
         account_id = self.account.account_id
         if self.accounts.complete_intro_quest(account_id):

@@ -161,3 +161,27 @@ class BattleSceneTests(unittest.TestCase):
         self.assertEqual(battle_scene(account, 10900006), canyon_scene(account))
         with self.assertRaises(ValueError):
             battle_scene(account, 10900002)
+
+
+class CoolZoneTests(unittest.TestCase):
+    def test_cool_zone_is_the_renamed_home_with_its_key_items(self):
+        from scene import COOL_ZONE_SPAWN, SOCIAL_HUB, cool_zone_scene
+        identity = (128 << 32) | 1
+        body = cool_zone_scene(identity)
+        hub = Writer().compact(SOCIAL_HUB).bytes()
+        self.assertEqual(body[1:1 + 2 * len(hub)], hub * 2)
+        spawn = Writer().compact(COOL_ZONE_SPAWN[0]).bytes() + Writer().compact(COOL_ZONE_SPAWN[1]).bytes()
+        self.assertEqual(body.count(spawn), 5)
+        self.assertEqual(body.count(Writer().compact(identity, 64).bytes()), 2)
+        self.assertEqual(body.count(bytes.fromhex('d8bf01')), 8)  # Eight HomeItem 2010 IDs.
+        named = cool_zone_scene(identity, level=4, name='hi')
+        self.assertIn(b'\x00\x00\x00\x02hi', named)
+        self.assertEqual(len(named), len(body) - 10)
+        with self.assertRaises(ValueError):
+            cool_zone_scene(identity, level=64)
+
+    def test_cool_zone_unlocks_with_the_to_hq_tutorial(self):
+        from progress import cool_zone_unlocked
+        self.assertFalse(cool_zone_unlocked({'tutorials': {'15600007': 0}}))
+        self.assertTrue(cool_zone_unlocked({'tutorials': {'15600009': 0}}))
+        self.assertFalse(cool_zone_unlocked({}))

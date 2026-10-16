@@ -149,3 +149,11 @@ def season_seconds_left(now):
     """Whole seconds until the current local season ends (always >= 1)."""
     elapsed = (int(now) - SEASON_START) % SEASON_SECONDS
     return SEASON_SECONDS - elapsed
+
+
+TO_HQ_TUTORIAL = 15600009  # tutorials.csv ToHQ (instance 9)
+
+
+def cool_zone_unlocked(profile):
+    """True once the ToHQ tutorial, which leads to the COOL zone, is reached."""
+    return str(TO_HQ_TUTORIAL) in profile.get('tutorials', {})

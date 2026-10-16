@@ -740,6 +740,54 @@ def canyon_scene(account_id):
     return _CANYON_PREFIX + identity + _CANYON_MIDDLE + identity + _CANYON_SUFFIX
 
 
+SOCIAL_HUB = 10900005           # SocialHub, the COOL zone (scene/w00_cool_zone_v2.json)
+COOL_ZONE_SPAWN = (3440640, 3178496)  # The map's spawn cell (52,48), centered.
+
+
+def _cool_zone_base(account_id):
+    """Research base: the item-free apartment renamed to SocialHub, with every
+    home-spawn position pair moved to the COOL zone map's spawn."""
+    body = apartment_scene(account_id, portal=False)
+    home, hub = Writer().compact(10900000).bytes(), Writer().compact(SOCIAL_HUB).bytes()
+    old = Writer().compact(HOME_SPAWN[0]).bytes() + Writer().compact(HOME_SPAWN[1]).bytes()
+    new = Writer().compact(COOL_ZONE_SPAWN[0]).bytes() + Writer().compact(COOL_ZONE_SPAWN[1]).bytes()
+    if body[1:1 + 2 * len(home)] != home * 2 or body.count(old) != 5 or len(old) != len(new):
+        raise ValueError('Apartment template fields not found')
+    return body[:1] + hub * 2 + body[1 + 2 * len(home):].replace(old, new)
+
+
+# The COOL zone's key items, added to _cool_zone_base by a temporary probe at
+# the w00_cool_zone_v2 map's object positions and re-encoded by the client
+# (2026-10-16): HomeItems 2010 portal (2), wardrobe (1), weapons rack (5),
+# skin shop (3, the SHOP), radio (4), team-up (9), elite hunter and chaos-core
+# storage (CORES). Suffix from the player metadata levels onwards.
+_COOL_ZONE_SUFFIX = bytes.fromhex(
+    "0101020000000c4c6f63616c2048756e7465720000000004acc9e30aaec9e30a"
+    "afc9e30aadc9e30a00040000000000000000000000000000a0efb106a0efb106"
+    "0000fc08088091d8bf01008080cc038080e40314fb5d268a65c3f9f625886b20"
+    "e2b934c3024f8191d8bf0100a394f40396bdda03fb5d268a12b06052d20f1eaf"
+    "3a4c7f5cf1018291d8bf0100b1fbb90395d0e20314fb5d268ade98e5c01ea755"
+    "b7ad5b0c80054f8391d8bf0100a8f0df039be3e103fb5d268ad8a3370798c98e"
+    "88a1aa0c40f1038491d8bf0100a296ef03af9f9e0314fb5d268a3492adf914ff"
+    "e4198d025ca1044f8591d8bf0100a699ab03a6999303fb5d268a26ba2389c6d3"
+    "7a6e3dd114c1f1098691d8bf01009898e90389d0800314fb5d268a855b34ae85"
+    "ff9e87ed449be9084f8791d8bf0100aab0a903b9a7d70391422ffa9d6861c1f4"
+    "a79c842a788d67410b0000000000000000000001027f00000000000000000000"
+    "0000010000000000000000000000000000000000000000000000000000000000"
+    "0000000000000000000000000000000000000000000000000000000000"
+)
+
+
+def cool_zone_scene(account_id, level=1, name=DEFAULT_PLAYER_NAME):
+    """SocialHub 10900005: the COOL zone with its key items."""
+    if type(level) is not int or not 1 <= level < 64:
+        raise ValueError('COOL zone level must fit the one-byte native field')
+    base = _cool_zone_base(account_id)
+    identity = Writer().compact(account_id, 64).bytes()
+    head = base[:base.rindex(identity) + len(identity)]
+    return head + bytes([level, level]) + _with_player_name(_COOL_ZONE_SUFFIX, name)[2:]
+
+
 # Battle scenes the portal can enter: Downtown Chaos and Shrine Canyon.
 BATTLE_SCENE_BUILDERS = {10900001: progression_tutorial_scene, SHRINE_CANYON: canyon_scene}
 

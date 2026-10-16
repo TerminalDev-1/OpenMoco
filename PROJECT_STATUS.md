@@ -1,5 +1,33 @@
 # Project status — 2026-10-16
 
+## COOL zone (SocialHub 10900005) unlocked as home after ToHQ (2026-10-16, verified on the tablet)
+Server-only. scene.cool_zone_scene: the item-free Home frame renamed to
+SocialHub 10900005, every home-spawn pair moved to the w00_cool_zone_v2 map's
+spawn cell (52,48), plus the map's eight key items. The map objects came from
+the client's own decoder (probe .local/coolzone-map-probe.js on
+server_scene/w00_cool_zone_v2.map_bin from the install-time asset pack):
+skinshop, wardrobe, portal, radio, weaponloadout, teamup, elitehunter,
+chaoscorestorage. A second probe (.local/coolzone-scene-probe.js) added them
+as HomeItem 2010 (types 3, 1, 2, 4, 5, 9, 8, 11) and saved the client's
+re-encode (748 bytes); Python reproduces it byte for byte (identity, name and
+level dynamic).
+Unlock rule (progress.cool_zone_unlocked): the account has reached the ToHQ
+tutorial (15600009), the tutorial that sends the player to SocialHub. Then the
+client's flagged home request (13222 SocialHub after Leave Battle or naming)
+loads the COOL zone instead of the apartment, and an unflagged SocialHub
+selection from the apartment does too. accounts.record_scene accepts it and a
+reconnect resumes it.
+Tablet (normal client 876b08de, real account copy, then restored to hash
+8bf390af): the COOL zone loads with the player in the lounge next to TEAM UP;
+the hall has WEAPONS, PORTAL, SHOP and CORES. SHOP shows the MERCH SHOP
+feature-unlock popup and then an empty SHOP screen (no offers sent yet).
+Soak: 5 warm COOL zone -> portal -> Shrine Canyon -> combat -> Leave Battle
+cycles, one process (24321), one connection, server XP sent in 5 of 6
+battles. Screenshots .local/cool-*.png, ccz-*-home/battle.png.
+Known gaps: shop offers, radio/team-up/elite-hunter/cores screens are not
+populated; command 583 (sent on the shop unlock) is not decoded, so that turn
+is skipped; the apartment is no longer reachable once the COOL zone is home.
+
 ## Apartment weapons rack (2026-10-16, verified on the tablet, partial)
 Server-only. The home map has a third key-item marker, pf_keyitem_weaponloadout
 at (1331761,4538660). A temporary probe (.local/armoury-probe.js on the never-
