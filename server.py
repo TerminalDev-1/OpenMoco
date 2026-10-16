@@ -295,13 +295,13 @@ class GameSession:
             self.log('sent native-evidenced own-home probe; client acceptance pending')
 
     async def _send_initial_scene(self):
-        from scene import apartment_scene, progression_tutorial_scene
+        from scene import apartment_scene, battle_scene
         account_id = self.account.account_id
         if self.apartment:
             # Resume the scene saved by the previous session.
             self.current_scene = self.account.profile.get('scene_id', APARTMENT)
             if self.current_scene in BATTLE_SCENES:
-                body = progression_tutorial_scene(account_id, self.current_scene)
+                body = battle_scene(account_id, self.current_scene)
             else:
                 body = apartment_scene(account_id, level=self.home_level, name=self.home_name)
         else:
@@ -427,11 +427,11 @@ class GameSession:
 
     async def _enter_tutorial_area(self, scene=TUTORIAL_AREA):
         """Portal travel from the apartment into a Downtown street scene."""
-        from scene import progression_tutorial_scene
+        from scene import battle_scene
         account_id = self.account.account_id
         if self.battle_bridge is not None:
             self.battle_bridge.begin(account_id, self.session)
-        await self.send_session(SCENE_START, progression_tutorial_scene(account_id, scene))
+        await self.send_session(SCENE_START, battle_scene(account_id, scene))
         self.current_scene = scene
         self.accounts.record_scene(account_id, self.current_scene)
         self._reset_scene_clock()

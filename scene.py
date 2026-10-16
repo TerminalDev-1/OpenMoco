@@ -643,29 +643,89 @@ _PROGRESSION_SUFFIX = bytes.fromhex(
     "00000000"
 )
 
-# Battle scenes that reuse the populated Downtown street snapshot. Shrine
-# Canyon (10900006, W01_OA01) is the portal's map card; the snapshot's
-# entity positions come from the Downtown map, not the canyon.
-STREET_SCENES = (10900001, 10900006)
-
-
-def progression_tutorial_scene(account_id, scene=10900001):
-    """Initialize additional slime, jumper and slammer with native defaults.
+def _rename_battle_scene(body, scene):
+    """Point a TutorialAreaBasic snapshot at another battle scene.
 
     The snapshot names its battle scene three times: two compact IDs at the
     start of scene-start and the raw battle-start selection near the end.
     """
-    if type(account_id) is not int or not 128 <= account_id >> 32 <= 255 or not account_id & 0xffffffff:
-        raise ValueError('Tutorial requires a nonzero local guest identity')
-    if scene not in STREET_SCENES:
-        raise ValueError('Unsupported street scene')
-    identity = Writer().compact(account_id, 64).bytes()
-    body = _PROGRESSION_PREFIX + identity + _PROGRESSION_MIDDLE + identity + _PROGRESSION_SUFFIX
-    if scene == 10900001:
-        return body
     basic, selected = Writer().compact(10900001).bytes(), Writer().compact(scene).bytes()
     raw_basic, raw_selected = (10900001).to_bytes(8, 'big'), scene.to_bytes(8, 'big')
     head = 1 + 2 * len(basic)
     if body[1:head] != basic * 2 or body.count(raw_basic) != 1 or len(selected) != len(basic):
         raise ValueError('Street template scene fields not found')
     return body[:1] + selected * 2 + body[head:].replace(raw_basic, raw_selected)
+
+
+def progression_tutorial_scene(account_id):
+    """Initialize additional slime, jumper and slammer with native defaults."""
+    if type(account_id) is not int or not 128 <= account_id >> 32 <= 255 or not account_id & 0xffffffff:
+        raise ValueError('Tutorial requires a nonzero local guest identity')
+    identity = Writer().compact(account_id, 64).bytes()
+    return _PROGRESSION_PREFIX + identity + _PROGRESSION_MIDDLE + identity + _PROGRESSION_SUFFIX
+
+
+SHRINE_CANYON = 10900006
+
+# Native-encoded Shrine Canyon W01_OA01 (10900006) initial frame: the local
+# player at the canyon map's single tag-17 marker, tile (63,99) (the shrine
+# path at the campfire), and one Zone entity (2008) for each of the map's 16
+# monster/NPC zones (zone table RogueMap +0xa0, count +0xac):
+# 1700149..1700162, 1700164 (RunningNpc) and 1700165 (boss). The client
+# fills each zone's spawn points from the map and keeps refilling them
+# (zone tick 0x74ea90), so monsters spawn across the canyon for the whole
+# battle. The map's ten one-time chests and its easter egg are left out.
+# The client re-encoded this from the mob-free TutorialAreaBasic frame
+# renamed to 10900006; the player identity stays dynamic.
+_CANYON_PREFIX = bytes.fromhex(
+    "e9a6c8b20aa6c8b20a9813007f907f01f80101a0a2eabe0180aea60a8080fc03"
+    "80809c063480aea60a80aea60a0000000000"
+)
+
+_CANYON_MIDDLE = bytes.fromhex(
+    "020000028080fc0380809c067f7f020000000f80801ca0b802a0b8027f0000c1"
+    "020300c07f7f060101027f01017f008080801419a4010a0a6205abc9e30abfff"
+    "ffff0f01880500007f237f7facc9e30a96bfffffff0f0101053800007f7f7f62"
+    "aec9e30abfffffff0f0189020500007f237f7fafc9e30a96bfffffff0f010305"
+    "3800007f7f7f62adc9e30abfffffff0f0189040500007f237f7f00a0f6cbbf01"
+    "000200000200000000000f918ada03918aba04aff5ed03aff5cd04127f038080"
+    "fc0380809c0600019387e2020000007000000000101080dcbfbf0185c5cf0150"
+    "85c5cf017f7f0c0000000081dcbfbf01b8c4cf01b8c4cf018a7f7f0000000082"
+    "dcbfbf0184c5cf014184c5cf017f317f0000000083dcbfbf01b9c4cf0128b9c4"
+    "cf017f7f060000000084dcbfbf01bbc4cf01bbc4cf01c57f7f0000000085dcbf"
+    "bf01b5c4cf01a0b5c4cf017f7f180000000086dcbfbf01b6c4cf0114b6c4cf01"
+    "7f7f000000008387dcbfbf01bcc4cf01bcc4cf017f627f0000000088dcbfbf01"
+    "bac4cf0150bac4cf017f7f0c0000000089dcbfbf01bfc4cf01bfc4cf018a7f7f"
+    "000000008adcbfbf01b7c4cf0141b7c4cf017f317f000000008bdcbfbf01bdc4"
+    "cf0128bdc4cf017f7f06000000008cdcbfbf01bec4cf01bec4cf01c57f7f0000"
+    "00008ddcbfbf0180c5cf01a080c5cf017f7f18000000008edcbfbf0182c5cf01"
+    "1482c5cf017f7f00000000838fdcbfbf0181c5cf0181c5cf017fe27f00000000"
+    "0101a0f6cbbf010000020001a0efb1060000000000000000000000a0a2eabe01"
+    "00208080501fa0b8028080fc0380809c068080fc0380809c06000049"
+)
+
+_CANYON_SUFFIX = bytes.fromhex(
+    "0101020000000c4c6f63616c2048756e7465720000000004acc9e30aaec9e30a"
+    "afc9e30aadc9e30a00040000000000000000000000000000a0efb106a0efb106"
+    "000044000000000000000000000001027f000000000000000000000000010000"
+    "00010000000000a6522600000000000000000000000000000000000000000000"
+    "0000000000000000000000000000000000000000000000000000000000000000"
+    "000000"
+)
+
+
+def canyon_scene(account_id):
+    if type(account_id) is not int or not 128 <= account_id >> 32 <= 255 or not account_id & 0xffffffff:
+        raise ValueError('Canyon requires a nonzero local guest identity')
+    identity = Writer().compact(account_id, 64).bytes()
+    return _CANYON_PREFIX + identity + _CANYON_MIDDLE + identity + _CANYON_SUFFIX
+
+
+# Battle scenes the portal can enter: Downtown Chaos and Shrine Canyon.
+BATTLE_SCENE_BUILDERS = {10900001: progression_tutorial_scene, SHRINE_CANYON: canyon_scene}
+
+
+def battle_scene(account_id, scene):
+    if scene not in BATTLE_SCENE_BUILDERS:
+        raise ValueError('Unsupported battle scene')
+    return BATTLE_SCENE_BUILDERS[scene](account_id)

@@ -123,17 +123,38 @@ class SceneTests(unittest.TestCase):
                 apartment_scene(identity)
 
 
-class StreetSceneTests(unittest.TestCase):
-    def test_shrine_canyon_renames_only_the_scene_fields(self):
-        from scene import progression_tutorial_scene
-        from stream import Writer
+class BattleSceneTests(unittest.TestCase):
+    def test_shrine_canyon_native_golden_spawn_zones_and_identity(self):
+        import hashlib
+        from scene import canyon_scene
+        identity = (128 << 32) | 1
+        body = canyon_scene(identity)
+        self.assertEqual(len(body), 829)
+        self.assertEqual(hashlib.sha256(body).hexdigest(), '05643ca21d5eeee9ba393ac2cb5b88574be9b640b334ad64bef8c338d50b8b6c')
+        self.assertEqual(body[1:9], Writer().compact(10900006).bytes() * 2)
+        self.assertEqual(body.count((10900006).to_bytes(8, 'big')), 1)
+        self.assertNotIn((10900001).to_bytes(8, 'big'), body)
+        for offset in (50, 660):
+            self.assertEqual(Reader(body[offset:]).compact(64), identity)
+        # Player at the canyon spawn marker, tile (63,99), centered.
+        spawn = Writer().compact((63 << 16) | 0x8000).compact((99 << 16) | 0x8000).bytes()
+        self.assertEqual(body.count(spawn), 5)
+        self.assertNotIn(Writer().compact(3964928).compact(4751360).bytes(), body)
+        # Sixteen native Zone entities; each carries its zone data ID twice.
+        zones = (1700149, 1700150, 1700151, 1700152, 1700153, 1700154, 1700155, 1700156,
+                 1700157, 1700158, 1700159, 1700160, 1700161, 1700162, 1700164, 1700165)
+        for zone in zones:
+            self.assertEqual(body.count(Writer().compact(zone).bytes()), 2, zone)
+        other = (255 << 32) | 0xffffffff
+        self.assertEqual(canyon_scene(other).count(Writer().compact(other, 64).bytes()), 2)
+        for invalid in (0, 1, True, 'local'):
+            with self.assertRaises(ValueError):
+                canyon_scene(invalid)
+
+    def test_battle_scene_dispatch(self):
+        from scene import battle_scene, canyon_scene, progression_tutorial_scene
         account = (200 << 32) | 4
-        basic = progression_tutorial_scene(account)
-        world = progression_tutorial_scene(account, 10900006)
-        self.assertEqual(len(world), len(basic))
-        self.assertEqual(world[1:9], Writer().compact(10900006).bytes() * 2)
-        self.assertEqual(world.count((10900006).to_bytes(8, 'big')), 1)
-        self.assertNotIn((10900001).to_bytes(8, 'big'), world)
-        self.assertEqual(sum(a != b for a, b in zip(basic, world)), 3)
+        self.assertEqual(battle_scene(account, 10900001), progression_tutorial_scene(account))
+        self.assertEqual(battle_scene(account, 10900006), canyon_scene(account))
         with self.assertRaises(ValueError):
-            progression_tutorial_scene(account, 10900002)
+            battle_scene(account, 10900002)

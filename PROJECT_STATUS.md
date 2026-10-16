@@ -1,6 +1,70 @@
 # Project status — 2026-10-16
 
+## Shrine Canyon battle scene with native recurring zones (2026-10-16, verified on the tablet)
+Server-only (scene.py, server.py); no client change. Shrine Canyon W01_OA01
+(10900006) no longer reuses the renamed Downtown snapshot. scene.canyon_scene
+sends an 829-byte native-encoded frame, and scene.battle_scene picks the
+builder for each portal destination.
+
+How it was made (temporary --apartment-probe build 2d9b45b5, never
+published; probe script removed, normal v0.9.0 base 61c11c9b reinstalled):
+- At 0x5bf784 entry the SceneConfig data (+0x10) and frame map (+0xb8) are
+  still null, so the probe read the live map from the HUD frame
+  (hud +0x68 -> +0x2878 -> +0xb8). The canyon RogueMap is 145x164 tiles, with
+  27 zones in its table (+0xa0, count +0xac) and 34 markers (+0x130, count
+  +0x13c). Exactly one marker has tag 17: tile (63,99), the shrine path next to
+  the campfire. The other 33 (tag 0) match the client-simulated hunters
+  (data 10800000, 14 of them in the live frame, e.g. "Stormy"). The tag
+  computed from the 0x1467c9 string "SpawnA" was 19, which matches no marker, so
+  that tag lookup is not understood yet.
+- The Python body (mob-free TutorialAreaBasic frame renamed to 10900006,
+  player position pairs replaced with tile (63,99) centered) went to the
+  probe client. It created and registered one native Zone (0x728294 /
+  0x728284) per monster/NPC zone of the map: 1700149..1700162, 1700164
+  RunningNpc and 1700165 boss. The ten OneTimeChest zones and the easter egg
+  were left out. The client's own re-encode is 829 bytes. It kept every
+  Python byte and inserted the 16 zones (331 bytes at offset 263); each zone
+  carries its data ID twice. scene.py holds it byte for byte, and the identity
+  is dynamic at offsets 50/660 (synthetic golden SHA-256 05643ca2...).
+- Live observation (analysis/canyon/run2-canyon-live.json, private): zones
+  resolve their map points within 5 s (melee 260, ranged 180, ambush 314,
+  RunningNpc 100 points, ...). Enemies went 0 -> 160 (10800022, 10800027,
+  10800038, 10800269, 10800212, ...), the boss zone started at ~15 s, and
+  137..165 enemies stayed alive throughout the 90 s. Zones 1700158 and 1700162
+  (frequency 999) stayed inactive. The player stayed at (63.5,99.5), health
+  20000, with no knockout on arrival.
+
+Normal client, temporary account copy (all tutorials done, then restored):
+apartment -> PORTAL -> EXPEDITION card -> BATTLE loaded the canyon with the
+player alive at the shrine path. Monsters were found near the campfire,
+bridge and camp. Combat worked (hits of 300/600, a bot hunter helping), and
+two level-10 dragonlings knocked out the level-1 player once (normal
+difficulty; the in-place respawn worked). Leave Battle returned home. Then
+5 scripted warm portal -> canyon -> combat -> Leave Battle cycles: one
+process (29326), 6 canyon entries / 6 returns, frame acks still advancing,
+~60% CPU, no crash buffer entries. Screenshots .local/canyon-n*.png,
+canyon-cycle1..5-*.png.
+
+Known defects / follow-ups:
+- Canyon kills earn no server XP. The client bridge's compiled-in allowlist
+  (client/loader_diagnostics.js:110) and battle_bridge.KILL_XP only know the
+  Downtown monster IDs, so canyon kills are never reported. Fixing it needs
+  a new client build (allowlist plus loot-profile XP for the canyon
+  characters) and a release; the server must accept the same IDs.
+- No initial pack: monsters appear only once zones resolve (~5 s).
+- The battle name badge still says "Local Hunter" and level 1 (snapshot
+  metadata).
+- Chest zones, invasion events (battle_scenes.csv InvasionPortalEvent_W01_OA01)
+  and the easter egg are not sent.
+Account: real state restored from .local/accounts.before-canyon-20261016b.sqlite3
+(hash 55fc7d07..., ToHQ HQDone, saved scene 10900006); the test copy is kept as
+.local/accounts.after-canyon-soak.sqlite3. Manual server: hidden, mode
+local-shrine-canyon-zones, log captures/user-test-server-canyon.log, PID in
+.local/user-test-server.json. The reconnect resumed the canyon (829 bytes).
+
 ## Next steps: endless monster spawning and the Shrine Canyon card (2026-10-16)
+Status: steps 1-3 below are done for Shrine Canyon (see the section above).
+Downtown still has its fixed initial pack plus four tutorial zones.
 User request: monsters should keep spawning without end, like the official
 game, instead of a scene with a fixed initial pack (about a dozen monsters).
 
@@ -29,8 +93,7 @@ in Shrine Canyon. Plan:
    NPCSpawnFrequencySec, elite chances, invasion events from
    battle_scenes.csv) once combat becomes server-authoritative. Do not
    resend scene-start to "respawn"; that resets the player and the battle.
-Shrine Canyon (10900006) is the first map for this. A side session prepared
-a probe (zone table, spawn markers, native re-encode) but has not run it yet.
+Shrine Canyon (10900006) was the first map done this way.
 
 Shrine Canyon card says "Continue the recruitment process" (reported by the
 user). That text is TID_DUNGEON_SELECTOR_MAP_LOCKED_PORTAL_NOT_ACTIVE. Step

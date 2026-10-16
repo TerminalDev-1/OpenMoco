@@ -72,8 +72,10 @@ Update 2026-10-16: the portal works server-side. The season track's +0x28 is
 the season's remaining seconds (rolling 28-day local seasons, provisional).
 Portal map cards are avatar +0x48 slots; only state 1 (opens <= now < ends)
 reacts to presses, and TutorialArea is refused by the start check, so the
-card is Shrine Canyon (10900006) using the Downtown snapshot (monsters spawn
-on the player; replace with a real canyon population). The apartment now
+card is Shrine Canyon (10900006). Its scene (scene.canyon_scene, verified
+2026-10-16) spawns the player at the map's tag-17 marker (63,99) and sends
+one native Zone per map monster zone; the client keeps them populated.
+Canyon kills are not credited yet (client bridge allowlist). The apartment now
 includes a native-encoded wardrobe HomeItem (type 1); its WARDROBE screen
 opens. With map slots present the client auto-advances the portal-set
 tutorial quests and can reach ToHQ (COOL zone, unserved): see
