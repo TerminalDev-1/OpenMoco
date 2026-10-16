@@ -45,6 +45,20 @@ _PORTAL_SUFFIX = bytes.fromhex(
 )
 
 
+# Portal plus wardrobe (HomeItem 2010, type 1 Wardrobe, prefab
+# sc3d/pf_keyitem_wardrobe at the home map's wardrobe marker
+# (1684275,4502323)). Encoded by the client's own scene encoder after a
+# temporary probe added the item to the live apartment frame (2026-10-16).
+_WARDROBE_SUFFIX = bytes.fromhex(
+    "0101020000000c4c6f63616c2048756e7465720000000004acc9e30aaec9e30a"
+    "afc9e30aadc9e30a00040000000000000000000000000000a0efb106a0efb106"
+    "0000fc02028091d8bf0100a699b70199e6ac0414fb5d268a65c3f9f625886b20"
+    "e2b934c3024f8191d8bf0100b3cccd01b3cca504fb5d268a12b06052d20f1eaf"
+    "3a4c7f5c41010000000000000000000001027f00000000000000000000000001"
+    "0000000000000000000000000000000000000000000000000000000000000000"
+    "0000000000000000000000000000000000000000000000000000"
+)
+
 DEFAULT_PLAYER_NAME = 'Local Hunter'
 _NAME_FIELD = len(DEFAULT_PLAYER_NAME).to_bytes(4, 'big') + DEFAULT_PLAYER_NAME.encode()
 
@@ -61,7 +75,7 @@ def _with_player_name(suffix, name):
     return suffix.replace(_NAME_FIELD, len(encoded).to_bytes(4, 'big') + encoded)
 
 
-def apartment_scene(account_id, portal=True, level=1, name=DEFAULT_PLAYER_NAME):
+def apartment_scene(account_id, portal=True, level=1, name=DEFAULT_PLAYER_NAME, wardrobe=True):
     """Bind the two evidenced accountId fields to a valid local namespace.
 
     Native metadata serializer 0x73ab98 starts with accountId; the second
@@ -78,7 +92,11 @@ def apartment_scene(account_id, portal=True, level=1, name=DEFAULT_PLAYER_NAME):
         raise ValueError('Apartment level must fit the one-byte native field')
     identity = Writer().compact(account_id, 64).bytes()
     # The overhead badge shows the metadata name that follows the levels.
-    suffix = _with_player_name(_PORTAL_SUFFIX if portal else _SUFFIX, name)
+    if portal:
+        template = _WARDROBE_SUFFIX if wardrobe else _PORTAL_SUFFIX
+    else:
+        template = _SUFFIX
+    suffix = _with_player_name(template, name)
     return _PREFIX + identity + _MIDDLE + identity + bytes([level, level]) + suffix[2:]
 
 
@@ -625,9 +643,29 @@ _PROGRESSION_SUFFIX = bytes.fromhex(
     "00000000"
 )
 
-def progression_tutorial_scene(account_id):
-    """Initialize additional slime, jumper and slammer with native defaults."""
+# Battle scenes that reuse the populated Downtown street snapshot. Shrine
+# Canyon (10900006, W01_OA01) is the portal's map card; the snapshot's
+# entity positions come from the Downtown map, not the canyon.
+STREET_SCENES = (10900001, 10900006)
+
+
+def progression_tutorial_scene(account_id, scene=10900001):
+    """Initialize additional slime, jumper and slammer with native defaults.
+
+    The snapshot names its battle scene three times: two compact IDs at the
+    start of scene-start and the raw battle-start selection near the end.
+    """
     if type(account_id) is not int or not 128 <= account_id >> 32 <= 255 or not account_id & 0xffffffff:
         raise ValueError('Tutorial requires a nonzero local guest identity')
+    if scene not in STREET_SCENES:
+        raise ValueError('Unsupported street scene')
     identity = Writer().compact(account_id, 64).bytes()
-    return _PROGRESSION_PREFIX + identity + _PROGRESSION_MIDDLE + identity + _PROGRESSION_SUFFIX
+    body = _PROGRESSION_PREFIX + identity + _PROGRESSION_MIDDLE + identity + _PROGRESSION_SUFFIX
+    if scene == 10900001:
+        return body
+    basic, selected = Writer().compact(10900001).bytes(), Writer().compact(scene).bytes()
+    raw_basic, raw_selected = (10900001).to_bytes(8, 'big'), scene.to_bytes(8, 'big')
+    head = 1 + 2 * len(basic)
+    if body[1:head] != basic * 2 or body.count(raw_basic) != 1 or len(selected) != len(basic):
+        raise ValueError('Street template scene fields not found')
+    return body[:1] + selected * 2 + body[head:].replace(raw_basic, raw_selected)

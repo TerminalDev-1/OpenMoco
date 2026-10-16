@@ -10,11 +10,17 @@ from accounts import AccountStore
 from transport import LoginTransport
 from protocol import Frame, FrameDecoder
 from server import capture
-from home import STARTER_VANITY, equipped_look, own_home
+from unittest import mock
+from home import PORTAL_WORLDS, STARTER_VANITY, equipped_look, own_home
 from progress import intro_main_steps
 from scene import apartment_scene, progression_tutorial_scene as tutorial_scene
 
 
+# The portal map card ends with the season; pin the clock-derived length.
+SEASON_SECONDS_LEFT = 86400
+
+
+@mock.patch('progress.season_seconds_left', lambda now: SEASON_SECONDS_LEFT)
 class ServerTests(unittest.IsolatedAsyncioTestCase):
     async def test_encrypted_guest_reply_reconnect_and_keepalive(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -64,7 +70,8 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                     profile_body = cipher.decrypt(profile.payload, server_nonce)
                     progress = {'15600000': 0, '15600001': 14200006} if identity else {}
                     self.assertEqual(profile_body, own_home(new_id, age_category=2 if identity else 0, tutorials=progress,
-                                                           main_steps=intro_main_steps({"tutorials": progress}), vanity=STARTER_VANITY, look=equipped_look(None)))
+                                                           main_steps=intro_main_steps({"tutorials": progress}), vanity=STARTER_VANITY, look=equipped_look(None),
+                                     season_seconds=SEASON_SECONDS_LEFT, worlds=PORTAL_WORLDS))
                     scene = await read_frame()
                     self.assertEqual((scene.message_type, scene.version), (23491, 0))
                     server_nonce = LoginTransport.advance(server_nonce)
@@ -148,7 +155,8 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                     returned_scene = await read_frame()
                     receive_nonce = LoginTransport.advance(receive_nonce)
                     self.assertEqual(cipher.decrypt(returned_profile.payload, receive_nonce), own_home(new_id, age_category=2, tutorials={'15600000': 0, '15600001': 14200006},
-                                     main_steps=intro_main_steps({"tutorials": {"15600001": 14200006}}), vanity=STARTER_VANITY, look=equipped_look(None)))
+                                     main_steps=intro_main_steps({"tutorials": {"15600001": 14200006}}), vanity=STARTER_VANITY, look=equipped_look(None),
+                                     season_seconds=SEASON_SECONDS_LEFT, worlds=PORTAL_WORLDS))
                     self.assertEqual(returned_scene.message_type, 23491)
                     receive_nonce = LoginTransport.advance(receive_nonce)
                     self.assertEqual(cipher.decrypt(returned_scene.payload, receive_nonce), apartment_scene(new_id))

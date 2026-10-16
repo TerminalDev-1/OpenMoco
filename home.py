@@ -18,6 +18,11 @@ XP_POINT = 300020    # resources.csv XpPoint (Meta), instance 20.
 # Local ID of the player-level track (avatar +0x40) and its client-home +0xe8
 # progress record. The official ID is unknown; the client only matches the two.
 PLAYER_LEVEL_TRACK = 1
+# Battle scenes the portal can list as world cards (battle_scenes.csv).
+# TutorialArea (10900002) is refused by the portal's start check 0x682df0
+# (its scene flag +0x170 blocks it while the portal has no tabs).
+SHRINE_CANYON = 10900006     # W01_OA01, scene/w01_oa01.json
+PORTAL_WORLDS = (SHRINE_CANYON,)
 # Free default faces (slot 3) and hairstyles (slot 2): the rAssetCosmetic
 # records with pool 0 and enabledForPlayers. The character editor (signup
 # screen, list builder 0x570be4) lists only owned vanity items of the chosen
@@ -232,7 +237,7 @@ def _client_home(writer, account_id, battle_kit, age_category, tutorials, main_s
     _zeros(writer, 6)
 
 
-def _avatar_and_suffix(writer, xp):
+def _avatar_and_suffix(writer, xp, season_seconds=1, worlds=()):
     """Avatar 0x77c010, then the own-home auxiliary-event count and suffix.
 
     The avatar's first collection holds resources (entry 0x791cc8: data
@@ -253,12 +258,44 @@ def _avatar_and_suffix(writer, xp):
     # +40 tracks (0x78d04c). The home XP badge reads the player-level track.
     writer.compact(1 if xp else 0)
     if xp:
-        _level_track(writer, PLAYER_LEVEL_TRACK)
-    _zeros(writer, 11)  # The rest of the avatar.
-    _zeros(writer, 3)   # Own-home suffix.
+        _level_track(writer, PLAYER_LEVEL_TRACK, season_seconds)
+    # +48 portal map cards (0x786524, entries 0x785f44).
+    writer.compact(len(worlds))
+    for slot_id, scene in enumerate(worlds, 1):
+        _map_slot(writer, slot_id, scene, season_seconds)
+    # +50 Versus cards (0x782f80, entries 0x782890, card 0x515a84) and +58
+    # dungeon sets (0x7743c4) stay empty, then the rest of the avatar.
+    _zeros(writer, 10)
+    _zeros(writer, 3)  # Own-home suffix.
 
 
-def _level_track(writer, track):
+def _map_slot(writer, slot_id, scene, ends_in):
+    """Avatar +48 portal map card, entry 0x785f44 (card 0x5150b4).
+
+    Five integers +20..+30: +28 opens-in and +2c ends-in seconds. The card
+    (0x5150b4) is state 1, active, while opened and not ended; only that
+    state reacts to presses (0x516f80 -> 0x511de0). Both -1 gives state 0,
+    which ignores presses, and a positive +28 makes 0x682e98 refuse the
+    start. Slots here open now and end with the season. Two empty versioned objects, an empty list, an empty
+    path/sha object, then the map object 0x78636c: the battle scene as a raw
+    data reference and six integers. +8 must equal the season track's +68
+    season number (0, 0x6832b4); +14 is the tutorial portal set (0 = shown
+    outside the sets, filter 0x6832f0). Then base 0x779e68 (slot ID and an
+    empty list), a raw data reference (null) and an empty list.
+    """
+    writer.compact(0).compact(0).compact(0).compact(ends_in).compact(0)
+    for _ in range(2):
+        writer.boolean(False).boolean(False).boolean(False)
+    writer.compact(0)
+    writer.boolean(False).boolean(False).boolean(False)
+    _ref(writer, scene)
+    _zeros(writer, 6)
+    writer.compact(slot_id).compact(0)
+    _ref(writer, 0)
+    writer.compact(0)
+
+
+def _level_track(writer, track, season_seconds=1):
     """Avatar +40 entry 0x78b29c, the player-level track.
 
     The home HUD (0x57e33c) and the player-level getter (0x756a30) use the
@@ -266,11 +303,16 @@ def _level_track(writer, track):
     levels (+28 data, +34 count) are the XP per level for level loop
     0x788de8, and its XP is the client-home +e8 record with the same ID.
     Without it the home HUD level table is empty and the badge stays at 1.
-    The meaning of +20, +28, +2c and +d8 is not known; +28 only has to be
-    positive and +d8 keeps the constructor default -1.
+    This first type-1 track is also the season (0x4f76e0 -> 0x78d170): +28
+    is the season's remaining seconds when received. The portal and home HUD
+    show it minus the time since then ("Season ends in", 0x526c48).
+    The meaning of +20, +2c and +d8 is not known; +d8 keeps the constructor
+    default -1.
     """
     from progress import XP_LEVELS
-    writer.compact(0).compact(0).compact(1).compact(0).compact(-1)  # +20 +24 +28 +2c +d8
+    if type(season_seconds) is not int or not 0 < season_seconds <= 0x7fffffff:
+        raise ValueError('Invalid season time')
+    writer.compact(0).compact(0).compact(season_seconds).compact(0).compact(-1)  # +20 +24 +28 +2c +d8
     for _ in range(2):
         # +30, +38: structured objects 0x8381cc (versioned decoder 0x8e55bc);
         # version, integer and string are each an absent optional field.
@@ -292,7 +334,7 @@ def _level_track(writer, track):
 
 
 def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, main_steps=(), xp=0,
-             vanity=(), look=(), name=None):
+             vanity=(), look=(), name=None, season_seconds=1, worlds=()):
     if not isinstance(account_id, int) or not 0 <= account_id < 1 << 64:
         raise ValueError('Home account ID is outside the native 64-bit range')
     if battle_kit != SMART_BOW:
@@ -321,5 +363,7 @@ def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, m
         writer.integer(0)
     _client_home(writer, account_id, battle_kit, age_category, entries, tuple(main_steps),
                  tuple(vanity), tuple(look), xp)
-    _avatar_and_suffix(writer, xp)
+    if any(scene not in PORTAL_WORLDS for scene in worlds):
+        raise ValueError('Unsupported portal world')
+    _avatar_and_suffix(writer, xp, season_seconds, tuple(worlds))
     return writer.bytes()

@@ -93,9 +93,11 @@ class SceneTests(unittest.TestCase):
         # Native template identities occur before the player metadata and in it.
         identity = (128 << 32) | 1
         scene = apartment_scene(identity)
-        self.assertEqual(len(scene), 521)
+        self.assertEqual(len(scene), 553)
         self.assertIn(b'Local Hunter', scene)
-        self.assertIn(bytes.fromhex('fb5d268a65c3f9f625886b20e2b934c3'), scene)
+        self.assertIn(bytes.fromhex('fb5d268a65c3f9f625886b20e2b934c3'), scene)  # Portal prefab.
+        self.assertIn(bytes.fromhex('fb5d268a12b06052d20f1eaf3a4c7f5c'), scene)  # Wardrobe prefab.
+        self.assertEqual(len(apartment_scene(identity, wardrobe=False)), 521)
         first = Reader(scene[50:])
         self.assertEqual(first.compact(64), identity)
         second = Reader(scene[329:])
@@ -119,3 +121,19 @@ class SceneTests(unittest.TestCase):
         for identity in (0, 1, 128 << 32, (256 << 32) | 1, -1, 'id'):
             with self.assertRaises(ValueError):
                 apartment_scene(identity)
+
+
+class StreetSceneTests(unittest.TestCase):
+    def test_shrine_canyon_renames_only_the_scene_fields(self):
+        from scene import progression_tutorial_scene
+        from stream import Writer
+        account = (200 << 32) | 4
+        basic = progression_tutorial_scene(account)
+        world = progression_tutorial_scene(account, 10900006)
+        self.assertEqual(len(world), len(basic))
+        self.assertEqual(world[1:9], Writer().compact(10900006).bytes() * 2)
+        self.assertEqual(world.count((10900006).to_bytes(8, 'big')), 1)
+        self.assertNotIn((10900001).to_bytes(8, 'big'), world)
+        self.assertEqual(sum(a != b for a, b in zip(basic, world)), 3)
+        with self.assertRaises(ValueError):
+            progression_tutorial_scene(account, 10900002)

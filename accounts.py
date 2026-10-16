@@ -128,7 +128,7 @@ class AccountStore:
             return complete_intro_quest(profile)
 
     def record_scene(self, account_id, scene_id):
-        if scene_id not in (10900000, 10900001):
+        if scene_id not in (10900000, 10900001, 10900006):
             raise ValueError('Unsupported local scene')
         with self.edit_profile(account_id) as profile:
             profile['scene_id'] = scene_id

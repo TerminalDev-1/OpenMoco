@@ -68,6 +68,17 @@ tablet). The popup only closes through client command 14, which the server
 cannot send, so Python saves the name and reloads home like Leave Battle with
 the own-home name-set flag. See PROJECT_STATUS.md before changing it.
 
+Update 2026-10-16: the portal works server-side. The season track's +0x28 is
+the season's remaining seconds (rolling 28-day local seasons, provisional).
+Portal map cards are avatar +0x48 slots; only state 1 (opens <= now < ends)
+reacts to presses, and TutorialArea is refused by the start check, so the
+card is Shrine Canyon (10900006) using the Downtown snapshot (monsters spawn
+on the player; replace with a real canyon population). The apartment now
+includes a native-encoded wardrobe HomeItem (type 1); its WARDROBE screen
+opens. With map slots present the client auto-advances the portal-set
+tutorial quests and can reach ToHQ (COOL zone, unserved): see
+PROJECT_STATUS.md before changing key 70, portal sets or 591 handling.
+
 ## Current scene-transition priority
 The verified reconnect/background-resume APK is published as v0.6.0-reconnect:
 https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.6.0-reconnect.

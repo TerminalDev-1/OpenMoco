@@ -153,3 +153,49 @@ class HomeTests(unittest.TestCase):
                 own_home(identity)
         with self.assertRaises(ValueError):
             own_home(1, 11300000)
+
+
+class PortalTests(unittest.TestCase):
+    def _avatar_after_tracks(self, body):
+        """Reader positioned after the avatar's +40 tracks (one level track)."""
+        from stream import Reader
+        levels = b''.join(__import__('stream').Writer().compact(xp).bytes() for xp in XP_LEVELS)
+        index = body.index(levels) + len(levels)
+        reader = Reader(body[index:])
+        reader.raw(8)
+        self.assertEqual([reader.compact() for _ in range(7)], [0] * 7)
+        self.assertEqual((reader.compact(), reader.compact()), (PLAYER_LEVEL_TRACK, 0))
+        return reader
+
+    def test_season_seconds_are_the_level_track_end(self):
+        from progress import SEASON_SECONDS, SEASON_START, season_seconds_left
+        self.assertEqual(season_seconds_left(SEASON_START), SEASON_SECONDS)
+        self.assertEqual(season_seconds_left(SEASON_START + SEASON_SECONDS - 1), 1)
+        body = own_home(1, xp=1901, season_seconds=86400)
+        self.assertEqual(len(body), len(own_home(1, xp=1901)) + 2)
+        self.assertIn(__import__('stream').Writer().compact(86400).bytes(), body)
+        with self.assertRaises(ValueError):
+            own_home(1, xp=1901, season_seconds=0)
+
+    def test_map_slot_follows_native_entry_0x785f44(self):
+        from home import PORTAL_WORLDS, SHRINE_CANYON
+        reader = self._avatar_after_tracks(own_home(1, xp=1901, worlds=PORTAL_WORLDS, season_seconds=86400))
+        self.assertEqual(reader.compact(), 1)          # +48 map slots.
+        self.assertEqual([reader.compact() for _ in range(5)], [0, 0, 0, 86400, 0])  # Active until season end.
+        # Six absent versioned fields: two share the track's boolean byte
+        # (native reader 0x8d724c keeps its bit position across fields).
+        self.assertEqual(reader.raw(1), bytes(1))
+        self.assertEqual(reader.compact(), 0)          # +48 list.
+        # path/sha object: its three booleans finish that byte's eight.
+        self.assertEqual(int.from_bytes(reader.raw(8), 'big'), SHRINE_CANYON)
+        self.assertEqual([reader.compact() for _ in range(6)], [0] * 6)
+        self.assertEqual((reader.compact(), reader.compact()), (1, 0))  # Slot ID.
+        self.assertEqual(reader.raw(8), bytes(8))
+        self.assertEqual(reader.compact(), 0)
+        self.assertEqual([reader.compact() for _ in range(10 + 3)], [0] * 13)
+        self.assertEqual(reader.remaining, 0)
+        with self.assertRaises(ValueError):
+            own_home(1, worlds=(10900002,))
+
+    def test_no_worlds_keeps_the_previous_layout(self):
+        self.assertEqual(own_home(1, xp=1901, worlds=()), own_home(1, xp=1901))

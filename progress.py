@@ -136,3 +136,16 @@ def intro_main_steps(profile):
     claimed = {INTRO_3, TUTORIAL_NAME_10} | done
     later = sorted((seen | done) - {INTRO_3, TUTORIAL_NAME_10} - set(range(15400000, INTRO_3)))
     return tuple(MainQuestStep(ref, claimed=ref in claimed) for ref in [INTRO_3, TUTORIAL_NAME_10, *later])
+
+
+# Seasons. The client shows "Season ends in" from the season track's
+# remaining seconds (home._level_track). The official schedule is unknown,
+# so this server runs rolling 28-day seasons from a fixed UTC start.
+SEASON_START = 1767571200          # 2026-01-05T00:00:00Z, a Monday.
+SEASON_SECONDS = 28 * 24 * 60 * 60
+
+
+def season_seconds_left(now):
+    """Whole seconds until the current local season ends (always >= 1)."""
+    elapsed = (int(now) - SEASON_START) % SEASON_SECONDS
+    return SEASON_SECONDS - elapsed

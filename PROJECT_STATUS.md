@@ -1,4 +1,77 @@
-# Project status — 2026-10-15
+# Project status — 2026-10-16
+
+## Portal season timer, Shrine Canyon map card and apartment wardrobe (2026-10-16)
+User report: after the hunter name, the portal listed nothing and showed
+"Season ends in 0 s"; the wardrobe was missing. Verified on the tablet
+(tablet screenshots .local/portal-*.png, card-*.png, done-*.png, wardrobe-*.png).
+
+Season timer (server-only). The portal header and home HUD take the season
+from the first avatar +0x40 track with +0x68 type 1, +0x24 == 0 and +0x28 > 0
+(0x4f76e0 -> 0x78d170; the same track as the XP level badge). +0x28 is the
+season's remaining seconds; the label is +0x28 minus time since receipt
+(0x526c48, factor 0.001). We sent 1, hence "0 s". progress.py now runs
+rolling 28-day seasons from 2026-01-05 UTC (provisional; the official
+schedule is unknown). Tablet: "Season ends in 23 d 11 h".
+
+Portal map list (server-only). The portal list (0x5132f8) reads three avatar
+collections after the tracks, each filtered by home key/value 70 (tutorial
+portal set, filter 0x6832f0):
+- +0x48 map slots (0x786524, entry 0x785f44, card 0x5150b4): five ints
+  (+28 opens-in, +2c ends-in seconds), two empty versioned objects, an empty
+  list, an empty path/sha object, map object 0x78636c (raw battle-scene ref,
+  six ints: +8 must equal the season track's +68 +4 (0x6832b4), +14 = portal
+  set), base 0x779e68 (slot ID, empty list), raw ref, empty list.
+- +0x50 = VERSUS cards (entry 0x782890, needs its +38 object); +0x58 = rift
+  sets (0x7743c4). Both stay empty.
+Card state (0x5150b4): -1/-1 = state 0, which ignores presses (0x516f80);
+opens <= now < ends = state 1, which opens the map popup (0x511de0).
+The start check 0x682df0 returns 4 when allowed; TutorialArea (10900002)
+returns 1 (scene flag +0x170 while the portal has no tabs), so the card is
+Shrine Canyon W01_OA01 (10900006), open now, ending with the season.
+BATTLE sends 13222 with the third optional object (0x786738: slot ID, +20);
+scene_requests decodes it. Python answers with the populated Downtown
+snapshot renamed to 10900006 (two compact IDs + the raw selection).
+Tablet (temporary account copy with all tutorials finished, then restored):
+card "EXPEDITION", popup "HUNTING / DRAGONLING WORLD, Closes in 23 d 10 h",
+BATTLE loaded the canyon, the player respawned at the campfire, the
+joystick moved them across a bridge, and minimap Leave Battle returned to
+the apartment. Own-home decode was exact (1402/1402) with a stream-offset
+probe. Known defects: the Downtown monsters are placed by Downtown
+coordinates, so they land on the canyon spawn and knocked the player out
+once on arrival; the canyon has no native population yet. The battle name
+badge says "Local Hunter" (snapshot metadata).
+
+Wardrobe (server-only). HomeItem type enum: 0 Unknown, 1 Wardrobe, 2 Portal,
+3 Shop, 4 Radio, 5 Armoury, 6 Computer, 8 EndGame, 9 TeamUp, 11 Storage.
+A temporary probe added a native HomeItem 2010 (type 1, prefab
+sc3d/pf_keyitem_wardrobe, map marker (1684275,4502323)) to the live
+apartment and saved the client's own re-encoded scene; scene.py uses it as
+the 553-byte apartment template (identity, level and name stay dynamic; the
+Python body matched the native dump byte for byte). Tablet: a purple
+wardrobe cabinet renders, its WARDROBE button opens the wardrobe (face,
+hair, hat, outfit and mount slots) and the face list works (command 543,
+already persisted). Hats/outfits/mounts have no owned items yet.
+
+Tutorial behaviour observed (not changed): with map slots present, the
+client auto-completes the portal-set quests (command 591 advances key 70
+0 -> 1 -> -1 each session; the server does not persist key 70) and moves
+through PortalSet2 -> HunterTrack3 -> ToHQ without playing jobs or the
+rift. HunterTrack steps set the portal INACTIVE (0x6458d4 -> 0x6cbe88)
+until the weapon sprint reward is claimed, and ToHQ sends the player to
+SocialHub (COOL zone), which this server does not serve yet. Real portal
+sets (+0x14 set numbers, jobs, TutorialDungeon) and track rewards remain to
+be implemented. Command 569 appeared in a turn and is not decoded (the
+whole turn is skipped). "Next in 0 s / Complete Jobs" (daily jobs) is not
+fixed.
+
+Account: real state restored from .local/accounts.before-events-20261016.sqlite3
+(PortalSet2, step 14200027); test copies kept as
+.local/accounts.after-events-test*.sqlite3 and accounts.after-portal-maps-soak.sqlite3.
+Client: temporary --apartment-probe build (2d9b45b5..., never published) was
+used and the normal v0.9.0 base (61c11c9b...) is reinstalled; the probe
+script was removed. Manual server: hidden, mode local-portal-maps-wardrobe,
+log captures/user-test-server-portal-wardrobe.log, PID in
+.local/user-test-server.json.
 
 ## Hunter-name SIGN (2026-10-15, verified on the tablet)
 The "YOUR HUNTER NAME" screen (tutorial 15600002, step 14200011) works.

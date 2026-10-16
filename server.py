@@ -54,6 +54,8 @@ MAIN_QUEST_DONE_COMMAND = 576
 # Scene data references supported by this server.
 APARTMENT = 10900000         # Home
 TUTORIAL_AREA = 10900001     # TutorialAreaBasic, "Downtown Chaos"
+SHRINE_CANYON = 10900006     # W01_OA01, the portal's map card
+BATTLE_SCENES = (TUTORIAL_AREA, SHRINE_CANYON)
 SOCIAL_HUB = 10900005        # Selection the client sends when returning home
 
 
@@ -262,8 +264,8 @@ class GameSession:
         self.log('sent encrypted local login reply (29125/v1); home data pending')
 
     def _own_home_body(self, profile):
-        from home import STARTER_VANITY, equipped_look, own_home
-        from progress import intro_main_steps, level_for_xp
+        from home import PORTAL_WORLDS, STARTER_VANITY, equipped_look, own_home
+        from progress import intro_main_steps, level_for_xp, season_seconds_left
         # The apartment scene that follows shows this level over the player.
         # Capped to keep its snapshot field one byte (see scene.apartment_scene).
         self.home_level = min(63, level_for_xp(profile.get('battle_progress', {}).get('xp', 0)))
@@ -275,7 +277,9 @@ class GameSession:
                         tutorials=profile.get('tutorials', {}),
                         main_steps=intro_main_steps(profile),
                         xp=profile.get('battle_progress', {}).get('xp', 0),
-                        name=name)
+                        name=name,
+                        season_seconds=season_seconds_left(time.time()),
+                        worlds=PORTAL_WORLDS)
 
     async def _send_initial_home(self):
         from home import own_home
@@ -296,20 +300,20 @@ class GameSession:
         if self.apartment:
             # Resume the scene saved by the previous session.
             self.current_scene = self.account.profile.get('scene_id', APARTMENT)
-            if self.current_scene == TUTORIAL_AREA:
-                body = progression_tutorial_scene(account_id)
+            if self.current_scene in BATTLE_SCENES:
+                body = progression_tutorial_scene(account_id, self.current_scene)
             else:
                 body = apartment_scene(account_id, level=self.home_level, name=self.home_name)
         else:
             body = self.home_probe
-        if self.battle_bridge is not None and self.current_scene == TUTORIAL_AREA:
+        if self.battle_bridge is not None and self.current_scene in BATTLE_SCENES:
             self.battle_bridge.begin(account_id, self.session)
         await self.send_session(SCENE_START, body)
         if not self.apartment:
             self.state = 'home_scene_probe_sent'
             self.log('sent native-evidenced scene-start probe; client acceptance pending')
             return
-        self.state = 'tutorial_scene_sent' if self.current_scene == TUTORIAL_AREA else 'apartment_scene_sent'
+        self.state = 'tutorial_scene_sent' if self.current_scene in BATTLE_SCENES else 'apartment_scene_sent'
         self.log(f'sent {len(body)}-byte account-bound apartment')
 
     # ----- stage 3: encrypted session -------------------------------------
@@ -404,8 +408,8 @@ class GameSession:
             return
         if self.pending_home_scene and selection.flag and selection.scene_id == SOCIAL_HUB:
             await self._enter_apartment()
-        if selection.scene_id == TUTORIAL_AREA and self.current_scene != TUTORIAL_AREA:
-            await self._enter_tutorial_area()
+        if selection.scene_id in BATTLE_SCENES and self.current_scene not in BATTLE_SCENES:
+            await self._enter_tutorial_area(selection.scene_id)
 
     async def _enter_apartment(self):
         """Second half of return-home: the client asked for its home scene."""
@@ -421,18 +425,18 @@ class GameSession:
         self.state = 'apartment_scene_sent'
         self.log('returned to apartment after client home-scene request')
 
-    async def _enter_tutorial_area(self):
-        """Portal travel from the apartment into Downtown Chaos."""
+    async def _enter_tutorial_area(self, scene=TUTORIAL_AREA):
+        """Portal travel from the apartment into a Downtown street scene."""
         from scene import progression_tutorial_scene
         account_id = self.account.account_id
         if self.battle_bridge is not None:
             self.battle_bridge.begin(account_id, self.session)
-        await self.send_session(SCENE_START, progression_tutorial_scene(account_id))
-        self.current_scene = TUTORIAL_AREA
+        await self.send_session(SCENE_START, progression_tutorial_scene(account_id, scene))
+        self.current_scene = scene
         self.accounts.record_scene(account_id, self.current_scene)
         self._reset_scene_clock()
         self.state = 'tutorial_scene_sent'
-        self.log('sent account-bound TutorialAreaBasic after portal selection')
+        self.log(f'sent account-bound street scene {scene} after portal selection')
 
     async def on_leave_battle(self, plaintext):
         """First half of return-home: send own-home, then wait for the client.

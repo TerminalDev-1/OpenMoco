@@ -31,3 +31,15 @@ class SceneRequestTests(unittest.TestCase):
         for changed in (body+b'\x00', body[:9]+b'\x01'+body[10:], body[:28]+b'\x01'+body[29:]):
             with self.assertRaises(ValueError):
                 decode_scene_request(changed)
+
+
+class MapSlotRequestTests(unittest.TestCase):
+    def test_portal_map_card_battle_request(self):
+        # Captured BATTLE press on the Shrine Canyon card (slot 1), 2026-10-16.
+        from scene_requests import decode_scene_request
+        request = decode_scene_request(bytes.fromhex(
+            '000000000000a652260401000000000000000000000000000000000000000000'))
+        self.assertFalse(request.flag)
+        self.assertEqual(request.scene_id, 10900006)
+        self.assertEqual(request.map_slot, (1, 0))
+        self.assertEqual(request.auxiliary, (0, 0))
