@@ -27,7 +27,7 @@ import json
 import secrets
 import time
 
-from progress import KILL_TARGET, RESCUE_TARGET, XP_LEVELS, credit_jobs
+from progress import KILL_TARGET, RESCUE_TARGET, XP_LEVELS, boost_kill_xp, credit_jobs
 
 TUTORIAL_AREA = 10900001   # Downtown Chaos
 SHRINE_CANYON = 10900006   # W01_OA01
@@ -203,6 +203,7 @@ class BattleBridge:
             progress = profile.setdefault('battle_progress', {})
             # Daily jobs are Shrine Canyon map missions; completing one pays its reward.
             job_xp = credit_jobs(profile, gained, time.time(), account_id) if battle.scene == SHRINE_CANYON else 0
+            kill_xp = boost_kill_xp(profile, kill_xp, time.time())  # Boosted chaos energy.
             progress['xp'] = progress.get('xp', 0) + kill_xp + job_xp
             progress['kills'] = progress.get('kills', 0) + kills
             progress['rescues'] = progress.get('rescues', 0) + rescues

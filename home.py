@@ -266,7 +266,7 @@ def _client_home(writer, account_id, battle_kit, age_category, tutorials, main_s
     _zeros(writer, 6)
 
 
-def _avatar_and_suffix(writer, xp, season_seconds=1, worlds=()):
+def _avatar_and_suffix(writer, xp, season_seconds=1, worlds=(), boosts=()):
     """Avatar 0x77c010, then the own-home auxiliary-event count and suffix.
 
     The avatar's first collection holds resources (entry 0x791cc8: data
@@ -293,9 +293,34 @@ def _avatar_and_suffix(writer, xp, season_seconds=1, worlds=()):
     for slot_id, scene in enumerate(worlds, 1):
         _map_slot(writer, slot_id, scene, season_seconds)
     # +50 Versus cards (0x782f80, entries 0x782890, card 0x515a84) and +58
-    # dungeon sets (0x7743c4) stay empty, then the rest of the avatar.
-    _zeros(writer, 10)
+    # dungeon sets (0x7743c4) stay empty, then +70, +78, +88, +60, +68 and +98.
+    _zeros(writer, 8)
+    # +a8 chaos energy boosts (entries 0x77b430), read by the portal orb.
+    writer.compact(len(boosts))
+    for boost in boosts:
+        _boost(writer, boost)
+    writer.compact(0)  # +b8 (entries 0x781b38)
     _zeros(writer, 3)  # Own-home suffix.
+
+
+@dataclass(frozen=True)
+class Boost:
+    """Avatar +a8 chaos energy boost (0x77b430): the portal orb and the boost
+    bar (0x4b4050) use the first one active now (start <= now < end, seconds),
+    its multiplier (+8) and amount (+c), minus the amount used, which
+    client-home +f8 entries (0x76dba8, +30) record by boost ID."""
+    boost_id: int
+    multiplier: int
+    amount: int
+    start: int
+    end: int
+
+
+def _boost(writer, boost):
+    writer.bit_boolean(True)  # The boost's info object (0x77b54c) is present.
+    writer.compact(boost.boost_id).compact(0).compact(0)
+    writer.compact(boost.start, 64).compact(boost.end, 64)
+    writer.compact(boost.multiplier).compact(boost.amount)
 
 
 def _map_slot(writer, slot_id, scene, ends_in):
@@ -363,7 +388,8 @@ def _level_track(writer, track, season_seconds=1):
 
 
 def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, main_steps=(), xp=0,
-             vanity=(), look=(), name=None, season_seconds=1, worlds=(), weapons=OWNED_WEAPONS, jobs=()):
+             vanity=(), look=(), name=None, season_seconds=1, worlds=(), weapons=OWNED_WEAPONS, jobs=(),
+             boosts=()):
     if not isinstance(account_id, int) or not 0 <= account_id < 1 << 64:
         raise ValueError('Home account ID is outside the native 64-bit range')
     if battle_kit != SMART_BOW:
@@ -396,5 +422,5 @@ def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, m
                  tuple(vanity), tuple(look), xp, tuple(weapons), tuple(jobs))
     if any(scene not in PORTAL_WORLDS for scene in worlds):
         raise ValueError('Unsupported portal world')
-    _avatar_and_suffix(writer, xp, season_seconds, tuple(worlds))
+    _avatar_and_suffix(writer, xp, season_seconds, tuple(worlds), tuple(boosts))
     return writer.bytes()

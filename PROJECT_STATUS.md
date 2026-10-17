@@ -27,15 +27,20 @@ credited Jumper kill showed 1/8 after Leave Battle. Completion on the tablet
 is not seen yet (unit-tested). Gaps: the "Complete Jobs" daily goal and its
 streak (header still says DONEZO / Next in 0 s), official job rewards, claim
 command handling.
-Chaos energy orb (portal no-entry sign), research in progress: the popup
-(class ctor 0x588d48, opened from 0x499e74) shows "<AMOUNT> XP LEFT TO EARN
-FROM HUNTING MONSTERS TODAY" / "OUT OF BATTLE CHAOS ENERGY"; globals
-MONSTER_XP_DAILY_CAP 60000 and the 4x/3x/2x thresholds (50000/37500/22500)
-set the multiplier. In battle its update (0x58956c) reads the player stat
-normalXpAvailableFromEnemies (+0x190). Boost items ("chaos toad") are avatar
-+0xa8 entries (count +0xb4, tooltip 0x4b4300). The home/portal source of the
-XP left is not found yet; the avatar XpPoint resource's second integer is
-not it (tried 60000, no change).
+Boosted chaos energy (the portal orb), verified on the tablet: the orb and
+the boost bar (0x4b4050) read avatar +0xa8 boosts (count +0xb4, entries
+0x77b430: presence bit, info object 0x77b54c {compact ID, two compacts,
+compact64 start and end in seconds}, compact multiplier +8, compact amount
++0xc). The first boost active now (start <= now < end) is shown; the amount
+used comes from client-home +0xf8 entries (0x76dba8, +0x30) keyed by the
+boost ID, which the server does not send yet (so the bar shows left/left).
+With no active boost the orb shows the no-entry sign ("Out of Chaos Energy").
+progress.py now sends one boost a UTC day after ToHQ: globals.csv
+MONSTER_XP_DAILY_CAP 60000, 4x while at least 50000 is left, 3x from 37500,
+2x from 22500, else 1x; the server multiplies kill XP by it and records the
+boosted XP used. Probe build: exact own-home decode (1654/1654); the portal
+shows the 4X Chaos Toad with "12 h 51 m" and the tooltip "BOOSTED CHAOS
+ENERGY LEFT: 60 000/60 000". Normal base 876b08de reinstalled afterwards.
 Tablet note: after the tablet's reboot its wireless-debugging port changed;
 the runner now uses --serial 192.168.1.91:42235 (adb connect).
 

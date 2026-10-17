@@ -228,3 +228,47 @@ def job_quests(profile, now, account_id=0):
         quests.append(Quest(0, job['progress'], target, locations=monsters, main=False,
                             claimed=job['done'], map_slot=SHRINE_CANYON_SLOT))
     return tuple(quests)
+
+
+# Boosted chaos energy (the portal orb). globals.csv: MONSTER_XP_DAILY_CAP
+# 60000 boosted XP a day; the multiplier is 4x while at least 50000 is left,
+# 3x from 37500, 2x from 22500, then 1x. The server applies it to kill XP.
+MONSTER_XP_DAILY_CAP = 60000
+BOOST_TIERS = ((50000, 4), (37500, 3), (22500, 2))
+
+
+def _boost_used(profile, now):
+    saved = profile.get('boost', {})
+    return saved.get('used', 0) if saved.get('day') == _job_day(now) else 0
+
+
+def boost_multiplier(left):
+    for threshold, multiplier in BOOST_TIERS:
+        if left >= threshold:
+            return multiplier
+    return 1
+
+
+def daily_boosts(profile, now):
+    """Avatar +a8 boost for today, or none once today's boosted XP is used up."""
+    from home import Boost
+    if not cool_zone_unlocked(profile):
+        return ()
+    left = MONSTER_XP_DAILY_CAP - _boost_used(profile, now)
+    if left <= 0:
+        return ()
+    day = _job_day(now)
+    return (Boost(day, boost_multiplier(left), left, day * DAY_SECONDS, (day + 1) * DAY_SECONDS),)
+
+
+def boost_kill_xp(profile, kill_xp, now):
+    """Multiply kill XP by today's boost and record the boosted XP used."""
+    if not kill_xp or not cool_zone_unlocked(profile):
+        return kill_xp
+    used = _boost_used(profile, now)
+    left = MONSTER_XP_DAILY_CAP - used
+    if left <= 0:
+        return kill_xp
+    boosted = min(left, kill_xp * boost_multiplier(left))
+    profile['boost'] = {'day': _job_day(now), 'used': used + boosted}
+    return max(kill_xp, boosted)

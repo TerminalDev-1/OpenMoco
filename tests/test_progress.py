@@ -114,3 +114,27 @@ class DailyJobTests(unittest.TestCase):
         self.assertEqual(job_quests(profile, 1792000000), ())
         self.assertEqual(credit_jobs(profile, {10800022: 99}, 1792000000), 0)
         self.assertNotIn('jobs', profile)
+
+
+class ChaosEnergyBoostTests(unittest.TestCase):
+    def test_daily_boost_multiplier_and_budget(self):
+        from progress import DAY_SECONDS, boost_kill_xp, boost_multiplier, daily_boosts
+        self.assertEqual([boost_multiplier(x) for x in (60000, 50000, 49999, 37500, 22500, 22499, 0)],
+                         [4, 4, 3, 3, 2, 1, 1])
+        profile = {'tutorials': {'15600009': 0}}
+        now = 1792000000
+        boost, = daily_boosts(profile, now)
+        self.assertEqual((boost.multiplier, boost.amount), (4, 60000))
+        self.assertTrue(boost.start <= now < boost.end and boost.end - boost.start == DAY_SECONDS)
+        self.assertEqual(boost_kill_xp(profile, 10, now), 40)  # 4x while boosted.
+        self.assertEqual(daily_boosts(profile, now)[0].amount, 59960)
+        profile['boost']['used'] = 59990
+        self.assertEqual(boost_kill_xp(profile, 10, now), 10)  # Only 10 boosted XP was left.
+        self.assertEqual(daily_boosts(profile, now), ())     # Out of chaos energy today.
+        self.assertEqual(daily_boosts(profile, now + DAY_SECONDS)[0].amount, 60000)  # Next day.
+        self.assertEqual(daily_boosts({'tutorials': {}}, now), ())
+
+    def test_boost_encoding_is_an_avatar_a8_entry(self):
+        from home import Boost, own_home
+        plain, boosted = own_home(1), own_home(1, boosts=(Boost(7, 4, 60000, 100, 200),))
+        self.assertEqual(len(boosted) - len(plain), 1 + 1 + 1 + 1 + 2 + 2 + 1 + 3)
