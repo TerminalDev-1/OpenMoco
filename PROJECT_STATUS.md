@@ -41,6 +41,15 @@ MONSTER_XP_DAILY_CAP 60000, 4x while at least 50000 is left, 3x from 37500,
 boosted XP used. Probe build: exact own-home decode (1654/1654); the portal
 shows the 4X Chaos Toad with "12 h 51 m" and the tooltip "BOOSTED CHAOS
 ENERGY LEFT: 60 000/60 000". Normal base 876b08de reinstalled afterwards.
+Chaos cores (next): they are battle-end loot. The battle-end screen
+(ctor 0x488950, called from the message router at 0x5bf530 for message
+23200 = 0x5aa0, decoder 0x760bd8) takes its data from the 23200 message:
++0x9c, +0xb8, +0xc8, +0xd0 (the drops list: "OPEN CHAOS CORE(S)" when its
+count +0xc is 1/more, else "RETURN HOME", 0x48ad10), +0xd8 and a string
++0x118. The server never sends 23200 (Leave Battle goes straight home), so
+the summary and chaos cores are missing. Next: decode the full 23200 layout
+and its drop entries, send it on Leave Battle with server-rolled drops, then
+handle opening/claiming them and the resulting gear.
 Tablet note: after the tablet's reboot its wireless-debugging port changed;
 the runner now uses --serial 192.168.1.91:42235 (adb connect).
 
