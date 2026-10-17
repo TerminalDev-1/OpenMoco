@@ -109,6 +109,7 @@ class GameSession:
         self.home_name = DEFAULT_PLAYER_NAME
         self.last_clock_request = None
         self.pending_battle_xp = 0  # Server-credited XP not yet sent to the battle.
+        self.battle_end_sent = False
 
     # ----- logging and capture files -------------------------------------
 
@@ -487,12 +488,16 @@ class GameSession:
         asynchronous exit, after which it sends a flagged SocialHub selection.
         We wait for that request instead of racing teardown with a scene.
         """
-        if plaintext != b'\x00':
+        if plaintext not in (b'\x00', b'\x01'):  # 01: EXIT on the battle-end summary
             self.log('unsupported leave-battle options')
             return
         if self.current_scene in (APARTMENT, SOCIAL_HUB) or self.pending_home_scene:
             return
         account_id = self.account.account_id
+        if plaintext == b'\x00' and self.current_scene == SHRINE_CANYON and not self.battle_end_sent:
+            await self._send_battle_end()
+            return
+        self.battle_end_sent = False
         if self.accounts.complete_intro_quest(account_id):
             self.log('Intro_3 earned: Portal tutorial advanced to ClaimQuests')
         saved = self.accounts.authenticate(account_id, self.account.token).profile
@@ -500,6 +505,21 @@ class GameSession:
         self.pending_home_scene = True
         self.state = 'awaiting_home_scene_request'
         self.log('sent home profile; awaiting client home-scene request')
+
+    async def _send_battle_end(self):
+        """Battle-end summary (23200) with the battle's chaos cores.
+
+        The client shows it and answers its EXIT with 13223 body 01, which
+        then takes the usual own-home -> home-scene path.
+        """
+        from battle_end import BATTLE_END, GEAR_DROP, Drop, battle_end
+        from progress import open_chaos_cores
+        with self.accounts.edit_profile(self.account.account_id) as profile:
+            gems = open_chaos_cores(profile)  # Saved before the summary is shown.
+        drops = tuple(Drop(GEAR_DROP, gem, count) for gem, count in gems)
+        await self.send_session(BATTLE_END, battle_end(self.current_scene, drops, self.account.account_id, self.home_name))
+        self.battle_end_sent = True
+        self.log(f'sent battle end summary with {sum(count for _, count in gems)} chaos core gems')
 
     # ----- simulation clock -----------------------------------------------
 

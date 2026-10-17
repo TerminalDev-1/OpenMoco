@@ -138,3 +138,40 @@ class ChaosEnergyBoostTests(unittest.TestCase):
         from home import Boost, own_home
         plain, boosted = own_home(1), own_home(1, boosts=(Boost(7, 4, 60000, 100, 200),))
         self.assertEqual(len(boosted) - len(plain), 1 + 1 + 1 + 1 + 2 + 2 + 1 + 3)
+
+
+class ChaosCoreTests(unittest.TestCase):
+    def test_power_gem_references_follow_gear_rows(self):
+        from progress import power_gem
+        self.assertEqual(power_gem(0, 1), 11301977)   # DamageGemRare
+        self.assertEqual(power_gem(5, 2), 11301998)   # HealthGemEpic
+        self.assertEqual(power_gem(7, 3), 11302007)   # DodgeGemLegendary
+        for bad in [(-1, 0), (8, 0), (0, 4)]:
+            with self.assertRaises(ValueError):
+                power_gem(*bad)
+
+    def test_rolls_by_toughness_cap_and_open(self):
+        import random
+        from progress import MAX_PENDING_CORES, open_chaos_cores, roll_chaos_cores
+        table = {10800022: 2, 10800038: 10, 10800056: 176}
+        profile = {}
+        self.assertEqual(roll_chaos_cores(profile, {10800056: 2, 10800212: 50}, table, random.Random(1)), 2)
+        self.assertEqual(len(profile['pending_cores']), 2)   # Bosses always drop; Meat never.
+        roll_chaos_cores(profile, {10800022: 100000}, table, random.Random(2))
+        self.assertEqual(len(profile['pending_cores']), MAX_PENDING_CORES)
+        pending = list(profile['pending_cores'])
+        opened = open_chaos_cores(profile)
+        self.assertEqual(sum(count for _, count in opened), MAX_PENDING_CORES)
+        self.assertEqual(sorted(g for g, _ in opened), sorted(set(pending)))
+        self.assertTrue(all(11301976 <= g <= 11302007 for g in pending))
+        self.assertEqual(sum(profile['power_gems'].values()), MAX_PENDING_CORES)
+        self.assertNotIn('pending_cores', profile)
+        self.assertEqual(open_chaos_cores(profile), [])    # Opening twice gives nothing.
+        self.assertEqual(sum(profile['power_gems'].values()), MAX_PENDING_CORES)
+
+    def test_weak_kills_rarely_drop(self):
+        import random
+        from progress import roll_chaos_cores
+        profile = {}
+        roll_chaos_cores(profile, {10800022: 100}, {10800022: 2}, random.Random(3))
+        self.assertLess(len(profile.get('pending_cores', [])), 10)

@@ -1,5 +1,52 @@
 # Project status — 2026-10-16
 
+## Chaos cores: battle-end summary 23200 with server-rolled power gems (2026-10-17)
+Leave Battle in Shrine Canyon (13223 body 00) now gets the battle-end summary
+23200 (battle_end.py) instead of going straight home. EXIT on the summary
+sends 13223 body 01, which takes the usual own-home -> home-scene path.
+Layout (decoder 0x760bd8): see battle_end.py. The +0xb8 player list must hold
+the local player ("is me" bit); an empty list crashed at 0x49076c.
+Drops (+0xd0, entries 0x763c94: compact kind, raw data reference, compact
+amount, two compacts) go to the gained-items screen 0x4d1598 (mode 3), whose
+kind switch at 0x4d1d64 picks:
+- 0xc gear, 0x53bf38 "BattleEndNewGearAppear" (power gem rarity when the gear
+  type +0x49c is 5). Gear is data table 113 (reference 11300000 + row; gear.csv
+  is loaded with type 0x71 at 0x6b2360). A legacy weapon (WhirlwindAxe
+  11300073) aborted the summary with "map::at: key not found"; power gems
+  work.
+- 0x15 / 0x1b battle-kit shader unlocks (0x4a844c); a gear reference there
+  segfaulted (fault address 0x78) when opened.
+- 0xa / 0xb skin popovers (not tried).
+- anything else: generic resource reward 0x4de0e4. In mode 3 it animates
+  towards a home HUD widget (global +0x400) that is null after a battle, so
+  it crashes at 0x4de43c for any reference (kind 0 / 300004 crashed).
+Gear drops reveal straight into the summary's LOOT row. Other kinds wait
+behind "OPEN CHAOS CORE(S)".
+Implementation (progress.py, battle_bridge.py, server.py): every credited
+canyon kill may drop a chaos core holding one power gem (gear rows 1976..2007:
+eight gem types, Common/Rare/Epic/Legendary). The cores stay pending in the
+profile (at most 10). Leave Battle opens them: the gems are saved in
+profile['power_gems'], then shown on the summary, grouped with their amount.
+PROVISIONAL: drop chances (weak 3%, strong 15%, bosses always) and rarity
+weights 70/22/7/1 are this server's choice. globals.csv has
+NORMAL/STRONG/BOSS_MONSTER_GEAR_CHANCE 5/50/1500 and POWERGEM_* constants,
+but their units are not known.
+Tablet (normal client, normal base, experiment server with fixed drops):
+three gems (Damage Rare, AttackSpeed Common, Health Epic) revealed on the
+summary; EXIT went home to the COOL zone with no crash.
+Soak with the final code (real account DB copy; backup
+.local/accounts.before-chaos-cores-20261017.sqlite3, restored afterwards;
+log captures/user-test-server-core-soak.log): 6 portal entries with combat
+and 5 warm Leave Battle -> summary -> EXIT -> COOL zone cycles on one client
+process (pid 26844), no crash. The weak-monster kills rolled no core
+(provisional 3%), so two cores were put in the profile's pending list
+mid-soak. The next summary showed DamageGemLegendary and AttackSpeedGemRare,
+and the profile then held them in power_gems with nothing pending.
+Gaps: the gems are not yet sent in own-home, so the game's own gem inventory
+does not show them; the summary avatar has no head (its look object is sent
+empty); no other reward kinds; the official core contents and chances are
+unknown.
+
 ## Daily jobs / map missions, server side (2026-10-17, verified on the tablet)
 Map missions ("Jobs" in the portal) are native Quests in client-home +0xa0
 without a data reference. Findings (quest category filter 0x78eeb4, card job

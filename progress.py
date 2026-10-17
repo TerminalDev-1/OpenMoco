@@ -272,3 +272,71 @@ def boost_kill_xp(profile, kill_xp, now):
     boosted = min(left, kill_xp * boost_multiplier(left))
     profile['boost'] = {'day': _job_day(now), 'used': used + boosted}
     return max(kill_xp, boosted)
+
+
+# Chaos cores. The battle-end summary (battle_end.py, 23200) reveals each drop;
+# drop kind 0xc is gear (0x53bf38 "BattleEndNewGearAppear"), and the gear the
+# client shows from a core is a power gem (gear.csv Type PowerGem, data table
+# 113: reference 11300000 + row). Rows 1976..2007 are the enabled gems: eight
+# gem types, each Common/Rare/Epic/Legendary (Rarity 0..3).
+# The server rolls one core per lucky credited kill and keeps it pending until
+# the battle ends. PROVISIONAL: the chances and rarity weights below are this
+# server's choice. globals.csv has NORMAL/STRONG/BOSS_MONSTER_GEAR_CHANCE
+# 5/50/1500 and POWERGEM_* constants, but their units and use are not known.
+GEAR_TABLE = 11300000
+POWER_GEM_FIRST_ROW = 1976
+POWER_GEM_TYPES = 8              # Damage, DamageBelow20, AttackSpeed, Cooldown,
+                                 # Healing, Health, HealingReceived, Dodge
+POWER_GEM_RARITY_WEIGHTS = (70, 22, 7, 1)
+CORE_CHANCE_PER_10000 = ((88, 10000), (10, 1500), (0, 300))  # by kill XP: boss, strong, weak
+MAX_PENDING_CORES = 10
+
+
+def power_gem(gem_type, rarity):
+    if not 0 <= gem_type < POWER_GEM_TYPES or not 0 <= rarity < len(POWER_GEM_RARITY_WEIGHTS):
+        raise ValueError('Unknown power gem')
+    return GEAR_TABLE + POWER_GEM_FIRST_ROW + gem_type * len(POWER_GEM_RARITY_WEIGHTS) + rarity
+
+
+def _core_chance(kill_xp):
+    for threshold, chance in CORE_CHANCE_PER_10000:
+        if kill_xp >= threshold:
+            return chance
+    return 0
+
+
+def roll_chaos_cores(profile, gains, kill_xp_table, rng=None):
+    """Roll chaos cores for credited kills {character ID: count}.
+
+    Each new core holds one power gem; it stays in profile['pending_cores']
+    until the battle-end summary delivers it. Returns the number of new cores.
+    """
+    import random
+    rng = rng or random.SystemRandom()
+    pending = profile.setdefault('pending_cores', [])
+    new = 0
+    for character in sorted(gains):
+        chance = _core_chance(kill_xp_table[character]) if character in kill_xp_table else 0
+        for _ in range(gains[character]):
+            if len(pending) >= MAX_PENDING_CORES:
+                return new
+            if rng.randrange(10000) < chance:
+                rarity = rng.choices(range(len(POWER_GEM_RARITY_WEIGHTS)), POWER_GEM_RARITY_WEIGHTS)[0]
+                pending.append(power_gem(rng.randrange(POWER_GEM_TYPES), rarity))
+                new += 1
+    return new
+
+
+def open_chaos_cores(profile):
+    """Move pending cores into the saved power gems.
+
+    Returns [(gem reference, count)] for the battle-end summary, in a stable
+    order. The gems are saved before the summary is sent.
+    """
+    pending = profile.pop('pending_cores', [])
+    gems = profile.setdefault('power_gems', {})
+    counts = {}
+    for gem in pending:
+        counts[gem] = counts.get(gem, 0) + 1
+        gems[str(gem)] = gems.get(str(gem), 0) + 1
+    return sorted(counts.items())

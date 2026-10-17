@@ -185,3 +185,32 @@ class SessionXpTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class BattleEndTests(unittest.TestCase):
+    def test_summary_layout_with_gem_drops(self):
+        import struct
+        from battle_end import GEAR_DROP, Drop, battle_end
+        from stream import Reader
+        body = battle_end(10900006, (Drop(GEAR_DROP, 11301977, 2),), account_id=0x80000001, name='hi')
+        reader = Reader(body)
+        self.assertEqual([reader.compact() for _ in range(4)], [0, 0, 0, 0])
+        self.assertEqual(reader.compact(), 1)                        # one player
+        self.assertEqual(struct.unpack('>Q', reader.raw(8))[0], 0x80000001)
+        # The drop entry closes the body before compact +0xd8, the seven
+        # absent objects and the empty string.
+        tail = bytes([0x0c]) + struct.pack('>Q', 11301977) + bytes([2, 0, 0])
+        self.assertIn(tail, body)
+        self.assertTrue(body.endswith(bytes(4)))
+
+    def test_canyon_kills_roll_pending_cores(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        store = AccountStore(Path(folder.name)/'accounts.sqlite3')
+        account = store.authenticate(0, None)
+        bridge = BattleBridge(store, 'a'*64)
+        epoch = bridge.begin(account.account_id, 'one', SHRINE_CANYON)
+        bridge.active[account.account_id].started -= 3600
+        bridge.report(account.account_id, epoch, {'10800056': 2})   # Bosses always drop a core.
+        with store.edit_profile(account.account_id) as profile:
+            self.assertEqual(len(profile['pending_cores']), 2)
