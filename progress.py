@@ -157,3 +157,74 @@ TO_HQ_TUTORIAL = 15600009  # tutorials.csv ToHQ (instance 9)
 def cool_zone_unlocked(profile):
     """True once the ToHQ tutorial, which leads to the COOL zone, is reached."""
     return str(TO_HQ_TUTORIAL) in profile.get('tutorials', {})
+
+
+# Daily jobs (the portal's map missions). A job is a native Quest with no
+# data reference: +4 type 1 (defeat), +20 the monster references (the card
+# reads "Hunt <first monster's TID>_M"), +60 the map card slot it belongs to.
+# The pool and targets are this server's choice; the official generator and
+# rewards are unknown. JOB_XP_REWARD is PROVISIONAL.
+SHRINE_CANYON_SLOT = 1           # home.PORTAL_WORLDS slot ID of Shrine Canyon
+JOB_POOL = (
+    ((10800022, 10800027), 30),  # Hunt Drogs (weak melee and ranged)
+    ((10800038,), 8),            # Hunt Jumpers
+    ((10800269,), 8),            # Hunt Slashers
+    ((10800449,), 1),            # Hunt Jugglers (zone boss)
+)
+JOBS_PER_DAY = 3
+JOB_XP_REWARD = 100
+DAY_SECONDS = 24 * 60 * 60
+
+
+def _job_day(now):
+    return int(now) // DAY_SECONDS
+
+
+def daily_jobs(profile, now, account_id=0):
+    """Today's jobs: saved progress for today, or a fresh deterministic pick."""
+    import random
+    day = _job_day(now)
+    saved = profile.get('jobs')
+    if saved and saved.get('day') == day:
+        return saved['list']
+    picks = random.Random(day * 1000003 + account_id).sample(range(len(JOB_POOL)), JOBS_PER_DAY)
+    return [{'pool': pick, 'progress': 0, 'done': False} for pick in sorted(picks)]
+
+
+def credit_jobs(profile, gains, now, account_id=0):
+    """Advance today's jobs with credited kills {character ID: count}.
+
+    Returns the reward XP of the jobs completed by these kills. A completed
+    job is marked done (claimed) and its reward is granted once.
+    """
+    if not cool_zone_unlocked(profile):
+        return 0
+    jobs = daily_jobs(profile, now, account_id)
+    reward = 0
+    for job in jobs:
+        monsters, target = JOB_POOL[job['pool']]
+        if job['done']:
+            continue
+        job['progress'] = min(target, job['progress'] + sum(gains.get(m, 0) for m in monsters))
+        if job['progress'] >= target:
+            job['done'] = True
+            reward += JOB_XP_REWARD
+    profile['jobs'] = {'day': _job_day(now), 'list': jobs}
+    return reward
+
+
+def job_quests(profile, now, account_id=0):
+    """Native Quest objects for today's jobs (home._quest).
+
+    Jobs start once the tutorial has led the player to the COOL zone, so they
+    never mix with the tutorial's own portal quests.
+    """
+    from home import Quest
+    if not cool_zone_unlocked(profile):
+        return ()
+    quests = []
+    for job in daily_jobs(profile, now, account_id):
+        monsters, target = JOB_POOL[job['pool']]
+        quests.append(Quest(0, job['progress'], target, locations=monsters, main=False,
+                            claimed=job['done'], map_slot=SHRINE_CANYON_SLOT))
+    return tuple(quests)

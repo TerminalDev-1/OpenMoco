@@ -268,7 +268,7 @@ class GameSession:
 
     def _own_home_body(self, profile):
         from home import PORTAL_WORLDS, STARTER_VANITY, equipped_look, own_home
-        from progress import intro_main_steps, level_for_xp, season_seconds_left
+        from progress import intro_main_steps, job_quests, level_for_xp, season_seconds_left
         # The apartment scene that follows shows this level over the player.
         # Capped to keep its snapshot field one byte (see scene.apartment_scene).
         self.home_level = min(63, level_for_xp(profile.get('battle_progress', {}).get('xp', 0)))
@@ -282,7 +282,8 @@ class GameSession:
                         xp=profile.get('battle_progress', {}).get('xp', 0),
                         name=name,
                         season_seconds=season_seconds_left(time.time()),
-                        worlds=PORTAL_WORLDS)
+                        worlds=PORTAL_WORLDS,
+                        jobs=job_quests(profile, time.time(), self.account.account_id))
 
     async def _send_initial_home(self):
         from home import own_home

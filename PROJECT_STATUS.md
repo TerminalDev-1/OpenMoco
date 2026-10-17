@@ -1,5 +1,35 @@
 # Project status — 2026-10-16
 
+## Daily jobs / map missions, server side (2026-10-17, verified on the tablet)
+Map missions ("Jobs" in the portal) are native Quests in client-home +0xa0
+without a data reference. Findings (quest category filter 0x78eeb4, card job
+count 0x78f780, daily goal 0x78fc24, completion 0x78e108):
+- +4 is the QuestType (1 = defeat); +8 progress, +c target; +0x40 claimed;
+  0x78e108 counts a quest complete when progress >= target and not claimed.
+- +0x20 (count +0x28, raw references via 0x83c13c) are the target monsters:
+  the card reads "Hunt <first monster's TID>_M" (e.g. Jumpers, Slashers).
+- +0x60 is the portal map card slot ID (avatar +0x48 slot) the job belongs
+  to; with +0x5c == 0 it is a daily map job (categories 2..4, 25). +0x50 > 0
+  marks bounties, +0x48 main quests, +0x88 > 0 the type-36 daily goal
+  ("Complete Jobs"), which also reads an avatar +0x88 object of type 0x1195
+  (next-job timer +0x24, streak +0x2c) that is not sent yet.
+Implementation (progress.py, battle_bridge.py, home.py): three jobs a UTC day
+from a server pool for the Shrine Canyon card (Hunt Drogs 30, Jumpers 8,
+Slashers 8, Juggler 1), chosen deterministically per account and day, saved
+in the profile once progress starts. Server-credited canyon kills advance
+them; a completed job is marked claimed and pays JOB_XP_REWARD (100 XP,
+PROVISIONAL) once, also sent to the running battle. Jobs start only after
+ToHQ (no mixing with tutorial quests).
+Tablet (normal client, real account; backup
+.local/accounts.before-jobs-20261017.sqlite3): the canyon card shows Hunt
+Jumpers 0/8, Hunt Slashers 0/8, Hunt Juggler 0/1 with monster models; one
+credited Jumper kill showed 1/8 after Leave Battle. Completion on the tablet
+is not seen yet (unit-tested). Gaps: the "Complete Jobs" daily goal and its
+streak (header still says DONEZO / Next in 0 s), official job rewards, claim
+command handling.
+Tablet note: after the tablet's reboot its wireless-debugging port changed;
+the runner now uses --serial 192.168.1.91:42235 (adb connect).
+
 ## Next: server-side jobs, mission quests and chaos cores (2026-10-16, research notes)
 User direction: rewards and future systems stay server side. Findings so far:
 - Commands: 583 (decoder 0x687fa8) reports a feature-unlock screen shown
@@ -7,6 +37,10 @@ User direction: rewards and future systems stay server side. Findings so far:
   carries one data reference (SocialHub 10900005 in the COOL zone). Both are
   decoded now, so those turns are no longer dropped; neither is persisted yet,
   so the MERCH SHOP unlock popup can show again.
+- Correction (user, 2026-10-17): chaos cores are NOT the upgrade cores below;
+  they are the monster loot opened after battle ("OPEN CHAOS CORE",
+  "monsters have a higher chance to drop Chaos Cores", "Chaos Cores and Chaos
+  Kits increase the power of your gear"). Earlier wrong note kept for context:
 - Chaos cores are the weapons' UPGRADE CORES (TID_PANDORA_CHAOS_CORE "Upgrade
   Core", resources PowerGem and the Damage/Healing/Cooldown/AttackSpeed gems;
   texts: monsters drop them, "The tougher the monster, the more likely").

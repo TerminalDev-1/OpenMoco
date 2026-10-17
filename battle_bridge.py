@@ -27,7 +27,7 @@ import json
 import secrets
 import time
 
-from progress import KILL_TARGET, RESCUE_TARGET, XP_LEVELS
+from progress import KILL_TARGET, RESCUE_TARGET, XP_LEVELS, credit_jobs
 
 TUTORIAL_AREA = 10900001   # Downtown Chaos
 SHRINE_CANYON = 10900006   # W01_OA01
@@ -88,7 +88,8 @@ def _credit(scene, record, counts, elapsed):
     """Credit a report against one battle's record.
 
     record = {'seen': high-water counts, 'credited': credited counts}, keyed
-    by character ID string. Returns (new record, kills, rescues, kill XP).
+    by character ID string. Returns (new record, kills, rescues, kill XP,
+    {character ID: newly credited count}).
     """
     kill_xp_table, rescuable = SCENE_KILL_XP[scene], SCENE_RESCUES[scene]
     seen = dict(record.get('seen', {}))
@@ -99,6 +100,7 @@ def _credit(scene, record, counts, elapsed):
             seen[key] = max(seen.get(key, 0), count)
     budget = KILL_BURST + int(KILL_RATE * max(0.0, elapsed)) - sum(credited.values())
     kills = rescues = kill_xp = 0
+    gained = {}
     for key in sorted(seen):
         gain = min(seen[key] - credited.get(key, 0), budget)
         if gain <= 0:
@@ -106,12 +108,13 @@ def _credit(scene, record, counts, elapsed):
         budget -= gain
         credited[key] = credited.get(key, 0) + gain
         character = int(key)
+        gained[character] = gain
         if character in kill_xp_table:
             kills += gain
             kill_xp += gain * kill_xp_table[character]
         else:
             rescues += gain
-    return {'seen': seen, 'credited': credited}, kills, rescues, kill_xp
+    return {'seen': seen, 'credited': credited}, kills, rescues, kill_xp, gained
 
 
 def _battle_xp(scene, record):
@@ -192,13 +195,15 @@ class BattleBridge:
             row = db.execute('SELECT account,counts FROM battle_reports WHERE epoch=?', (epoch,)).fetchone()
             if row is None or row[0] != account_id:
                 raise ValueError('Unknown battle epoch')
-            record, kills, rescues, kill_xp = _credit(battle.scene, json.loads(row[1]), counts, elapsed)
+            record, kills, rescues, kill_xp, gained = _credit(battle.scene, json.loads(row[1]), counts, elapsed)
             saved_row = db.execute('SELECT profile FROM accounts WHERE id=?', (row_id,)).fetchone()
             if saved_row is None:
                 raise ValueError('Unknown account')
             profile = json.loads(saved_row[0])
             progress = profile.setdefault('battle_progress', {})
-            progress['xp'] = progress.get('xp', 0) + kill_xp
+            # Daily jobs are Shrine Canyon map missions; completing one pays its reward.
+            job_xp = credit_jobs(profile, gained, time.time(), account_id) if battle.scene == SHRINE_CANYON else 0
+            progress['xp'] = progress.get('xp', 0) + kill_xp + job_xp
             progress['kills'] = progress.get('kills', 0) + kills
             progress['rescues'] = progress.get('rescues', 0) + rescues
             progress['tutorial_ready'] = progress['kills'] >= KILL_TARGET and progress['rescues'] >= RESCUE_TARGET
@@ -208,8 +213,10 @@ class BattleBridge:
         if kills or rescues:
             print(f'Battle progress: +{kills} kills, +{rescues} rescues, +{kill_xp} kill XP; '
                   f'tutorial_ready={progress["tutorial_ready"]}', flush=True)
-        if kill_xp and battle.grant is not None:
-            battle.grant(kill_xp)
+        if job_xp:
+            print(f'Daily job completed: +{job_xp} XP', flush=True)
+        if kill_xp + job_xp and battle.grant is not None:
+            battle.grant(kill_xp + job_xp)
         return dict(progress, epoch=epoch,
                     **self._xp_display(progress['xp'], _battle_xp(battle.scene, record)))
 

@@ -92,10 +92,16 @@ def equipped_look(saved):
 @dataclass(frozen=True)
 class Quest:
     """One active quest, e.g. Intro_3_1 'defeat 50 monsters'."""
-    reference: int          # main_quest_step_quests data reference (155xxxxx)
+    reference: int          # main_quest_step_quests data reference (155xxxxx), or 0
     progress: int
     target: int
     event: str = None       # QuestEventTypeCond, e.g. 'Civilian'
+    quest_type: int = 1     # +4, QuestType (1 = defeat monsters)
+    locations: tuple = ()   # +20 raw data references, e.g. battle scenes
+    main: bool = True       # +41, a main-quest quest (False for map missions/jobs)
+    claimed: bool = False   # +40; 0x78e108 counts a quest complete when progress >= target and not claimed
+    job: int = 0            # +88, nonzero for the type-36 daily goal (0x78fc24)
+    map_slot: int = 0       # +60, the portal map card (avatar +48 slot ID) a daily job belongs to
 
 
 @dataclass(frozen=True)
@@ -118,24 +124,28 @@ def _ref(writer, reference):
 def _quest(writer, quest_id, quest):
     """Native Quest 0x78da48; fields as created from Intro_3_1/2 by 0x78e130."""
     writer.compact(quest_id)              # +0 unique ID from collection +0 (0x78ff08)
-    writer.compact(1)                     # +4
+    writer.compact(quest.quest_type)      # +4 quest type
     writer.compact(min(quest.progress, quest.target))  # +8 progress
     writer.compact(quest.target)          # +c target
     writer.compact(0)                     # +18 objective list
-    writer.compact(0)                     # +28 reference list
+    writer.compact(len(quest.locations))  # +28 count, +20 raw references (0x83c13c)
+    for location in quest.locations:
+        _ref(writer, location)
     for _ in range(4):                    # +34..+37
         writer.bit_boolean(False)
     writer.string(quest.event)            # +38 event-type filter
-    writer.bit_boolean(False)             # +40
-    writer.bit_boolean(True)              # +41 main-quest quest
+    writer.bit_boolean(quest.claimed)     # +40 claimed
+    writer.bit_boolean(quest.main)        # +41 main-quest quest
     writer.compact(0)                     # +44
     _ref(writer, quest.reference)         # +48 quest data
-    _zeros(writer, 5)                     # +50..+60
+    _zeros(writer, 4)                     # +50 (bounty when > 0), +54, +58, +5c (0 = daily job)
+    writer.compact(quest.map_slot)        # +60 map card slot: jobs filter 0x78eeb4 categories 2..4, 25
     writer.compact(-1)                    # +30 (constructor default -1)
     writer.compact(0)                     # +64
     writer.bit_boolean(False)             # optional +68 object absent
     writer.bit_boolean(False)             # optional +80 object absent
-    _zeros(writer, 2)                     # +88, +8c
+    writer.compact(quest.job)             # +88 job marker
+    writer.compact(0)                     # +8c
 
 
 def _track_record(writer, track, xp):
@@ -151,9 +161,9 @@ def _track_record(writer, track, xp):
     _zeros(writer, 1 + 6)
 
 
-def _quest_state(writer, main_steps, xp=0):
+def _quest_state(writer, main_steps, xp=0, jobs=()):
     """Home +a0 quest collection, +e8 track progress and +f0 main quests."""
-    quests = [quest for step in main_steps for quest in step.quests]
+    quests = [quest for step in main_steps for quest in step.quests] + list(jobs)
     # +a0 header: next quest ID, then three unknown integers.
     writer.compact(len(quests))
     _zeros(writer, 3)
@@ -196,7 +206,7 @@ def _owned_weapons(writer, kits):
 
 
 def _client_home(writer, account_id, battle_kit, age_category, tutorials, main_steps, vanity, look, xp,
-                 weapons=OWNED_WEAPONS):
+                 weapons=OWNED_WEAPONS, jobs=()):
     writer.raw(struct.pack('>Q', account_id))  # Home's two raw ID words.
     # Empty resources, home events, and native default battle-kit entry.
     _zeros(writer, 3)
@@ -231,7 +241,7 @@ def _client_home(writer, account_id, battle_kit, age_category, tutorials, main_s
     _zeros(writer, 3)
     writer.bit_boolean(False)
     _zeros(writer, 2)  # +90 count, +98.
-    _quest_state(writer, main_steps, xp)
+    _quest_state(writer, main_steps, xp, jobs)
     _zeros(writer, 4)  # +f8, +100 (header + count), +110.
     # Home +0x118, collection 0x7966e8, entry 0x7969a0.
     # Each entry encodes tutorial first, step second, as raw 64-bit refs.
@@ -353,7 +363,7 @@ def _level_track(writer, track, season_seconds=1):
 
 
 def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, main_steps=(), xp=0,
-             vanity=(), look=(), name=None, season_seconds=1, worlds=(), weapons=OWNED_WEAPONS):
+             vanity=(), look=(), name=None, season_seconds=1, worlds=(), weapons=OWNED_WEAPONS, jobs=()):
     if not isinstance(account_id, int) or not 0 <= account_id < 1 << 64:
         raise ValueError('Home account ID is outside the native 64-bit range')
     if battle_kit != SMART_BOW:
@@ -383,7 +393,7 @@ def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, m
     for _ in range(3):
         writer.integer(0)
     _client_home(writer, account_id, battle_kit, age_category, entries, tuple(main_steps),
-                 tuple(vanity), tuple(look), xp, tuple(weapons))
+                 tuple(vanity), tuple(look), xp, tuple(weapons), tuple(jobs))
     if any(scene not in PORTAL_WORLDS for scene in worlds):
         raise ValueError('Unsupported portal world')
     _avatar_and_suffix(writer, xp, season_seconds, tuple(worlds))

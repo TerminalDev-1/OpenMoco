@@ -85,3 +85,32 @@ class QuestEncodingTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class DailyJobTests(unittest.TestCase):
+    def test_jobs_follow_the_day_progress_and_pay_once(self):
+        from progress import JOB_POOL, JOB_XP_REWARD, JOBS_PER_DAY, credit_jobs, daily_jobs, job_quests
+        profile = {'tutorials': {'15600009': 0}}
+        now = 1792000000
+        jobs = daily_jobs(profile, now, 7)
+        self.assertEqual(len(jobs), JOBS_PER_DAY)
+        self.assertEqual(jobs, daily_jobs(profile, now + 60, 7))  # Same day, same jobs.
+        first = JOB_POOL[jobs[0]['pool']]
+        monster, target = first[0][0], first[1]
+        self.assertEqual(credit_jobs(profile, {monster: target - 1}, now, 7), 0)
+        self.assertEqual(profile['jobs']['list'][0]['progress'], target - 1)
+        self.assertEqual(credit_jobs(profile, {monster: 5}, now, 7), JOB_XP_REWARD)
+        self.assertEqual(credit_jobs(profile, {monster: 5}, now, 7), 0)  # Paid once.
+        quest = job_quests(profile, now, 7)[0]
+        self.assertEqual((quest.progress, quest.target, quest.claimed, quest.main, quest.map_slot),
+                         (target, target, True, False, 1))
+        self.assertEqual(quest.locations, first[0])
+        # A new day brings fresh jobs.
+        self.assertTrue(all(j['progress'] == 0 for j in daily_jobs(profile, now + 86400, 7)))
+
+    def test_no_jobs_during_the_tutorial(self):
+        from progress import credit_jobs, job_quests
+        profile = {'tutorials': {'15600001': 14200006}}
+        self.assertEqual(job_quests(profile, 1792000000), ())
+        self.assertEqual(credit_jobs(profile, {10800022: 99}, 1792000000), 0)
+        self.assertNotIn('jobs', profile)
