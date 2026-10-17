@@ -27,6 +27,15 @@ credited Jumper kill showed 1/8 after Leave Battle. Completion on the tablet
 is not seen yet (unit-tested). Gaps: the "Complete Jobs" daily goal and its
 streak (header still says DONEZO / Next in 0 s), official job rewards, claim
 command handling.
+Chaos energy orb (portal no-entry sign), research in progress: the popup
+(class ctor 0x588d48, opened from 0x499e74) shows "<AMOUNT> XP LEFT TO EARN
+FROM HUNTING MONSTERS TODAY" / "OUT OF BATTLE CHAOS ENERGY"; globals
+MONSTER_XP_DAILY_CAP 60000 and the 4x/3x/2x thresholds (50000/37500/22500)
+set the multiplier. In battle its update (0x58956c) reads the player stat
+normalXpAvailableFromEnemies (+0x190). Boost items ("chaos toad") are avatar
++0xa8 entries (count +0xb4, tooltip 0x4b4300). The home/portal source of the
+XP left is not found yet; the avatar XpPoint resource's second integer is
+not it (tried 60000, no change).
 Tablet note: after the tablet's reboot its wireless-debugging port changed;
 the runner now uses --serial 192.168.1.91:42235 (adb connect).
 
