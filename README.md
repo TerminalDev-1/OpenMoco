@@ -39,7 +39,7 @@ progress, job progress and saved XP, which it sends back as native XP events.
 ## Get the client
 
 Download the private-server client from
-[GitHub Releases](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.8.0-xp-bar).
+[GitHub Releases](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.12.0-one-connection).
 Follow the [installation guide](docs/INSTALL.md) to assemble and install all the
 required APK splits. A fresh install also needs the unchanged splits and asset
 parts linked from the apartment release.

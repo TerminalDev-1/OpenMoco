@@ -19,7 +19,7 @@ debuggable; research probes are disabled.
 ## Download and assemble
 
 Download the updated base APK, manifest, assembler and checksums from
-[v0.9.0-character-editor](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.9.0-character-editor).
+[v0.12.0-one-connection](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.12.0-one-connection).
 For a fresh installation, also download the three configuration APKs and four
 asset-pack parts from
 [v0.3.0-apartment](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.3.0-apartment).
@@ -86,7 +86,12 @@ in-battle XP bar from the server's XP. It needs a server at commit 4b82377 or
 newer, started with `tools/run_local_test.py`, which also provides the client's
 XP-per-level table. v0.9.0 makes the client's XP display updates safer when
 leaving a battle; its character editor needs a server at commit 0e71405 or
-newer. It uses the same saved local account and matching configuration splits.
+newer. v0.11.0 shows today's jobs counting up in the in-battle missions
+tracker; it needs a server at commit 6c644f1 or newer. v0.12.0 sends its
+kill reports over the game connection itself, so there is no second local
+connection any more; it needs a server at commit 22c48e2 or newer (older
+servers do not credit its kills). It uses the same saved
+local account and matching configuration splits.
 The client
 suppresses automatic idle closure and keeps its foreground screen awake. Keep
 wireless debugging connected: losing ADB forwarding can still cause a connection

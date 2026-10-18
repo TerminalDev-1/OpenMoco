@@ -40,6 +40,10 @@ reports and 22 XP events. The jobs tracker counted Hunt Drogs live (3/30 in
 the first battle, .local/ib-1-battle.png; 25/30 in the sixth,
 .local/ib-6-battle.png) and the XP bar grew with each event. No crash. Only
 port 9339 listened and was reversed.
+Published as https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.12.0-one-connection
+(pre-release, target 22c48e2, base cc2d77f9; six assets, remote size/SHA-256
+verified; unchanged splits linked from v0.3.0-apartment). The tablet runs
+this base. It needs a server at 22c48e2 or newer.
 Manual server: hidden, mode inband-reports, log
 captures/user-test-server-inband-reports.log, PID in .local/user-test-server.json.
 
