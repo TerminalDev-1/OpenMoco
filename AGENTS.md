@@ -99,13 +99,12 @@ the server-owned starter bow (client-home +0x78), and the COOL zone (SocialHub)
 is served as home once ToHQ is reached, with its shop, portal, wardrobe,
 weapons and cores items. Shop offers, jobs, quests and chaos cores are next;
 see the newest PROJECT_STATUS.md sections.
-Update 2026-10-17 (chaos cores): Leave Battle in Shrine Canyon gets the
+Update 2026-10-17 (battle end): Leave Battle in Shrine Canyon gets the
 battle-end summary 23200 (battle_end.py); EXIT sends 13223 body 01, which
-then goes home. The server rolls chaos cores per credited canyon kill
-(provisional chances), saves their power gems and shows them as gear drops
-(kind 0xc, gear 11300000 + row). Never send the generic reward kinds there:
-they crash after a battle (0x4de43c). Don't use shader kinds 0x15/0x1b with
-gear references either. See PROJECT_STATUS.md.
+then goes home. Update 2026-10-18: the user had chaos cores removed ("they
+don't exist anymore"); the summary has no drops and shows the equipped look.
+Never send the generic reward kinds there: they crash after a battle
+(0x4de43c). See PROJECT_STATUS.md.
 
 ## Current scene-transition priority
 The verified reconnect/background-resume APK is published as v0.6.0-reconnect:

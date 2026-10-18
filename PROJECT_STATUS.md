@@ -1,5 +1,22 @@
 # Project status — 2026-10-16
 
+## Chaos cores removed; battle-end summary keeps the player's look (2026-10-18, verified on the tablet)
+User request: remove chaos cores ("I think they don't exist anymore") and keep
+the battle-end summary working. Removed: progress.roll_chaos_cores /
+open_chaos_cores / power_gem and their constants, the roll in
+battle_bridge.report and the gem drops in server._send_battle_end, plus their
+tests. Saved profiles may still hold old power_gems/pending_cores keys; nothing
+reads them. The summary (23200) is sent with an empty drops list, so its button
+reads RETURN HOME/EXIT and nothing waits behind "OPEN CHAOS CORE(S)".
+Summary avatar: the +0xb8 player's look object (0x786a40) has the same layout
+as the home build's look: dye strings (0x83c214), raw cosmetic references
+(0x83c16c), then a flag. battle_end.py now fills it from home.equipped_look.
+Tablet (normal client 876b08de, account backup
+.local/accounts.before-battle-end-20261018.sqlite3): Shrine Canyon -> combat ->
+Leave Battle showed the summary with the head (the same face and dyes the
+portal popup renders, .local/be2-10.png); EXIT returned to the COOL zone.
+The section below is history.
+
 ## Chaos cores: battle-end summary 23200 with server-rolled power gems (2026-10-17)
 Leave Battle in Shrine Canyon (13223 body 00) now gets the battle-end summary
 23200 (battle_end.py) instead of going straight home. EXIT on the summary

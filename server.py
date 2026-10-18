@@ -507,19 +507,19 @@ class GameSession:
         self.log('sent home profile; awaiting client home-scene request')
 
     async def _send_battle_end(self):
-        """Battle-end summary (23200) with the battle's chaos cores.
+        """Battle-end summary (23200), showing the player's equipped look.
 
         The client shows it and answers its EXIT with 13223 body 01, which
         then takes the usual own-home -> home-scene path.
         """
-        from battle_end import BATTLE_END, GEAR_DROP, Drop, battle_end
-        from progress import open_chaos_cores
-        with self.accounts.edit_profile(self.account.account_id) as profile:
-            gems = open_chaos_cores(profile)  # Saved before the summary is shown.
-        drops = tuple(Drop(GEAR_DROP, gem, count) for gem, count in gems)
-        await self.send_session(BATTLE_END, battle_end(self.current_scene, drops, self.account.account_id, self.home_name))
+        from battle_end import BATTLE_END, battle_end
+        from home import equipped_look
+        account_id = self.account.account_id
+        saved = self.accounts.authenticate(account_id, self.account.token).profile
+        await self.send_session(BATTLE_END, battle_end(self.current_scene, account_id, self.home_name,
+                                                       look=equipped_look(saved.get('look'))))
         self.battle_end_sent = True
-        self.log(f'sent battle end summary with {sum(count for _, count in gems)} chaos core gems')
+        self.log('sent battle end summary')
 
     # ----- simulation clock -----------------------------------------------
 
