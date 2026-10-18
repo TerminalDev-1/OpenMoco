@@ -8,6 +8,9 @@ Each TCP connection is one `GameSession`. A session moves through these stages:
 3. Session: every later frame is SecretBox-encrypted. In apartment mode we send
    the player's own home (24548) and the saved scene (23491), then react to
    tutorial commands, scene travel, leave-battle requests and the game clock.
+   In battles the client bridge reports raw kill counts on this same
+   connection (18855, battle_progress.py); the server credits them and sends
+   the XP back as native battle events (28852).
 
 Without --handshake the listener only records raw bytes. Every connection
 writes a capture (<session>.bin, .server.bin, .session.bin and .json) under the
@@ -36,6 +39,7 @@ SCENE_LOADED = 13224         # Empty body: the new scene finished loading.
 CLIENT_TURN = 16543          # Batched commands (541 age, 574 tutorial, 575/576 main quests).
 GAME_CLOCK_REQUEST = 18851
 FRAME_READY = 18853
+KILL_REPORT = 18855          # The client's desync-report message, carrying the bridge's kill report.
 
 # Server -> client message types.
 SERVER_HELLO = 20100
@@ -71,7 +75,7 @@ class GameSession:
 
     def __init__(self, reader, writer, output, handshake=False, server_key=None,
                  accounts=None, transport_probe=False, home_probe=None,
-                 profile_probe=None, apartment=False, battle_bridge=None):
+                 profile_probe=None, apartment=False):
         self.reader, self.writer, self.output = reader, writer, output
         self.handshake = handshake
         self.server_key = server_key
@@ -80,7 +84,13 @@ class GameSession:
         self.home_probe = home_probe
         self.profile_probe = profile_probe
         self.apartment = apartment
-        self.battle_bridge = battle_bridge
+        # Kill crediting for the battles of this connection (apartment mode).
+        self.battle_progress = None
+        if apartment and accounts is not None:
+            from battle_progress import BattleProgress
+            self.battle_progress = BattleProgress(accounts)
+        self.battle = None        # battle_progress.Battle while in a battle scene.
+        self.battle_display = None  # Latest display data for the client bridge.
 
         self.session = _new_session_id()
         self.peer = writer.get_extra_info('peername')
@@ -181,8 +191,7 @@ class GameSession:
             await self.on_session_frame(frame, record)
 
     async def _close(self):
-        if self.battle_bridge is not None and self.local_account is not None:
-            self.battle_bridge.end(self.local_account['account_id'], self.session)
+        self.battle = None
         self.writer.close()
         try:
             await self.writer.wait_closed()
@@ -315,8 +324,8 @@ class GameSession:
                 body = apartment_scene(account_id, level=self.home_level, name=self.home_name)
         else:
             body = self.home_probe
-        if self.battle_bridge is not None and self.current_scene in BATTLE_SCENES:
-            self.battle_bridge.begin(account_id, self.session, self.current_scene, self.queue_battle_xp)
+        if self.current_scene in BATTLE_SCENES:
+            self._begin_battle(self.current_scene)
         await self.send_session(SCENE_START, body)
         if not self.apartment:
             self.state = 'home_scene_probe_sent'
@@ -343,6 +352,8 @@ class GameSession:
                 await self.on_leave_battle(plaintext)
             elif frame.message_type == NAME_CHANGE:
                 await self.on_name_change(plaintext)
+            elif frame.message_type == KILL_REPORT:
+                self.on_kill_report(plaintext)
 
         # Clock and keepalive handling applies in every logged-in mode.
         scene_ready = False
@@ -436,8 +447,7 @@ class GameSession:
         await self.send_session(SCENE_START, apartment_scene(account_id, level=self.home_level, name=self.home_name))
         self.pending_home_scene = False
         self.current_scene = APARTMENT
-        if self.battle_bridge is not None:
-            self.battle_bridge.end(account_id, self.session)
+        self.battle = None
         self.accounts.record_scene(account_id, self.current_scene)
         self._reset_scene_clock()
         self.state = 'apartment_scene_sent'
@@ -460,8 +470,7 @@ class GameSession:
         await self.send_session(SCENE_START, cool_zone_scene(account_id, level=self.home_level, name=self.home_name))
         self.pending_home_scene = False
         self.current_scene = SOCIAL_HUB
-        if self.battle_bridge is not None:
-            self.battle_bridge.end(account_id, self.session)
+        self.battle = None
         self.accounts.record_scene(account_id, self.current_scene)
         self._reset_scene_clock()
         self.state = 'cool_zone_scene_sent'
@@ -482,8 +491,7 @@ class GameSession:
     async def _enter_tutorial_area(self, scene=TUTORIAL_AREA):
         """Portal travel from the apartment into a Downtown street scene."""
         account_id = self.account.account_id
-        if self.battle_bridge is not None:
-            self.battle_bridge.begin(account_id, self.session, scene, self.queue_battle_xp)
+        self._begin_battle(scene)
         saved = self.accounts.authenticate(account_id, self.account.token).profile
         await self.send_session(SCENE_START, self._battle_scene(scene, saved))
         self.current_scene = scene
@@ -566,10 +574,38 @@ class GameSession:
         self.confirmed_frame = max(self.confirmed_frame, ready_frame)
         return True
 
-    # ----- server XP in the running battle ----------------------------------
+    # ----- kill reports and server XP in the running battle -----------------
+
+    def _begin_battle(self, scene):
+        """A new battle epoch for every battle scene this session sends."""
+        self.battle_display = None
+        if self.battle_progress is not None:
+            self.battle = self.battle_progress.begin(self.account.account_id, scene)
+
+    def on_kill_report(self, plaintext):
+        """Credit the client bridge's raw cumulative kill counts (18855).
+
+        Only the battle this session is in is credited; a report that arrives
+        after Leave Battle or a scene change has no battle and is ignored.
+        """
+        from battle_progress import decode_kill_report
+        counts = decode_kill_report(plaintext)
+        if counts is None:
+            self.log('18855 is not a kill report; ignored')
+            return
+        if self.battle is None or self.current_scene != self.battle.scene:
+            return
+        try:
+            result, xp = self.battle_progress.report(self.battle, counts)
+        except ValueError as error:
+            self.log(f'kill report rejected: {error}')
+            return
+        self.battle_display = {key: result[key] for key in ('jobs', 'xp_before_battle', 'xp_levels')}
+        if xp:
+            self.queue_battle_xp(xp)
 
     def queue_battle_xp(self, xp):
-        """Called by the battle bridge with newly credited kill XP."""
+        """Newly credited kill XP, sent to the battle with the next ready frame."""
         self.pending_battle_xp += xp
 
     async def _send_battle_xp(self, previous_frame):
@@ -579,13 +615,19 @@ class GameSession:
         ready frame minus XP_EVENT_LAG) but that is newer than the last frame
         we confirmed, so the frame is still in the client's rollback history.
         The client rolls back to it and re-simulates with the XP added.
+        The latest display data (job progress, the bar's base XP) follows the
+        event as a trailer the native decoder does not read.
         """
         from battle_events import xp_event
+        from battle_progress import display_trailer
         target = self.confirmed_frame - XP_EVENT_LAG
         if not self.pending_battle_xp or self.current_scene not in BATTLE_SCENES or target <= previous_frame:
             return
         xp, self.pending_battle_xp = self.pending_battle_xp, 0
-        await self.send_session(BATTLE_EVENTS, xp_event(target, xp))
+        body = xp_event(target, xp)
+        if self.battle_display is not None:
+            body += display_trailer(self.battle_display)
+        await self.send_session(BATTLE_EVENTS, body)
         self.log(f'sent {xp} server battle XP at frame {target}')
 
     async def _send_clock_reply(self):
@@ -598,17 +640,15 @@ class GameSession:
 
 
 async def capture(reader, writer, output, handshake=False, server_key=None, accounts=None,
-                  transport_probe=False, home_probe=None, profile_probe=None, apartment=False,
-                  battle_bridge=None):
+                  transport_probe=False, home_probe=None, profile_probe=None, apartment=False):
     """Serve one client connection (kept as a function for callers and tests)."""
     session = GameSession(reader, writer, output, handshake, server_key, accounts,
-                          transport_probe, home_probe, profile_probe, apartment, battle_bridge)
+                          transport_probe, home_probe, profile_probe, apartment)
     await session.run()
 
 
 async def run(host, port, output, handshake=False, server_key=None, account_store=None,
-              transport_probe=False, home_probe=None, profile_probe=None, apartment=False,
-              battle_bridge=None):
+              transport_probe=False, home_probe=None, profile_probe=None, apartment=False):
     output.mkdir(parents=True, exist_ok=True)
     if server_key is not None and account_store is None:
         from accounts import AccountStore
@@ -616,7 +656,7 @@ async def run(host, port, output, handshake=False, server_key=None, account_stor
 
     async def connected(reader, writer):
         await capture(reader, writer, output, handshake, server_key, account_store,
-                      transport_probe, home_probe, profile_probe, apartment, battle_bridge)
+                      transport_probe, home_probe, profile_probe, apartment)
 
     server = await asyncio.start_server(connected, host, port)
     mode = 'experimental hello' if handshake else 'capture'

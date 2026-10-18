@@ -16,8 +16,9 @@ The current client version is **13.5.1**.
 - Travel to Downtown Chaos and back through **Map → Leave Battle**.
 - Movement and player animation across repeated scene changes.
 - Eight monster records, spirits, human civilians, and recurring native spawns.
-- Kill/rescue counts and kill-based XP saved by the server, reported by a local
-  client bridge.
+- Kill/rescue counts and kill-based XP saved by the server. The client sends its
+  raw kill counts over the same single game connection; there is no second
+  connection or local bridge server.
 - The first tutorial quest (defeat 50 monsters, rescue 3 civilians) tracked on
   the server. Once you've done both, **Leave Battle** finishes the Portal
   tutorial: Luna congratulates you and the client moves on to character creation.
@@ -31,8 +32,9 @@ Still to do: the real XP-per-level curve, character creation (the editor opens
 but has no head/cosmetic data yet), rewards, inventory, COOL-zone access,
 multiplayer, and combat controlled by the Python server. Combat currently runs in
 the Android client from the scenes supplied by the server. The client bridge
-reports native kill/rescue counts. The server decides what they're worth, saves
-them, and turns them into quest progress and saved XP.
+reports native kill/rescue counts on the game connection (inside message 18855).
+The server decides what they're worth, saves them, and turns them into quest
+progress, job progress and saved XP, which it sends back as native XP events.
 
 ## Get the client
 

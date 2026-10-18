@@ -110,6 +110,15 @@ don't exist anymore"); the summary has no drops and shows the equipped look.
 Never send the generic reward kinds there: they crash after a battle
 (0x4de43c). See PROJECT_STATUS.md.
 
+Update 2026-10-18 (user request: one connection): battle_bridge.py and the
+loopback HTTP bridge on port 9340 are gone. The client bridge sends its raw
+kill counts on the game connection inside the client's own desync-report
+message 18855 (native sender 0x5c3654, zlib JSON {"openmoco":"kills"}); the
+game session credits them (battle_progress.py, same rules) and appends the
+display data (jobs, base XP, levels) as a trailer to its 28852 XP events,
+which the bridge reads at the 0x761770 decoder. Verified on the tablet with
+6 canyon entries / 5 warm cycles on one process. Don't reintroduce a second
+connection. See PROJECT_STATUS.md.
 Update 2026-10-18: the battle-start configuration (0x761c60) is mapped and
 filled by the server for Shrine Canyon: XP before the battle and the XP level
 table (+0/+8, the in-battle XP bar now fills), the portal slot in the
@@ -182,7 +191,7 @@ Encrypted local login is verified on the tablet using a newly generated local se
 The connection milestone and first hello exchange are achieved. The renamed Android client sends an 83-byte initial message, type 10100, version 0, payload length 76. With `--handshake`, the Python server replies with 20100/version 0 containing a length-prefixed 24-byte random challenge. The tablet accepts it and sends 10101/version 9. This was reproduced across cold launches, including with native protocol probes disabled. Use `--login` for the now-verified encrypted local login and session; home data and gameplay remain unimplemented.
 - Use the diagnostic base APK built with `--local-network` alongside the four preserved offline splits. The original app remains installed separately.
 - The native game connection was observed on port 30000; the bootstrap routes it to tablet loopback port 9339, forwarded to the PC by ADB reverse.
-- The local-network build restores INTERNET permission only together with bootstrap routing. DNS resolves to loopback; IP connect/send operations are redirected to local test ports. SDK traffic uses local port 9340.
+- The local-network build restores INTERNET permission only together with bootstrap routing. DNS resolves to loopback; IP connect/send operations are redirected to local test ports. SDK traffic is pointed at tablet loopback port 9340, where nothing listens (refused); the runner no longer forwards it.
 - DiagnosticFactory refuses startup if the per-process bootstrap completion marker is missing.
 - The bootstrap redirects the protection library's hard-coded package lookup to the test package and applies a narrowly scoped loader UID-classification compatibility override. It does not change the kernel UID or the original app's data.
 - Native offsets are specific to the supplied 13.5.1 build. Do not reuse them for another version without inspecting it.

@@ -99,8 +99,10 @@ type-0 event per group and one type-1 acknowledgement per listed frame.
 - 18851 clock, 18853 frame-ready (int frame + two flags; the second flag is
   the "send frame JSON" request above), 18854 controller input (movement.py),
   18852 the client's own input events.
-- 18855 desync report (two strings: server JSON, client JSON). Never seen so
-  far, because the server has never sent a checksum.
+- 18855 desync report (two strings: server JSON, client JSON). The client
+  never sends a real one, because the server never sends a checksum. OpenMoco's
+  client bridge reuses it as the transport for its kill report (see the end of
+  this file).
 
 ## Logic event types the server may put in an events vector
 
@@ -179,3 +181,47 @@ client's latest 18853 frame minus 2 (18853 is the client's clock frame minus
 1, sender 0x60f8ac), and only when that is newer than the frame it last
 confirmed in 28851. Verified: no crash or freeze over 5 warm canyon cycles,
 and the native XP counter shows exactly the server's XP.
+
+## Implemented: kill reports and display data on the game connection (verified 2026-10-18)
+
+There is one connection. The client bridge no longer opens its own socket;
+battle_bridge.py and its loopback HTTP endpoint (port 9340) are removed.
+
+Client -> server: the client's desync report 18855. Sender 0x5c3654(_, a, b)
+allocates the message (0xb0 bytes, ctor 0x765054), fills buffer +0xa0 from
+native string a (0x76511c) and +0xa8 from b (0x76518c), and sends it with the
+game messaging object [0xfadbf0] (vtable +0; the same object 0x5c322c uses
+for the clock request through 0x5bd668). The setters copy a string through
+0x8f6f30: a string has its length at +4 and its bytes inline at +8 below 8
+bytes, else a data pointer at +8 (0xa3874c, 0x8f6f30); 0xa18b30 zlib-
+compresses them (Z_BUF_ERROR/Z_MEM_ERROR codes) into a buffer {int length,
+data}: 4-byte little-endian plain length, then the zlib stream. A null string
+gives {-1, null}. Encoder 0x7651fc writes each buffer with the stream's
+byte-array writer (vtable +0x70): raw int length (-1 when absent), then the
+bytes. Message type 0x49a7 (0x765268).
+The bridge calls 0x5c3654 on Mainloop (its 0x73a364 hook, battle HUD live)
+with a string holding `{"openmoco":"kills","counts":{"<character ID>": n}}`
+and a null second string, at most once a second and only when the counts
+changed. battle_progress.decode_kill_report checks every length, the -1
+second buffer, the plain length and the "openmoco" kind; anything else is
+ignored. The game session credits it for the battle it is in (same rules as
+before: scene allowlist, high-water marks per battle epoch, time cap, loot
+prices, jobs, saving). Tablet capture: reports of 68 and 80 bytes.
+
+Server -> client: the latest display data (jobs in the battle configuration's
+quest order, xp_before_battle, xp_levels) follows the 28852 XP event as a
+trailer: ASCII JSON, 4-byte big-endian length, then "OMCO". Decoder 0x761770
+reads only the frame and the events vector (its stream readers have no bounds
+or leftover checks), so the trailer is unread natively. The bridge hooks
+0x761770 and reads the trailer from the end of the message stream at
+message +8 (length +0x18, data +0x38, set by 0x8d7b2c), then applies it on
+the JS thread and writes native memory on Mainloop as before. Shrine Canyon
+gets its base XP and level table natively in the battle-start configuration;
+in Downtown the HUD base now arrives with the first credited kill.
+
+Tablet (normal base cc2d77f9, probes off): 6 Shrine Canyon entries with
+combat and 5 warm Leave Battle -> summary -> EXIT -> COOL zone -> portal
+cycles on one process (17602) and one connection, 28 kill reports, 22
+credited reports and 22 XP events; the jobs tracker counted Hunt Drogs live
+(3/30 in the first battle, 25/30 in the sixth) and the XP bar grew with each
+event. No crash. Only port 9339 listens and is reversed.

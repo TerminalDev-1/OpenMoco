@@ -1,5 +1,48 @@
 # Project status — 2026-10-16
 
+## One connection: kill reports on the game connection, battle_bridge.py removed (2026-10-18, verified on the tablet)
+User request: no separate bridge connection; the client connects only to the
+server. Combat stays a client-side simulation; the server still decides
+everything it decided before. Only the transport changed:
+- Client -> server: the client bridge sends its raw cumulative kill counts in
+  the client's own desync-report message 18855, built and sent by the native
+  sender 0x5c3654 with a native string holding
+  {"openmoco":"kills","counts":{...}} (zlib-compressed by the client, second
+  buffer null). Sent on Mainloop from the existing 0x73a364 hook, at most
+  once a second and only when changed. Layout evidence in
+  docs/BATTLE_PROTOCOL.md (last section).
+- Server: battle_bridge.py became battle_progress.py (BattleProgress, no
+  listener, no token). GameSession owns one Battle per battle scene it sends,
+  decodes 18855 (decode_kill_report) and credits it with the same rules
+  (scene allowlist, per-epoch high-water marks, KILL_RATE cap, loot prices,
+  boosts, daily jobs, saving), then sends the XP as event 1217 (28852).
+- Server -> client: the 28852 XP event carries a trailer (ASCII JSON jobs /
+  xp_before_battle / xp_levels, 4-byte big-endian length, "OMCO"). The
+  native decoder 0x761770 does not read it; the bridge hooks 0x761770 and
+  reads it from the end of the message stream (+8: +0x18 length, +0x38 data).
+  Shrine Canyon's base XP and levels still come natively from the
+  battle-start configuration; in Downtown the HUD base arrives with the first
+  credited kill (it used to come from the bridge's GET at battle start).
+- run_local_test.py no longer starts a 9340 listener (bridge or SDK sink) or
+  reverses tcp:9340; it removes the reverse and the old token file. The
+  bootstrap still points SDK traffic at tablet loopback 9340, where nothing
+  listens now, so it is refused; login and play were unaffected.
+- Tests: tests/test_battle_progress.py (adapted bridge tests, report decoding,
+  trailer, session crediting over the game connection). 107 pass.
+Tablet (normal base cc2d77f9, built with --debuggable --local-network, probes
+off; account backup .local/accounts.before-inband-reports-20261018.sqlite3,
+hash a14e4ffe..., restored afterwards; test state kept as
+.local/accounts.after-inband-reports-tests-20261018.sqlite3; log
+captures/inband-test.log): 6 Shrine Canyon entries with combat and 5 warm
+Leave Battle -> summary -> EXIT -> COOL zone -> portal cycles on one process
+(17602) and one connection, 28 reports (68/80-byte 18855), 22 credited
+reports and 22 XP events. The jobs tracker counted Hunt Drogs live (3/30 in
+the first battle, .local/ib-1-battle.png; 25/30 in the sixth,
+.local/ib-6-battle.png) and the XP bar grew with each event. No crash. Only
+port 9339 listened and was reversed.
+Manual server: hidden, mode inband-reports, log
+captures/user-test-server-inband-reports.log, PID in .local/user-test-server.json.
+
 ## Portal card title, in-battle jobs tracker and battle XP bar from the battle-start configuration (2026-10-18, verified on the tablet)
 Server-only. Found with a temporary --apartment-probe build (never published;
 the normal base 876b08de was reinstalled afterwards). Hooks on own-home

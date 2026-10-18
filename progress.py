@@ -7,7 +7,7 @@ Intro_3 is the main-quest step for the Portal tutorial's GoToPortal step
 (tutorial_steps.csv MainQuestStep). Its quests (main_quest_step_quests.csv)
 are Intro_3_1, defeat 50 monsters in TutorialAreaBasic, and Intro_3_2, rescue
 3 civilians there. The server counts these from client-reported battle
-outcomes (battle_bridge.py) and sends the progress in the own-home profile.
+outcomes (battle_progress.py) and sends the progress in the own-home profile.
 """
 TUTORIAL_STEPS = {
     15600000: range(14200000, 14200004),

@@ -77,17 +77,9 @@ def main():
         adb('push', str(public_file), '/data/local/tmp/openmoco-server-public-key.txt')
         adb('shell', 'run-as', PACKAGE, 'mkdir', '-p', 'files')
         adb('shell', 'run-as', PACKAGE, 'cp', '/data/local/tmp/openmoco-server-public-key.txt', 'files/local-server-public-key.txt')
-    bridge = None
     if args.apartment:
-        import secrets
-        from accounts import AccountStore
-        from battle_bridge import BattleBridge
-        token_path = ROOT/'.local/battle-bridge-token.txt'
-        if not token_path.exists():
-            token_path.write_text(secrets.token_hex(32), encoding='ascii')
-        bridge = BattleBridge(AccountStore(ROOT/'.local/accounts.sqlite3'), token_path.read_text().strip())
-        adb('push', str(token_path), '/data/local/tmp/openmoco-battle-bridge-token.txt')
-        adb('shell', 'run-as', PACKAGE, 'cp', '/data/local/tmp/openmoco-battle-bridge-token.txt', 'files/battle-bridge-token.txt')
+        # The old loopback battle bridge's token; kill reports now use the game connection.
+        adb('shell', 'run-as', PACKAGE, 'rm', '-f', 'files/battle-bridge-token.txt')
         # The server's XP level table, installed by the client bridge before the
         # battle HUD is built (the client data has no table of its own).
         from progress import XP_LEVELS
@@ -95,22 +87,13 @@ def main():
         levels_path.write_text(json.dumps(list(XP_LEVELS)), encoding='ascii')
         adb('push', str(levels_path), '/data/local/tmp/openmoco-xp-levels.json')
         adb('shell', 'run-as', PACKAGE, 'cp', '/data/local/tmp/openmoco-xp-levels.json', 'files/xp-levels.json')
+    # One connection: the game port. The bootstrap points SDK traffic at the
+    # tablet's loopback port 9340, where nothing listens, so it is refused there.
     adb('reverse', 'tcp:9339', 'tcp:9339')
-    adb('reverse', 'tcp:9340', 'tcp:9340')
+    subprocess.run([str(args.adb), '-s', serial, 'reverse', '--remove', 'tcp:9340'],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     async def session():
-        async def sdk_sink(reader, writer):
-            try:
-                await asyncio.wait_for(reader.read(4096), timeout=5)
-            except (asyncio.TimeoutError, ConnectionError):
-                pass
-            finally:
-                writer.close()
-                try:
-                    await writer.wait_closed()
-                except ConnectionError:
-                    pass
-        sdk = await asyncio.start_server(bridge.handle if bridge else sdk_sink, '127.0.0.1', 9340)
-        listener = asyncio.create_task(run('127.0.0.1', 9339, ROOT / 'captures' / 'game', args.handshake or args.login, key, transport_probe=args.transport_probe, home_probe=home_probe, profile_probe=profile_probe, apartment=args.apartment, battle_bridge=bridge))
+        listener = asyncio.create_task(run('127.0.0.1', 9339, ROOT / 'captures' / 'game', args.handshake or args.login, key, transport_probe=args.transport_probe, home_probe=home_probe, profile_probe=profile_probe, apartment=args.apartment))
         # Allow the listener to bind before launching the client.
         await asyncio.sleep(0.1)
         if listener.done():
@@ -119,11 +102,7 @@ def main():
             if key is not None:
                 await asyncio.to_thread(adb, 'shell', 'am', 'force-stop', PACKAGE)
             await asyncio.to_thread(adb, 'shell', 'am', 'start', '-W', '-n', PACKAGE + '/com.supercell.moco.GameApp')
-        try:
-            await listener
-        finally:
-            sdk.close()
-            await sdk.wait_closed()
+        await listener
     try:
         asyncio.run(session())
     except KeyboardInterrupt:

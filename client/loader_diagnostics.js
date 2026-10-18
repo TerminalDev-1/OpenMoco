@@ -92,21 +92,27 @@ rpc.exports = {
             let battleBridgeInstalled = false;
             function installBattleBridge(owner) {
                 if (battleBridgeInstalled) return;
-                let token;
-                try { token = File.readAllText('/data/user/0/com.supercell.moco.localtest/files/battle-bridge-token.txt').trim(); }
-                catch (_) { return; }
-                if (!/^[0-9a-f]{64}$/.test(token)) throw new Error('Invalid battle bridge token');
                 for (const [offset, signature] of [[0x5bf784,'ffc301d1fd7b01a9fc6f02a9fa6703a9'],
                     [0x738e58,'fd7bbca9f85f01a9f65702a9f44f03a9'],
                     [0x73a364,'fd7bbea9f30b00f9fd030091089c41b9'],
                     [0x5c10f4,'080440f9680000b4001940f9c0035fd6'],
-                    [0x57f870,'ff0302d1eb2b036de923046dfd7b05a9']]) {
+                    [0x57f870,'ff0302d1eb2b036de923046dfd7b05a9'],
+                    [0x5c3654,'fd7bbda9f50b00f9f44f02a9fd03009100168052f30302aaf40301aad4ce229468490090'+
+                        'f50300aa085d40f9010140f974860694e00315aae10314aaa3860694e00315aae10313aabc860694'+
+                        '484f00d008c12f91000140f9080040f9020140f9e10315aaf44f42a9f50b40f9fd7bc3a840001fd6'],
+                    [0x761770,'ff0302d1fd7b06a9f44f07a9fd830191f30300aaa900229460220091b0d70594']]) {
                     const bytes = Array.from(new Uint8Array(owner.base.add(offset).readByteArray(signature.length / 2)))
                         .map(v => v.toString(16).padStart(2,'0')).join('');
                     if (bytes !== signature) throw new Error('Unsupported battle bridge signature');
                 }
                 const vector = new NativeFunction(owner.base.add(0x725fac),'pointer',['pointer','int']);
-                let battle = null, busy = false;
+                // Kill reports travel on the game connection: the client's own desync
+                // report 18855 (0x5c3654: message 0x765054, buffers 0x76511c/0x76518c
+                // zlib-compress a native string via 0x8f6f30, then the game messaging
+                // [0xfadbf0] sends it). Strings: +4 length, +8 inline below 8 bytes,
+                // else a data pointer (0xa3874c, 0x8f6f30). The second buffer is null.
+                const sendDesyncReport = new NativeFunction(owner.base.add(0x5c3654),'void',['pointer','pointer','pointer']);
+                let battle = null;
                 // XP bar display, supplied by the server: XP before this battle and
                 // the per-level XP table. Battle XP itself arrives as the game's own
                 // XP event (28852/1217), decided by the server from raw kill reports.
@@ -127,7 +133,7 @@ rpc.exports = {
                         levels.every(v => Number.isInteger(v) && v > 0 && v < 0x40000000);
                 }
                 // The runner provisions the server's table so it is in place before the
-                // battle HUD copies it at scene start; server replies carry it too.
+                // battle HUD copies it at scene start; server XP events carry it too.
                 let xpLevels = null;
                 try {
                     const provisioned = JSON.parse(File.readAllText('/data/user/0/com.supercell.moco.localtest/files/xp-levels.json'));
@@ -175,16 +181,18 @@ rpc.exports = {
                                 installXpLevels();
                                 fillLevelTable(args[0].add(0x1c8).readPointer(), 'battle HUD');
                             }
-                            if (hudBase === null) return;  // Wait for the server's reply.
-                            args[0].add(0x178).writeS32(hudBase);
+                            // Shrine Canyon's battle-start configuration already gives the
+                            // HUD its base; elsewhere it arrives with the first XP event,
+                            // which re-arms this hook once.
+                            if (hudBase !== null) args[0].add(0x178).writeS32(hudBase);
                         } catch (error) { log('HUD XP display rejected: '+error); }
                         stopHudWatch();  // Detaches outside the native callback.
                     }});
                 }
-                // Server replies arrive on the Frida JS thread. Only JS state changes
-                // there; the native table and base XP writes wait for the next
+                // Server display data is applied on the Frida JS thread. Only JS state
+                // changes there; the native table and base XP writes wait for the next
                 // 0x73a364 call on Mainloop, which happens only while a battle HUD is
-                // live. A reply for an earlier battle (after Leave Battle or a new
+                // live. Data for an earlier battle (after Leave Battle or a new
                 // scene start) is dropped instead of written.
                 let pendingXp = null, pendingJobs = null;
                 function applyXpDisplay(result, current) {
@@ -193,7 +201,7 @@ rpc.exports = {
                         pendingJobs = {battle: current, jobs: result.jobs};
                     if (validLevels(result.xp_levels)) xpLevels = result.xp_levels;
                     if (!Number.isInteger(result.xp_before_battle) || result.xp_before_battle < 0) return;
-                    if (hudBase === null) hudBase = result.xp_before_battle;
+                    if (hudBase === null) { hudBase = result.xp_before_battle; hudReady = false; }
                     watchHud();
                     pendingXp = {battle: current, base: result.xp_before_battle};
                 }
@@ -247,46 +255,44 @@ rpc.exports = {
                     }
                     return result;
                 }
-                async function request(method, body) {
-                    const conn = await Socket.connect({host:'127.0.0.1',port:9340});
-                    const timer = setTimeout(() => conn.close().catch(() => {}),5000);
-                    try {
-                        const data = JSON.stringify(body);
-                        const wire = method+' /openmoco/battle HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer '+token+
-                            '\r\nContent-Length: '+data.length+'\r\nConnection: close\r\n\r\n'+data;
-                        await conn.output.writeAll(Array.from(wire,c=>c.charCodeAt(0)));
-                        let reply = '';
-                        while (reply.length < 16384) {
-                            const chunk = await conn.input.read(4096);
-                            if (chunk.byteLength === 0) break;
-                            reply += String.fromCharCode(...new Uint8Array(chunk));
-                        }
-                        if (!reply.startsWith('HTTP/1.1 200 ')) throw new Error('Bridge unavailable');
-                        return JSON.parse(reply.split('\r\n\r\n')[1]);
-                    } finally { clearTimeout(timer); await conn.close(); }
+                // Raw cumulative counts go to the server in an 18855 on Mainloop (the
+                // 0x73a364 hook below), at most once a second and only when changed.
+                // The server credits them for the battle its session is in; TCP keeps
+                // the reports in order with Leave Battle and scene changes.
+                function sendReport() {
+                    if (Date.now() - battle.sentAt < 1000) return;
+                    const report = JSON.stringify({openmoco:'kills',counts:battle.counts});
+                    if (report === battle.sent) return;
+                    if (report.length > 8192 || owner.base.add(0xfadbf0).readPointer().isNull()) return;
+                    const text = Memory.allocUtf8String(report), string = Memory.alloc(16);
+                    string.add(4).writeS32(report.length);  // Always >= 8: a data pointer.
+                    string.add(8).writePointer(text);
+                    sendDesyncReport(ptr(0), string, ptr(0));  // Copies (compresses) the text.
+                    battle.sent = report;
+                    battle.sentAt = Date.now();
+                    log('Sent private-server kill report on the game connection ('+Object.keys(battle.counts).length+' characters)');
                 }
-                // Network work runs asynchronously, never inside a native callback.
-                setInterval(async () => {
-                    if (busy || battle === null) return;
-                    const current = battle;
-                    busy = true;
+                // Server display data (job progress, the bar's base XP, the levels)
+                // trails the server's 28852 XP events: ASCII JSON, its 4-byte
+                // big-endian length, then 'OMCO'. The native decoder 0x761770 reads
+                // only the frame and the events; the bridge reads the trailer from
+                // the end of the message stream (+8: +0x18 length, +0x38 data,
+                // 0x8d7b2c) and handles it later on the JS thread.
+                Interceptor.attach(owner.base.add(0x761770),{onEnter(args) { this.message = args[0]; },onLeave() {
                     try {
-                        if (current.epoch === null) {
-                            const state = await request('GET',{account_id:current.account});
-                            if (battle === current) { current.epoch = state.epoch; applyXpDisplay(state, current); }
-                        }
-                        if (battle === current && current.epoch !== null) {
-                            const result = await request('POST',{account_id:current.account,epoch:current.epoch,
-                                counts:current.counts});
-                            if (battle === current) applyXpDisplay(result, current);
-                            if (battle === current && result.xp !== current.savedXp) {
-                                current.savedXp = result.xp;
-                                log('Saved private-server XP '+result.xp+' kills='+result.kills+' rescues='+result.rescues);
-                            }
-                        }
-                    } catch (_) { /* Retain cumulative progress and retry after local connection loss. */ }
-                    finally { busy = false; }
-                },2000);
+                        const stream = this.message.add(8), length = stream.add(0x18).readS32();
+                        const data = stream.add(0x38).readPointer();
+                        if (data.isNull() || length < 13 || length > 65536 || data.add(length - 4).readU32() !== 0x4f434d4f) return;
+                        const size = data.add(length - 8).readU32();
+                        const bytes = (size >>> 24) | ((size >>> 8) & 0xff00) | ((size << 8) & 0xff0000) | ((size & 0xff) << 24);
+                        if (bytes <= 0 || bytes > 4096 || bytes > length - 13) return;
+                        const text = data.add(length - 8 - bytes).readUtf8String(bytes), current = battle;
+                        setTimeout(() => {
+                            try { if (battle === current && current !== null) applyXpDisplay(JSON.parse(text), current); }
+                            catch (error) { log('Server display data rejected: '+error); }
+                        }, 0);
+                    } catch (error) { log('Server display trailer rejected: '+error); }
+                }});
                 Interceptor.attach(owner.base.add(0x5bf784),{onEnter(args) {
                     pendingXp = null;
                     pendingJobs = null;
@@ -302,8 +308,8 @@ rpc.exports = {
                         if (hostile === 0 || players.add(12).readS32() === 0) battle = null;
                         else {
                             const player = players.readPointer().readPointer();
-                            battle = {account:player.add(0x1e8).readPointer().readU64().toString(),epoch:null,
-                                counts:counts(player),savedXp:-1};
+                            battle = {account:player.add(0x1e8).readPointer().readU64().toString(),
+                                counts:counts(player),sent:null,sentAt:0};
                             log('Private-server battle progress bridge active');
                         }
                     } catch (error) { battle = null; log('Battle bridge scene rejected: '+error); }
@@ -319,9 +325,13 @@ rpc.exports = {
                 }});
                 // 0x73a364 returns the local player's battle XP for the HUD (callers
                 // 0x612758, 0x60d2a8, 0x60ebf0). It runs on Mainloop only while a battle
-                // HUD is live, so queued server base XP is applied here. Its result is
-                // not changed: server XP is already in the simulation (event 1217).
+                // HUD is live, so queued server base XP is applied and kill reports
+                // are sent here. Its result is not changed: server XP is already in
+                // the simulation (event 1217).
                 Interceptor.attach(owner.base.add(0x73a364),{onLeave() {
+                    if (battle !== null) {
+                        try { sendReport(); } catch (error) { log('Kill report rejected: '+error); }
+                    }
                     if (pendingXp !== null) {
                         try { applyPendingXp(); } catch (error) { log('XP display rejected: '+error); }
                     }
