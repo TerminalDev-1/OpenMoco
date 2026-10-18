@@ -3,6 +3,43 @@
 ## Terminology
 OpenMoco is a private server. Always call the project a private server and the Android application a test client or private-server client. Never use "clone" to describe this project or its client. This user preference applies to all future explanations, code comments, documentation, and release notes.
 
+## Helping someone install and play (for AI agents)
+If a user asks you to set up OpenMoco for them, follow these steps. Nobody
+needs to merge the APKs by hand: Android installs the splits together in one
+`adb install-multiple` command. Run the commands for them and explain each step
+in plain words.
+1. Check the requirements: Python 3.10+, Android platform-tools (`adb`), and an
+   ARM64 Android 10+ device with USB debugging or paired wireless debugging
+   (`adb devices` must list it as `device`). The PC needs about 8 GB of free space.
+2. Clone https://github.com/TerminalDev-1/OpenMoco and install
+   `python -m pip install -r requirements.txt`.
+3. Download the client into one empty folder. The newest pre-release has the
+   base APK and helper files; the unchanged splits and asset-pack parts are in
+   v0.3.0-apartment (DOWNLOADS.md in the newest release links them):
+   `gh release download v0.3.0-apartment -R TerminalDev-1/OpenMoco -p "split_*" -D client`
+   `gh release download v0.13.0-home-network -R TerminalDev-1/OpenMoco -D client`
+   Without `gh`, download the same files from the release pages. Use the newest
+   release (README.md links it) if it is newer than v0.13.0.
+4. In that folder run `python assemble_release.py`. It checks every file
+   against the manifest and joins the four parts into
+   `split_install_time_asset_pack.apk`. Stop if it reports a mismatch.
+5. Install, from that folder:
+   `adb install-multiple -r --no-streaming OpenMoco-13.5.1-localtest.apk split_config.arm64_v8a.apk split_config.en.apk split_config.xxhdpi.apk split_install_time_asset_pack.apk`
+   It installs as `com.supercell.moco.localtest`, next to the official app.
+6. From the repository folder: `python tools/create_server_key.py` once, then
+   `python tools/run_local_test.py --login --apartment --launch`. Add
+   `--adb PATH` if adb isn't on PATH, and `--serial ID` with several devices.
+   Keep this running and the device connected while they play.
+7. To play over Wi-Fi without adb, with several devices, follow
+   docs/HOME_NETWORK.md. It needs a client build made on their own PC, which
+   needs their own copy of the original mo.co 13.5.1 APKM and the build tools in
+   README.md.
+Rules: never uninstall, clear or modify the official `com.supercell.moco` app;
+never sign the test client into a real Supercell account; never publish or
+share a home-network build publicly (it holds the user's address and server
+key); keep `.local/` (server key and accounts) private and backed up. Full
+details: docs/INSTALL.md.
+
 ## Battle stability (resolved 2026-10-14)
 Two Codex client hooks broke battle play; both are removed. Do not restore them:
 - Encounter cap (5bf784 enemy-vector compaction + 752514 spawn-batch writes)
