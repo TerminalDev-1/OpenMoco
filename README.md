@@ -23,6 +23,8 @@ The current client version is **13.5.1**.
   the server. Once you've done both, **Leave Battle** finishes the Portal
   tutorial: Luna congratulates you and the client moves on to character creation.
 - Connections stay open while you take a break.
+- Play over your home network without adb, with several devices connected at
+  once (each with its own guest account; shared-world multiplayer isn't done yet).
 - The client reconnects when you return to the app with the server available.
 
 - The in-battle XP bar and level badge show the server's saved XP and fill as
@@ -64,6 +66,10 @@ The runner starts the Python server, sets up ADB forwarding, gives the client
 your server's public key, and launches the app. Keep the server and ADB connection
 running while you play. If several devices are connected, add `--serial DEVICE_ID`.
 If ADB isn't on PATH, add `--adb PATH_TO_ADB`.
+
+To play over Wi-Fi without adb, and with several devices at once, build a
+client for your PC's home-network address and start the server with `--lan`.
+See [Play over your home network](docs/HOME_NETWORK.md).
 
 Your accounts are saved in `.local/accounts.sqlite3`, and the server key is in
 `.local/server-key.json`. Keep these files between runs to retain your progress

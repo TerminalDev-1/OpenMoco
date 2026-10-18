@@ -28,7 +28,11 @@ def main():
     parser.add_argument('--home-probe', type=Path, help='Send an evidenced local scene-start body after login, for protocol research')
     parser.add_argument('--profile-probe', type=Path, help='Research own-home body; requires --home-probe')
     parser.add_argument('--server-key', type=Path, default=ROOT/'.local/server-key.json')
+    parser.add_argument('--lan', action='store_true', help='Serve clients built with --server-host over the home '
+                        'network (0.0.0.0:9339, home-network peers only); no adb or tablet connection is used')
     args = parser.parse_args()
+    if args.lan and (args.install or args.launch or args.serial):
+        parser.error('--lan uses no adb; install or launch the client separately')
     if args.apartment and (not args.login or args.transport_probe or args.home_probe or args.profile_probe):
         parser.error('--apartment requires --login without research fixtures/probes')
     if args.transport_probe and not args.login:
@@ -43,6 +47,14 @@ def main():
     home_probe = args.home_probe.read_bytes() if args.home_probe else None
     if home_probe is not None and not 0 < len(home_probe) <= 65536:
         parser.error('Home-probe body must contain 1..65536 bytes')
+    key = None
+    if args.login:
+        from transport import load_key
+        key = load_key(args.server_key)
+    if args.lan:
+        print('Home-network mode. Clients connect to this PC at:', ', '.join(lan_addresses()) or 'unknown', flush=True)
+        serve(args, '0.0.0.0', key, home_probe, profile_probe, lan_only=True)
+        return
     if not args.adb.is_file():
         parser.error('adb not found; provide --adb with its installed path')
     serial = args.serial
@@ -55,10 +67,6 @@ def main():
         serial = devices[0]
     def adb(*items):
         subprocess.run([str(args.adb), '-s', serial, *items], check=True)
-    key = None
-    if args.login:
-        from transport import load_key
-        key = load_key(args.server_key)
     if args.install:
         base = ROOT / 'build' / 'diagnostic-client' / 'base.apk'
         with zipfile.ZipFile(base) as apk:
@@ -92,16 +100,34 @@ def main():
     adb('reverse', 'tcp:9339', 'tcp:9339')
     subprocess.run([str(args.adb), '-s', serial, 'reverse', '--remove', 'tcp:9340'],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    async def launch():
+        if key is not None:
+            await asyncio.to_thread(adb, 'shell', 'am', 'force-stop', PACKAGE)
+        await asyncio.to_thread(adb, 'shell', 'am', 'start', '-W', '-n', PACKAGE + '/com.supercell.moco.GameApp')
+    serve(args, '127.0.0.1', key, home_probe, profile_probe, launch if args.launch else None)
+
+
+def lan_addresses():
+    """This PC's IPv4 addresses on private networks (for the client build)."""
+    import ipaddress
+    import socket
+    found = set()
+    for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+        address = ipaddress.IPv4Address(info[4][0])
+        if address.is_private and not address.is_loopback and not address.is_link_local:
+            found.add(str(address))
+    return sorted(found)
+
+
+def serve(args, host, key, home_probe, profile_probe, after_bind=None, lan_only=False):
     async def session():
-        listener = asyncio.create_task(run('127.0.0.1', 9339, ROOT / 'captures' / 'game', args.handshake or args.login, key, transport_probe=args.transport_probe, home_probe=home_probe, profile_probe=profile_probe, apartment=args.apartment))
+        listener = asyncio.create_task(run(host, 9339, ROOT / 'captures' / 'game', args.handshake or args.login, key, transport_probe=args.transport_probe, home_probe=home_probe, profile_probe=profile_probe, apartment=args.apartment, lan_only=lan_only))
         # Allow the listener to bind before launching the client.
         await asyncio.sleep(0.1)
         if listener.done():
             await listener
-        if args.launch:
-            if key is not None:
-                await asyncio.to_thread(adb, 'shell', 'am', 'force-stop', PACKAGE)
-            await asyncio.to_thread(adb, 'shell', 'am', 'start', '-W', '-n', PACKAGE + '/com.supercell.moco.GameApp')
+        if after_bind is not None:
+            await after_bind()
         await listener
     try:
         asyncio.run(session())

@@ -55,6 +55,9 @@ local data. Do not sign it into your real Supercell account.
 
 ## Start the Python server and local routing
 
+These steps use adb. To play over Wi-Fi without adb, with one or more devices,
+see [Play over your home network](HOME_NETWORK.md).
+
 Download the OpenMoco repository, connect exactly one authorized Android device,
 and run from the repository folder:
 

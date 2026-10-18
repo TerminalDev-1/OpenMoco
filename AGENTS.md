@@ -136,6 +136,15 @@ behaviour, not a bug. The bar ([[0xfad818]+0x70]) stays under allow-listed
 popup types (0x57fa7c), and the summary's type 0x3f9 is on that list. The user
 chose to keep it; don't hide it. See PROJECT_STATUS.md.
 
+Update 2026-10-18 (user request: no adb to play, several connections): the
+test client can be built with --server-host <PC home-network IPv4> and then
+connects over Wi-Fi; the server's --lan mode binds 0.0.0.0:9339 and refuses
+non-home-network peers; each device has its own guest account. Verified on the
+tablet with wireless debugging off (6 battles, one process). Home-network
+builds contain the user's address and server key: never publish or commit
+them, and keep the PC's address out of committed docs. Public releases keep
+the loopback/adb default. See docs/HOME_NETWORK.md and PROJECT_STATUS.md.
+
 ## Current scene-transition priority
 The verified reconnect/background-resume APK is published as v0.6.0-reconnect:
 https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.6.0-reconnect.

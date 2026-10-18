@@ -14,6 +14,15 @@ rpc.exports = {
         const errno = new NativeFunction(Module.getGlobalExportByName('__errno'), 'pointer', []);
         const loopback4 = Memory.allocUtf8String('127.0.0.1');
         const loopback6 = Memory.allocUtf8String('::1');
+        // Optional build-time private-server address on the home network (IPv4).
+        // Without it the game connection stays on tablet loopback (adb reverse).
+        let serverHost = null;
+        if (parameters.server_host !== undefined) {
+            const parts = String(parameters.server_host).split('.').map(Number);
+            if (parts.length !== 4 || !parts.every(v => Number.isInteger(v) && v >= 0 && v <= 255))
+                throw new Error('Invalid server_host parameter');
+            serverHost = parts;
+        }
         for (const resolver of [
             { name: 'getaddrinfo', types: ['pointer', 'pointer', 'pointer', 'pointer'], result: 3 },
             { name: 'android_getaddrinfofornet', types: ['pointer', 'pointer', 'pointer', 'uint', 'uint', 'pointer'], result: 5 },
@@ -132,9 +141,10 @@ rpc.exports = {
                     return Array.isArray(levels) && levels.length >= 1 && levels.length <= 200 &&
                         levels.every(v => Number.isInteger(v) && v > 0 && v < 0x40000000);
                 }
-                // The runner provisions the server's table so it is in place before the
-                // battle HUD copies it at scene start; server XP events carry it too.
-                let xpLevels = null;
+                // The build bakes in the server's table (an adb runner may provision a
+                // newer one) so it is in place before the battle HUD copies it at scene
+                // start; server XP events carry it too.
+                let xpLevels = validLevels(parameters.xp_levels) ? parameters.xp_levels : null;
                 try {
                     const provisioned = JSON.parse(File.readAllText('/data/user/0/com.supercell.moco.localtest/files/xp-levels.json'));
                     if (validLevels(provisioned)) xpLevels = provisioned;
@@ -740,13 +750,17 @@ rpc.exports = {
                 const copy = Memory.alloc(length);
                 copy.writeByteArray(address.readByteArray(length));
                 copy.add(2).writeU8(port >> 8); copy.add(3).writeU8(port & 255);
+                const lan = game && serverHost !== null;
                 if (family === 2 && length >= 16) {
-                    copy.add(4).writeByteArray([127, 0, 0, 1]);
+                    copy.add(4).writeByteArray(lan ? serverHost : [127, 0, 0, 1]);
                 } else if (family === 10 && length >= 28) {
-                    copy.add(8).writeByteArray([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+                    // IPv6 sockets reach the IPv4 server through its IPv4-mapped address.
+                    copy.add(8).writeByteArray(lan ? [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, ...serverHost]
+                                                    : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
                     copy.add(24).writeU32(0);
                 } else return { allowed: false, address, length };
-                log('Local socket route: caller=' + (owner === null ? '?' : owner.name) + ' originalPort=' + oldPort + ' localPort=' + port);
+                log('Local socket route: caller=' + (owner === null ? '?' : owner.name) + ' originalPort=' + oldPort +
+                    (lan ? ' server=' + serverHost.join('.') : '') + ' localPort=' + port);
                 return { allowed: true, address: copy, length, game };
             }
             for (const name of ['connect', 'sendto']) {

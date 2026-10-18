@@ -1,9 +1,11 @@
 """Add autonomous, offline loader diagnostics to the isolated base APK."""
 import json
 import argparse
+import ipaddress
 from pathlib import Path
 import struct
 import subprocess
+import sys
 import zipfile
 
 from build_test_client import BUILD_TOOLS, ROOT, read_pool, write_pool, chunks, u32
@@ -17,7 +19,16 @@ def main():
     parser.add_argument('--apartment-probe', action='store_true', help='Research native player/character construction in the isolated scene')
     parser.add_argument('--protocol-diagnostics', action='store_true', help='Capture build-specific native protocol inputs in test-client-private storage')
     parser.add_argument('--server-key', type=Path, help='Local server key JSON; embeds only its public key')
+    parser.add_argument('--server-host', help="The PC's home-network IPv4 address; the client then connects "
+                        'there over Wi-Fi instead of through adb reverse (personal builds only, never published)')
     args = parser.parse_args()
+    if args.server_host is not None:
+        try:
+            address = ipaddress.IPv4Address(args.server_host)
+        except ValueError:
+            parser.error('--server-host must be an IPv4 address such as 192.168.1.20')
+        if not args.local_network or not address.is_private or address.is_loopback or address.is_link_local:
+            parser.error('--server-host requires --local-network and a private home-network address')
     server_public_key = None
     if args.server_key:
         server_public_key = json.loads(args.server_key.read_text(encoding='utf-8'))['public_key']
@@ -102,6 +113,13 @@ def main():
                            'game_port': 9339, 'sdk_port': 9340}}, 'runtime': 'qjs'}
         if server_public_key:
             config['interaction']['parameters']['server_public_key'] = server_public_key
+        if args.server_host is not None:
+            config['interaction']['parameters']['server_host'] = args.server_host
+        if args.local_network:
+            # Baked in so the client needs no adb provisioning; XP events carry it too.
+            sys.path.insert(0, str(ROOT))
+            from progress import XP_LEVELS
+            config['interaction']['parameters']['xp_levels'] = list(XP_LEVELS)
         dst.writestr('lib/arm64-v8a/libgadget.config.so', json.dumps(config), compress_type=zipfile.ZIP_STORED)
         dst.write(ROOT / 'client' / 'loader_diagnostics.js', 'lib/arm64-v8a/libgadget.script.so', compress_type=zipfile.ZIP_STORED)
     run(BUILD_TOOLS / 'zipalign.exe', '-f', '-P', '16', '4', unsigned, aligned)

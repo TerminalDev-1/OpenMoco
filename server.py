@@ -19,6 +19,7 @@ output directory; captures stay in ignored local folders.
 import argparse
 import asyncio
 from datetime import datetime, timezone
+import ipaddress
 import json
 from pathlib import Path
 import secrets
@@ -647,20 +648,47 @@ async def capture(reader, writer, output, handshake=False, server_key=None, acco
     await session.run()
 
 
-async def run(host, port, output, handshake=False, server_key=None, account_store=None,
-              transport_probe=False, home_probe=None, profile_probe=None, apartment=False):
+def home_network_peer(address):
+    """True for a loopback, private or link-local peer (a device on the home network)."""
+    try:
+        peer = ipaddress.ip_address(address.split('%', 1)[0])
+    except ValueError:
+        return False
+    if isinstance(peer, ipaddress.IPv6Address) and peer.ipv4_mapped is not None:
+        peer = peer.ipv4_mapped
+    return peer.is_loopback or peer.is_private or peer.is_link_local
+
+
+async def start(host, port, output, handshake=False, server_key=None, account_store=None,
+                transport_probe=False, home_probe=None, profile_probe=None, apartment=False,
+                lan_only=False):
+    """Start the listener. Every connection gets its own GameSession; with
+    several devices each one logs in with its own local guest account."""
     output.mkdir(parents=True, exist_ok=True)
     if server_key is not None and account_store is None:
         from accounts import AccountStore
         account_store = AccountStore(Path(__file__).resolve().parent / '.local/accounts.sqlite3')
 
     async def connected(reader, writer):
+        peer = writer.get_extra_info('peername')
+        if lan_only and not (peer and home_network_peer(peer[0])):
+            # Home-network mode: refuse anything that is not on the local network.
+            print(f'Refused connection from outside the home network: {peer}', flush=True)
+            writer.close()
+            return
         await capture(reader, writer, output, handshake, server_key, account_store,
                       transport_probe, home_probe, profile_probe, apartment)
 
-    server = await asyncio.start_server(connected, host, port)
+    return await asyncio.start_server(connected, host, port)
+
+
+async def run(host, port, output, handshake=False, server_key=None, account_store=None,
+              transport_probe=False, home_probe=None, profile_probe=None, apartment=False,
+              lan_only=False):
+    server = await start(host, port, output, handshake, server_key, account_store,
+                         transport_probe, home_probe, profile_probe, apartment, lan_only)
     mode = 'experimental hello' if handshake else 'capture'
-    print(f'Local listener: {host}:{port}; mode={mode}', flush=True)
+    print(f'Local listener: {host}:{port}; mode={mode}' + ('; home network only' if lan_only else ''), flush=True)
     async with server:
         await server.serve_forever()
 

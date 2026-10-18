@@ -1,5 +1,51 @@
 # Project status — 2026-10-16
 
+## Home network: play over Wi-Fi without adb, several devices at once (2026-10-18, verified on the tablet)
+User request: no wireless debugging needed to play, and more than one
+connection. Shared-world multiplayer is not in scope. See docs/HOME_NETWORK.md.
+- Client: build_diagnostic_client.py --server-host <PC IPv4> (private address,
+  requires --local-network) bakes parameters.server_host. The bootstrap then
+  routes only the libg game connection (port 30000) to that address on 9339
+  (IPv6 sockets via the IPv4-mapped address); SDK traffic stays on loopback
+  9340 (refused). Every --local-network build now also bakes
+  parameters.xp_levels (progress.XP_LEVELS), and --server-key bakes the public
+  key, so no adb run-as provisioning is needed. Files pushed by the adb runner
+  still take priority over the baked values. Without --server-host the client
+  keeps the loopback/adb route. package_release.py refuses builds with
+  server_host or server_public_key: home-network builds are personal and must
+  never be published.
+- Server: server.start() (run() uses it) serves every connection with its own
+  GameSession, as before; each device logs in with its own guest account.
+  lan_only refuses peers that are not loopback/private/link-local
+  (home_network_peer). run_local_test.py --lan binds 0.0.0.0:9339 with
+  lan_only, prints the PC's private addresses and uses no adb.
+- Windows Firewall rule "OpenMoco private server (home network)": inbound TCP
+  9339, RemoteAddress LocalSubnet, all profiles (the PC's Wi-Fi profile is
+  Public). Desktop launcher Run OpenMoco Server.bat now starts --lan (one-server
+  guard on 9339 kept).
+- Tests: tests/test_lan.py: three guest clients log in at once over
+  start(..., lan_only=True), get three accounts, exchange interleaved
+  keepalives, and two stay served after the third leaves; peer filter cases;
+  refused peers create no capture. 110 tests pass. No second device was
+  available, so two real clients at once are verified only by these tests.
+Tablet (personal --server-host build, base eee0cc95, probes off; adb reverse
+removed and the adb-pushed key/XP files deleted first): an on-tablet script
+turned wireless debugging off (adb_wifi_enabled 0, adb offline on the PC),
+cold-launched the app with the launcher intent (monkey LAUNCHER, as the icon
+does), then ran 6 Shrine Canyon entries with combat and 6 Leave Battle ->
+summary -> EXIT -> COOL zone cycles, then turned wireless debugging back on.
+One process (4748) and one connection from the tablet's Wi-Fi address for the
+whole run; 44 kill reports, 38 server XP events; the XP table was installed
+from the baked parameter (5 times); empty crash buffer. Home XP 233 -> 929
+(.local/lan-soak/*.png, log captures/lan-soak-test.log). The account DB was
+backed up first (.local/accounts.before-lan-20261018.sqlite3, hash
+d3267029...) and restored; test state kept as
+.local/accounts.after-lan-tests-20261018.sqlite3. Wireless debugging came back
+on a new port (find it with `adb mdns services`).
+Manual server: hidden, mode lan (--lan --login --apartment), log
+captures/user-test-server-lan.log, PID in .local/user-test-server.json. The
+tablet runs the personal home-network build, not the public base.
+
 ## Top XP bar on the battle-end summary is native behaviour, not a bug (2026-10-18)
 User report: the XP bar comes along with the battle-end summary. Reproduced on
 the tablet (normal base cc2d77f9): the thin bar on the top edge stays on the
