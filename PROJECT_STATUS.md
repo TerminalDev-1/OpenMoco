@@ -62,7 +62,16 @@ open in Shrine Canyon. Drop XP 0x705d50 = min(computed, killer's SCPlayer
 the local player 0, so its 11 probed kills dropped 0 XP. HUD battle XP equals
 the server's XP exactly (96 = 96), so nothing is double counted. Enabling
 player orbs needs a budget and a decision on who credits orb XP (asked).
-Account backup for these tests: .local/accounts.before-battle-end-20261018.sqlite3.
+Published as https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.11.0-battle-jobs
+(target 6c644f1, base c1a3727b; six assets, remote size/SHA-256 verified;
+unchanged splits linked from v0.3.0-apartment). The tablet runs this base.
+Account: tests ran on the real DB after backing it up; it was restored to
+.local/accounts.before-battle-end-20261018.sqlite3 (hash a14e4ffe...), and the
+test state is kept as .local/accounts.after-battle-jobs-tests-20261018.sqlite3.
+Tablet wireless-debugging port is now 192.168.1.91:35385.
+Manual server: hidden, mode battle-jobs, --serial 192.168.1.91:35385 --login
+--apartment, log captures/user-test-server-battle-jobs.log, PID in
+.local/user-test-server.json.
 
 ## Chaos cores removed; battle-end summary keeps the player's look (2026-10-18, verified on the tablet)
 User request: remove chaos cores ("I think they don't exist anymore") and keep
