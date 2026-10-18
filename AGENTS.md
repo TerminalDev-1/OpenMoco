@@ -131,6 +131,10 @@ count reads a frame copy that never sees kills). Map slot +0x38 text titles
 the portal card ("SHRINE CANYON"). XP drop orbs: the loot gate is open
 outside TutorialAreaBasic; the player's native XP budget (+0x190) is 0, so
 its drops are 0 XP. Enabling orbs is a pending user decision.
+Update 2026-10-18: the top XP bar shown on the battle-end summary is native
+behaviour, not a bug. The bar ([[0xfad818]+0x70]) stays under allow-listed
+popup types (0x57fa7c), and the summary's type 0x3f9 is on that list. The user
+chose to keep it; don't hide it. See PROJECT_STATUS.md.
 
 ## Current scene-transition priority
 The verified reconnect/background-resume APK is published as v0.6.0-reconnect:

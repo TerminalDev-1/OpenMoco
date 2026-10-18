@@ -1,5 +1,37 @@
 # Project status — 2026-10-16
 
+## Top XP bar on the battle-end summary is native behaviour, not a bug (2026-10-18)
+User report: the XP bar comes along with the battle-end summary. Reproduced on
+the tablet (normal base cc2d77f9): the thin bar on the top edge stays on the
+summary while it plays (.local/sbx-1-sum1..6.png; battle .local/sbx-1-battle.png).
+It is the game screen's permanent XP bar, also shown at home
+(.local/sbx-now.png). Before the battle-start XP table was sent, the same bar
+was already on the summary, only empty (.local/be2-10.png).
+Native evidence (static; runtime dump base 0x7b460ae000):
+- The bar (ctor 0x57dac8, movie clip player_xp_hud_bar_new) is created by the
+  game-screen init 0x4e0af4 as [[0xfad818]+0x70] and exists in every scene.
+- Its per-frame visibility 0x57fa7c checks the top popup (0x4e484c): with none,
+  or one whose type (vtable +0x1f8) is 0x3ee, 0x3ec, 0x3ed, 0x424, 0x447,
+  0x410, 0x3f9 or 0x44c, the bar may show (state +0x110, visible byte +8);
+  any other popup hides it (0x57fd4c, animated 0x57fee4).
+- The summary (ctor 0x488950, vtable 0xe845d8) has type 0x3f9 (0x491644), so
+  the stock client keeps the bar on the summary on purpose.
+- The summary copies 23200 +0xd8 to +0x2dc and sets a level-up flag +0x344
+  from the battle configuration's XP (+0) and levels (+8), +0xd8 and the jobs'
+  XP (0x4890fc..0x489184): it appears to present battle XP with this bar. The
+  server sends +0xd8 = 0; its meaning is not verified.
+- The router then calls 0x4e42b0 (HUD controller [screen+0x78]+0x88 = 1), which
+  hides the battle indicators, not the XP bar.
+Neither the server nor the client bridge adds the bar, and the server cannot
+hide it. User decision (option B): keep the native behaviour; no code change,
+no new client. Kill reports during the summary are still credited and sent as
+XP events until the home scene; that does not cause the bar.
+Tablet test credited a few kills; the account was restored from
+.local/accounts.before-summary-xpbar-20261018.sqlite3 (hash a14e4ffe...), test
+state kept as .local/accounts.after-summary-xpbar-tests-20261018.sqlite3. The
+manual server was restarted the same way (mode inband-reports, PID in
+.local/user-test-server.json).
+
 ## One connection: kill reports on the game connection, battle_bridge.py removed (2026-10-18, verified on the tablet)
 User request: no separate bridge connection; the client connects only to the
 server. Combat stays a client-side simulation; the server still decides
