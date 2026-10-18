@@ -1,5 +1,59 @@
 # Project status — 2026-10-16
 
+## Portal card title, in-battle jobs tracker and battle XP bar from the battle-start configuration (2026-10-18, verified on the tablet)
+Server-only. Found with a temporary --apartment-probe build (never published;
+the normal base 876b08de was reinstalled afterwards). Hooks on own-home
+decoders, and a virtual call on the global screen object from a hook, made
+that probe crash when the portal opened (SIGBUS on Mainloop); the final probe
+only hooked rare functions and polled memory. Don't reuse the crashing hooks.
+
+Portal title. The card's blue badge is the map-type TID (table 0xe92ca0,
+TID_PORTAL_MAP_TYPE_OPENWORLD = "EXPEDITION"; a portal_labels.csv label
+replaces it). The title comes from the map slot's +0x38 text object (0x4f7510
+-> 0x4f7380; 0x4f705c finds the slot by the selection's slot ID). When it is
+empty the client shows TID_TEAM_MEMBER_STATUS_IN_BATTLE, "HUNTING". Text
+objects (0x8381cc, versioned archive 0x8e55bc, fields 0x838244) are version,
+'type' and 'content', each a presence bit plus value; 0x4e803c shows type 0
+as literal content, type 1 as a TID. home.WORLD_NAMES sends "SHRINE CANYON"
+(the user's name; the game's own TID_AREA1 for W01_OA01 is "SHRINE VILLAGE").
+Own-home offset probe: exact decode (1678/1678). Tablet: card and popup read
+SHRINE CANYON (.local/be2-3.png, be2-4.png).
+
+Battle-start configuration (scene-start, decoder 0x761c60), now mapped:
++0 compact XP before the battle, +8 compact-counted XP level table, +10 list
+(0x76647c), +18 selection holder (0x76622c: presence bit, selection 0x77a54c,
+a raw-reference list, a raw reference), +20 quest collection (0x78ecf8, the
+same layout as client-home +a0), then +28/+40/+30/+38 lists, ... The object is
+[[[0xfadbf8]+8]+0x30], the one the bridge has been patching (base XP, table).
+scene._with_battle_jobs / _with_battle_xp fill it for Shrine Canyon:
+- the selection names the portal slot (third object 0x786738, as the client's
+  own 13222 does);
+- +20 carries today's jobs (progress.job_quests). The in-battle jobs widget
+  (HUD +0x378, list 0x58922c, category 1 = map slot > 0 and +5c == 0) lists
+  them: tablet shows Hunt Drogs 10/30, Hunt Jumpers 0/8, Hunt Juggler
+  (.local/pr-6.png), and done jobs get a check mark (.local/pr-9.png);
+- +0/+8 carry the saved XP and progress.XP_LEVELS. The battle HUD copies them
+  (+0x178, +0x1c8). Before, its table copy was empty (count 0, level 1), so
+  the in-battle XP bar never filled. Now it shows level 8 at 565/1600 and the
+  battle's server XP as a lighter segment that grows with each event 1217
+  (80 XP = 136 px, .local/pr-11.png). The table stays non-empty and positive.
+Live job count-up is not working yet: the tracker's kill handler (HUD
+component 0x485a94, update 0x485f50 -> 0x486598 -> 0x4868fc -> 0x78f968)
+reads the kill list of the player at [[screen+0x68]+0x28a8], a different frame
+copy from the predicted player the bridge reports from; its kill list stayed
+empty while the server credited kills (likely the verified frame, which needs
+28854 checksums; don't send those). The quest objects' progress (+8) is what
+the tracker animates (+0x70 shown), so the planned fix is the bridge writing
+the server's job progress into them on Mainloop.
+XP drop orbs (user request): the tutorial loot gate 0x6c2894 is battle-scene
+data +0x2f8 = (scene name == "TutorialAreaBasic", 0x6bc3f8), so it is already
+open in Shrine Canyon. Drop XP 0x705d50 = min(computed, killer's SCPlayer
++0x190 budget). Bots get 999999 from the client (0x7aa840); our snapshot gives
+the local player 0, so its 11 probed kills dropped 0 XP. HUD battle XP equals
+the server's XP exactly (96 = 96), so nothing is double counted. Enabling
+player orbs needs a budget and a decision on who credits orb XP (asked).
+Account backup for these tests: .local/accounts.before-battle-end-20261018.sqlite3.
+
 ## Chaos cores removed; battle-end summary keeps the player's look (2026-10-18, verified on the tablet)
 User request: remove chaos cores ("I think they don't exist anymore") and keep
 the battle-end summary working. Removed: progress.roll_chaos_cores /

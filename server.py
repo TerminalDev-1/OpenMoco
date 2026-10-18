@@ -307,7 +307,7 @@ class GameSession:
             # Resume the scene saved by the previous session.
             self.current_scene = self.account.profile.get('scene_id', APARTMENT)
             if self.current_scene in BATTLE_SCENES:
-                body = battle_scene(account_id, self.current_scene)
+                body = self._battle_scene(self.current_scene, self.account.profile)
             elif self.current_scene == SOCIAL_HUB:
                 from scene import cool_zone_scene
                 body = cool_zone_scene(account_id, level=self.home_level, name=self.home_name)
@@ -467,13 +467,25 @@ class GameSession:
         self.state = 'cool_zone_scene_sent'
         self.log('entered the COOL zone')
 
+    def _battle_scene(self, scene, profile):
+        """Battle snapshot; Shrine Canyon carries today's jobs for the in-battle
+        tracker, names its portal card and gives the HUD the saved XP and the
+        XP level table."""
+        from progress import SHRINE_CANYON_SLOT, XP_LEVELS, job_quests
+        from scene import battle_scene
+        if scene != SHRINE_CANYON:
+            return battle_scene(self.account.account_id, scene)
+        jobs = job_quests(profile, time.time(), self.account.account_id)
+        xp = profile.get('battle_progress', {}).get('xp', 0)
+        return battle_scene(self.account.account_id, scene, jobs, SHRINE_CANYON_SLOT, xp, XP_LEVELS)
+
     async def _enter_tutorial_area(self, scene=TUTORIAL_AREA):
         """Portal travel from the apartment into a Downtown street scene."""
-        from scene import battle_scene
         account_id = self.account.account_id
         if self.battle_bridge is not None:
             self.battle_bridge.begin(account_id, self.session, scene, self.queue_battle_xp)
-        await self.send_session(SCENE_START, battle_scene(account_id, scene))
+        saved = self.accounts.authenticate(account_id, self.account.token).profile
+        await self.send_session(SCENE_START, self._battle_scene(scene, saved))
         self.current_scene = scene
         self.accounts.record_scene(account_id, self.current_scene)
         self._reset_scene_clock()

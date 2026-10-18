@@ -25,6 +25,9 @@ PLAYER_LEVEL_TRACK = 1
 # (its scene flag +0x170 blocks it while the portal has no tabs).
 SHRINE_CANYON = 10900006     # W01_OA01, scene/w01_oa01.json
 PORTAL_WORLDS = (SHRINE_CANYON,)
+# Portal card titles (map slot +38 text). The game's own name for W01_OA01 is
+# TID_AREA1 "SHRINE VILLAGE"; the user asked for "Shrine Canyon".
+WORLD_NAMES = {SHRINE_CANYON: 'SHRINE CANYON'}
 # Free default faces (slot 3) and hairstyles (slot 2): the rAssetCosmetic
 # records with pool 0 and enabledForPlayers. The character editor (signup
 # screen, list builder 0x570be4) lists only owned vanity items of the chosen
@@ -161,15 +164,19 @@ def _track_record(writer, track, xp):
     _zeros(writer, 1 + 6)
 
 
-def _quest_state(writer, main_steps, xp=0, jobs=()):
-    """Home +a0 quest collection, +e8 track progress and +f0 main quests."""
-    quests = [quest for step in main_steps for quest in step.quests] + list(jobs)
-    # +a0 header: next quest ID, then three unknown integers.
+def quest_collection(writer, quests):
+    """Quest collection 0x78ecf8 (client-home +a0, battle configuration +20):
+    header (next quest ID, then three unknown integers), then the quests."""
     writer.compact(len(quests))
     _zeros(writer, 3)
     writer.compact(len(quests))
     for quest_id, quest in enumerate(quests):
         _quest(writer, quest_id, quest)
+
+
+def _quest_state(writer, main_steps, xp=0, jobs=()):
+    """Home +a0 quest collection, +e8 track progress and +f0 main quests."""
+    quest_collection(writer, [quest for step in main_steps for quest in step.quests] + list(jobs))
     # +e8 track progress (0x78723c): the player-level record holds saved XP.
     writer.compact(1 if xp else 0)
     if xp:
@@ -291,7 +298,7 @@ def _avatar_and_suffix(writer, xp, season_seconds=1, worlds=(), boosts=()):
     # +48 portal map cards (0x786524, entries 0x785f44).
     writer.compact(len(worlds))
     for slot_id, scene in enumerate(worlds, 1):
-        _map_slot(writer, slot_id, scene, season_seconds)
+        _map_slot(writer, slot_id, scene, season_seconds, WORLD_NAMES.get(scene))
     # +50 Versus cards (0x782f80, entries 0x782890, card 0x515a84) and +58
     # dungeon sets (0x7743c4) stay empty, then +70, +78, +88, +60, +68 and +98.
     _zeros(writer, 8)
@@ -323,14 +330,26 @@ def _boost(writer, boost):
     writer.compact(boost.multiplier).compact(boost.amount)
 
 
-def _map_slot(writer, slot_id, scene, ends_in):
+def _text(writer, text):
+    """Text object 0x8381cc (versioned archive 0x8e55bc, fields 0x838244):
+    version, 'type' and 'content', each a presence bit plus value. Type 0
+    (the default) is literal content, 1 a TID, anything else empty (0x4e803c)."""
+    writer.boolean(False).boolean(False)   # version 0, type 0 (literal)
+    writer.boolean(text is not None)
+    if text is not None:
+        writer.string(text)
+
+
+def _map_slot(writer, slot_id, scene, ends_in, name=None):
     """Avatar +48 portal map card, entry 0x785f44 (card 0x5150b4).
 
     Five integers +20..+30: +28 opens-in and +2c ends-in seconds. The card
     (0x5150b4) is state 1, active, while opened and not ended; only that
     state reacts to presses (0x516f80 -> 0x511de0). Both -1 gives state 0,
     which ignores presses, and a positive +28 makes 0x682e98 refuse the
-    start. Slots here open now and end with the season. Two empty versioned objects, an empty list, an empty
+    start. Slots here open now and end with the season. Two text objects:
+    +38 is the map popup title (0x4f7510 -> 0x4f7380; when empty the
+    client shows "HUNTING"), +40 another text (not shown here). Then an empty list, an empty
     path/sha object, then the map object 0x78636c: the battle scene as a raw
     data reference and six integers. +8 must equal the season track's +68
     season number (0, 0x6832b4); +14 is the tutorial portal set (0 = shown
@@ -338,8 +357,8 @@ def _map_slot(writer, slot_id, scene, ends_in):
     empty list), a raw data reference (null) and an empty list.
     """
     writer.compact(0).compact(0).compact(0).compact(ends_in).compact(0)
-    for _ in range(2):
-        writer.boolean(False).boolean(False).boolean(False)
+    _text(writer, name)
+    _text(writer, None)
     writer.compact(0)
     writer.boolean(False).boolean(False).boolean(False)
     _ref(writer, scene)

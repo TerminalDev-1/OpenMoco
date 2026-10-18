@@ -185,3 +185,37 @@ class CoolZoneTests(unittest.TestCase):
         self.assertFalse(cool_zone_unlocked({'tutorials': {'15600007': 0}}))
         self.assertTrue(cool_zone_unlocked({'tutorials': {'15600009': 0}}))
         self.assertFalse(cool_zone_unlocked({}))
+
+
+class CanyonJobsTests(unittest.TestCase):
+    def test_battle_config_carries_jobs_and_map_slot(self):
+        from home import Quest
+        from scene import canyon_scene
+        from stream import Reader
+        account = (0x80 << 32) | 5
+        plain = canyon_scene(account)
+        job = Quest(0, 3, 8, locations=(10800027,), main=False, map_slot=1)
+        body = canyon_scene(account, (job,), 1)
+        ref = (10900006).to_bytes(8, 'big')
+        start = plain.rindex(ref) + 8
+        self.assertEqual(body[:start], plain[:start])
+        reader = Reader(body[start:])
+        self.assertEqual([reader.bit_boolean() for _ in range(3)], [False, False, True])
+        self.assertEqual([reader.compact() for _ in range(4)], [1, 0, 0, 0])  # slot, +20, two compacts
+        self.assertEqual((reader.compact(), reader.raw(8)), (0, bytes(8)))    # holder list, reference
+        self.assertEqual([reader.compact() for _ in range(5)], [1, 0, 0, 0, 1])  # quest header, count
+        self.assertEqual([reader.compact() for _ in range(4)], [0, 1, 3, 8])  # ID, type, progress, target
+        self.assertTrue(body.endswith(plain[-40:]))
+
+    def test_battle_config_carries_xp_and_level_table(self):
+        from scene import canyon_scene
+        from stream import Writer
+        account = (0x80 << 32) | 5
+        plain = canyon_scene(account)
+        body = canyon_scene(account, xp=5901, levels=(100, 200))
+        start = plain.rindex((10900006).to_bytes(8, 'big')) - 4
+        config = Writer().compact(5901).compact(2).compact(100).compact(200).bytes()
+        self.assertEqual(body, plain[:start] + config + plain[start + 2:])
+        self.assertEqual(canyon_scene(account, xp=5901), plain)   # No table: unchanged.
+        with self.assertRaises(ValueError):
+            canyon_scene(account, xp=1, levels=(0,))

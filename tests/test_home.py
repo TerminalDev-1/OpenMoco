@@ -191,9 +191,11 @@ class PortalTests(unittest.TestCase):
         reader = self._avatar_after_tracks(own_home(1, xp=1901, worlds=PORTAL_WORLDS, season_seconds=86400))
         self.assertEqual(reader.compact(), 1)          # +48 map slots.
         self.assertEqual([reader.compact() for _ in range(5)], [0, 0, 0, 86400, 0])  # Active until season end.
-        # Six absent versioned fields: two share the track's boolean byte
-        # (native reader 0x8d724c keeps its bit position across fields).
-        self.assertEqual(reader.raw(1), bytes(1))
+        # Two text objects (version, type, content): two bits share the track's
+        # boolean byte (native reader 0x8d724c keeps its bit position across
+        # fields); the third, +38 content present, starts a new byte.
+        self.assertEqual(reader.raw(1), b'')
+        self.assertEqual(reader.string(), 'SHRINE CANYON')   # Popup title.
         self.assertEqual(reader.compact(), 0)          # +48 list.
         # path/sha object: its three booleans finish that byte's eight.
         self.assertEqual(int.from_bytes(reader.raw(8), 'big'), SHRINE_CANYON)

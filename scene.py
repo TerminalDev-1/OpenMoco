@@ -733,11 +733,63 @@ _CANYON_SUFFIX = bytes.fromhex(
 )
 
 
-def canyon_scene(account_id):
+def canyon_scene(account_id, jobs=(), map_slot=None, xp=0, levels=()):
+    """Shrine Canyon snapshot. jobs: home.Quest daily jobs for the battle's
+    own quest list; map_slot: the portal card's slot ID, named in the
+    battle-start selection; xp and levels: the saved XP and the XP level
+    table for the battle HUD."""
     if type(account_id) is not int or not 128 <= account_id >> 32 <= 255 or not account_id & 0xffffffff:
         raise ValueError('Canyon requires a nonzero local guest identity')
     identity = Writer().compact(account_id, 64).bytes()
-    return _CANYON_PREFIX + identity + _CANYON_MIDDLE + identity + _CANYON_SUFFIX
+    body = _with_battle_jobs(_CANYON_PREFIX + identity + _CANYON_MIDDLE + identity + _CANYON_SUFFIX,
+                             jobs, map_slot)
+    return _with_battle_xp(body, xp, levels)
+
+
+def _with_battle_xp(body, xp, levels):
+    """Battle-start configuration +0 (compact) is the XP before the battle and
+    +8 (compact count, compacts) the XP level table. The battle HUD copies both
+    (bar update 0x57f870 reads its copies at +0x178 and +0x1c8); sent empty,
+    the in-battle XP bar has no levels and stays empty. Keep the table
+    non-empty and all positive once XP can be positive: the level loop
+    0x788de8 never ends on an empty table (the old Mainloop freeze).
+    The configuration starts right before the selection holder's presence
+    bit, three zero compacts (XP, table count, +10 list) in the template."""
+    if not levels:
+        return body
+    if any(type(v) is not int or v <= 0 for v in levels) or type(xp) is not int or xp < 0:
+        raise ValueError('Invalid battle XP configuration')
+    start = body.rindex((SHRINE_CANYON).to_bytes(8, 'big')) - 4
+    if body[start:start + 4] != bytes(3) + b'':
+        raise ValueError('Battle-start configuration not found')
+    writer = Writer().compact(xp).compact(len(levels))
+    for level_xp in levels:
+        writer.compact(level_xp)
+    return body[:start] + writer.bytes() + body[start + 2:]
+
+
+def _with_battle_jobs(body, jobs, map_slot):
+    """Fill the battle-start configuration (decoder 0x761c60) after its
+    selection +18 (0x77a54c: raw scene reference, three object-presence bits,
+    two compacts). The third object (0x786738: slot ID, +20) names the portal
+    card, as the client's own 13222 request does. The selection holder
+    (0x76622c) then reads a raw-reference list and one raw reference, both
+    empty here. Configuration +20 is a quest
+    collection (0x78ecf8, as client-home +a0); the in-battle jobs tracker
+    (0x58922c) lists its category-1 quests (0x78eeb4: map slot +60 > 0 and
+    +5c == 0, the daily map jobs). The rest of the configuration stays empty.
+    """
+    from home import quest_collection
+    tail = 1 + 2 + 50 + 4   # presence bits, two compacts, empty rest, suffix
+    if body[-tail:-4] != bytes(tail - 4):
+        raise ValueError('Battle-start selection tail not found')
+    writer = Writer().bit_boolean(False).bit_boolean(False).bit_boolean(map_slot is not None)
+    if map_slot is not None:
+        writer.compact(map_slot).compact(0)
+    writer.compact(0).compact(0)
+    writer.compact(0).raw(bytes(8))   # Holder list (count 0) and raw reference.
+    quest_collection(writer, list(jobs))
+    return body[:-tail] + writer.bytes() + body[-(tail - 3 - 9 - 5):]
 
 
 SOCIAL_HUB = 10900005           # SocialHub, the COOL zone (scene/w00_cool_zone_v2.json)
@@ -792,7 +844,9 @@ def cool_zone_scene(account_id, level=1, name=DEFAULT_PLAYER_NAME):
 BATTLE_SCENE_BUILDERS = {10900001: progression_tutorial_scene, SHRINE_CANYON: canyon_scene}
 
 
-def battle_scene(account_id, scene):
+def battle_scene(account_id, scene, jobs=(), map_slot=None, xp=0, levels=()):
     if scene not in BATTLE_SCENE_BUILDERS:
         raise ValueError('Unsupported battle scene')
+    if scene == SHRINE_CANYON:
+        return canyon_scene(account_id, jobs, map_slot, xp, levels)
     return BATTLE_SCENE_BUILDERS[scene](account_id)
