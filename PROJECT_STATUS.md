@@ -37,14 +37,24 @@ scene._with_battle_jobs / _with_battle_xp fill it for Shrine Canyon:
   the in-battle XP bar never filled. Now it shows level 8 at 565/1600 and the
   battle's server XP as a lighter segment that grows with each event 1217
   (80 XP = 136 px, .local/pr-11.png). The table stays non-empty and positive.
-Live job count-up is not working yet: the tracker's kill handler (HUD
+Live job count-up (fixed with a client change, below). The tracker's kill handler (HUD
 component 0x485a94, update 0x485f50 -> 0x486598 -> 0x4868fc -> 0x78f968)
 reads the kill list of the player at [[screen+0x68]+0x28a8], a different frame
 copy from the predicted player the bridge reports from; its kill list stayed
 empty while the server credited kills (likely the verified frame, which needs
 28854 checksums; don't send those). The quest objects' progress (+8) is what
-the tracker animates (+0x70 shown), so the planned fix is the bridge writing
-the server's job progress into them on Mainloop.
+the tracker animates (+0x70 shown). Fix: the bridge replies now carry
+"jobs" (today's progress in the configuration's quest order,
+BattleBridge._job_progress), and the client bridge raises each type-1 quest's
++8 to it on Mainloop (0x73a364 hook), never past the target. Normal build
+c1a3727b (probes off): Hunt Drogs counted 20 -> 26/30 live with 6 credited
+kills (.local/jh-0.png, jh-1.png). The battle-end summary now also lists the
+completed jobs natively (JOBS panel, .local/soak-3-summary.png).
+Soak with this build (real account DB, backup above): 6 warm Leave Battle ->
+summary -> EXIT -> COOL zone -> portal -> Shrine Canyon -> combat cycles on
+one process (14996), one connection, 33 server XP events, no crash
+(.local/soak-*-summary/home/battle.png, log
+captures/user-test-server-jobs-hud.log).
 XP drop orbs (user request): the tutorial loot gate 0x6c2894 is battle-scene
 data +0x2f8 = (scene name == "TutorialAreaBasic", 0x6bc3f8), so it is already
 open in Shrine Canyon. Drop XP 0x705d50 = min(computed, killer's SCPlayer

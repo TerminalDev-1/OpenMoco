@@ -209,3 +209,26 @@ class BattleEndTests(unittest.TestCase):
         plain = battle_end(10900006, account_id=0x80000001, name='hi')
         self.assertEqual(len(body) - len(plain),
                          sum(len(STARTER_DYES[i][1]) + 4 if i in STARTER_DYES else 8 for i in look))
+
+
+class BattleJobProgressTests(unittest.TestCase):
+    def test_canyon_replies_carry_job_progress_in_quest_order(self):
+        import time
+        from progress import JOB_POOL, job_quests
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        store = AccountStore(Path(folder.name)/'accounts.sqlite3')
+        account = store.authenticate(0, None)
+        with store.edit_profile(account.account_id) as profile:
+            profile['tutorials'] = {'15600009': 0}   # COOL zone reached: jobs active.
+        bridge = BattleBridge(store, 'a'*64)
+        epoch = bridge.begin(account.account_id, 'one', SHRINE_CANYON)
+        bridge.active[account.account_id].started -= 3600
+        self.assertEqual(bridge.state(account.account_id)['jobs'], [0, 0, 0])
+        with store.edit_profile(account.account_id) as profile:
+            quests = job_quests(profile, time.time(), account.account_id)
+        monster = quests[0].locations[0]
+        reply = bridge.report(account.account_id, epoch, {str(monster): 2})
+        self.assertEqual(reply['jobs'][0], 2)
+        epoch = bridge.begin(account.account_id, 'one', 10900001)   # Downtown: no jobs.
+        self.assertEqual(bridge.state(account.account_id)['jobs'], [])

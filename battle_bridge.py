@@ -27,7 +27,7 @@ import json
 import secrets
 import time
 
-from progress import KILL_TARGET, RESCUE_TARGET, XP_LEVELS, boost_kill_xp, credit_jobs
+from progress import KILL_TARGET, RESCUE_TARGET, XP_LEVELS, boost_kill_xp, credit_jobs, job_quests
 
 TUTORIAL_AREA = 10900001   # Downtown Chaos
 SHRINE_CANYON = 10900006   # W01_OA01
@@ -170,10 +170,21 @@ class BattleBridge:
         battle = self.active[account_id]
         with self.accounts.edit_profile(account_id) as profile:
             saved = dict(profile.get('battle_progress', {}))
+            jobs = self._job_progress(battle, profile, account_id)
         with self.accounts.connect() as db:
             row = db.execute('SELECT counts FROM battle_reports WHERE epoch=?', (battle.epoch,)).fetchone()
         battle_xp = _battle_xp(battle.scene, json.loads(row[0])) if row else 0
-        return dict(saved, epoch=battle.epoch, **self._xp_display(saved.get('xp', 0), battle_xp))
+        return dict(saved, epoch=battle.epoch, jobs=jobs, **self._xp_display(saved.get('xp', 0), battle_xp))
+
+    @staticmethod
+    def _job_progress(battle, profile, account_id):
+        """Today's job progress, in the order the battle's quest list has them
+        (scene._with_battle_jobs). The client bridge shows it on the in-battle
+        jobs tracker; the tracker's own kill counting reads a frame copy that
+        never sees kills here."""
+        if battle.scene != SHRINE_CANYON:
+            return []
+        return [min(quest.progress, quest.target) for quest in job_quests(profile, time.time(), account_id)]
 
     @staticmethod
     def _xp_display(total_xp, battle_xp):
@@ -218,7 +229,7 @@ class BattleBridge:
             print(f'Daily job completed: +{job_xp} XP', flush=True)
         if kill_xp + job_xp and battle.grant is not None:
             battle.grant(kill_xp + job_xp)
-        return dict(progress, epoch=epoch,
+        return dict(progress, epoch=epoch, jobs=self._job_progress(battle, profile, account_id),
                     **self._xp_display(progress['xp'], _battle_xp(battle.scene, record)))
 
     # ----- loopback HTTP endpoint -----------------------------------------

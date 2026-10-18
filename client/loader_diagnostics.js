@@ -186,8 +186,11 @@ rpc.exports = {
                 // 0x73a364 call on Mainloop, which happens only while a battle HUD is
                 // live. A reply for an earlier battle (after Leave Battle or a new
                 // scene start) is dropped instead of written.
-                let pendingXp = null;
+                let pendingXp = null, pendingJobs = null;
                 function applyXpDisplay(result, current) {
+                    if (Array.isArray(result.jobs) && result.jobs.length <= 8 &&
+                        result.jobs.every(v => Number.isInteger(v) && v >= 0 && v <= 100000))
+                        pendingJobs = {battle: current, jobs: result.jobs};
                     if (validLevels(result.xp_levels)) xpLevels = result.xp_levels;
                     if (!Number.isInteger(result.xp_before_battle) || result.xp_before_battle < 0) return;
                     if (hudBase === null) hudBase = result.xp_before_battle;
@@ -199,6 +202,30 @@ rpc.exports = {
                     pendingXp = null;
                     if (pending.battle !== battle || !installXpLevels()) return;
                     xpConfig().writeS32(pending.base);
+                }
+                // In-battle jobs tracker: the server sends today's job progress in the
+                // order of the battle configuration's quest list (+0x20, 0x78ecf8).
+                // The tracker animates a quest when its progress (+8) passes the shown
+                // value (+0x70); its own kill counting (0x485f50) reads a frame copy
+                // that never sees kills on this server. Only raises type-1 progress,
+                // never past the quest's target (+0xc). Mainloop only.
+                function applyPendingJobs() {
+                    const pending = pendingJobs;
+                    pendingJobs = null;
+                    if (pending.battle !== battle) return;
+                    const config = xpConfig();
+                    if (config === null) return;
+                    const list = config.add(0x20).readPointer();
+                    if (list.isNull()) return;
+                    const count = list.add(0x24).readS32(), items = list.add(0x18).readPointer();
+                    if (count < 0 || count > 8 || items.isNull()) return;
+                    for (let i = 0; i < Math.min(count, pending.jobs.length); i++) {
+                        const quest = items.add(i * 8).readPointer();
+                        if (quest.isNull() || quest.add(4).readS32() !== 1) continue;
+                        const progress = pending.jobs[i];
+                        if (progress > quest.add(8).readS32() && progress <= quest.add(0xc).readS32())
+                            quest.add(8).writeS32(progress);
+                    }
                 }
                 function dataId(data) {
                     const ref = data.add(0x18);
@@ -262,6 +289,7 @@ rpc.exports = {
                 },2000);
                 Interceptor.attach(owner.base.add(0x5bf784),{onEnter(args) {
                     pendingXp = null;
+                    pendingJobs = null;
                     hudReady = false;
                     hudBase = null;
                     hudTableDone = false;
@@ -296,6 +324,9 @@ rpc.exports = {
                 Interceptor.attach(owner.base.add(0x73a364),{onLeave() {
                     if (pendingXp !== null) {
                         try { applyPendingXp(); } catch (error) { log('XP display rejected: '+error); }
+                    }
+                    if (pendingJobs !== null) {
+                        try { applyPendingJobs(); } catch (error) { log('Job display rejected: '+error); }
                     }
                 }});
                 battleBridgeInstalled = true;

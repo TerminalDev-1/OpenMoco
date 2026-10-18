@@ -106,6 +106,16 @@ don't exist anymore"); the summary has no drops and shows the equipped look.
 Never send the generic reward kinds there: they crash after a battle
 (0x4de43c). See PROJECT_STATUS.md.
 
+Update 2026-10-18: the battle-start configuration (0x761c60) is mapped and
+filled by the server for Shrine Canyon: XP before the battle and the XP level
+table (+0/+8, the in-battle XP bar now fills), the portal slot in the
+selection, and today's jobs (+0x20, the in-battle jobs tracker). The bridge
+writes the server's job progress into those quests (the tracker's own kill
+count reads a frame copy that never sees kills). Map slot +0x38 text titles
+the portal card ("SHRINE CANYON"). XP drop orbs: the loot gate is open
+outside TutorialAreaBasic; the player's native XP budget (+0x190) is 0, so
+its drops are 0 XP. Enabling orbs is a pending user decision.
+
 ## Current scene-transition priority
 The verified reconnect/background-resume APK is published as v0.6.0-reconnect:
 https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.6.0-reconnect.
