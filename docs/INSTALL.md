@@ -19,7 +19,7 @@ debuggable; research probes are disabled.
 ## Download and assemble
 
 Download the updated base APK, manifest, assembler and checksums from
-[v0.12.0-one-connection](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.12.0-one-connection).
+[v0.13.0-home-network](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.13.0-home-network).
 For a fresh installation, also download the three configuration APKs and four
 asset-pack parts from
 [v0.3.0-apartment](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.3.0-apartment).

@@ -42,6 +42,12 @@ backed up first (.local/accounts.before-lan-20261018.sqlite3, hash
 d3267029...) and restored; test state kept as
 .local/accounts.after-lan-tests-20261018.sqlite3. Wireless debugging came back
 on a new port (find it with `adb mdns services`).
+Public client: https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.13.0-home-network
+(pre-release, target 8021d2f, base 60284c64, loopback default, no address or
+key built in; six assets, remote size/SHA-256 verified; unchanged splits
+linked from v0.3.0-apartment). Checked on the tablet through adb reverse:
+login, baked XP table installed, Shrine Canyon, Leave Battle, summary, no
+crash (account restored afterwards; log captures/public-check-test.log).
 Manual server: hidden, mode lan (--lan --login --apartment), log
 captures/user-test-server-lan.log, PID in .local/user-test-server.json. The
 tablet runs the personal home-network build, not the public base.

@@ -17,9 +17,12 @@ clean cycles is a pass (no need to complete 10). Still report any crash seen. Fr
 client, and a tgkill signal sampler crashed it: do not reuse those probes.
 Never leave a diagnostic or failed probe build installed for manual play, and
 never publish one. A caught native abort does not mean the client can continue.
-Latest client: v0.12.0-one-connection (pre-release, target 22c48e2, base
-cc2d77f9..., kill reports on the game connection, no 9340 bridge; six assets
-verified remotely; the tablet runs this exact base),
+Latest client: v0.13.0-home-network (pre-release, target 8021d2f, base
+60284c64..., loopback/adb default with the XP table built in; six assets
+verified remotely). The tablet runs a personal home-network build of the same
+source (--server-host, never published),
+https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.13.0-home-network.
+Before it: v0.12.0-one-connection (target 22c48e2, base cc2d77f9...),
 https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.12.0-one-connection.
 Before it: v0.11.0-battle-jobs (target 6c644f1, base c1a3727b...,
 in-battle jobs tracker),

@@ -41,7 +41,7 @@ progress, job progress and saved XP, which it sends back as native XP events.
 ## Get the client
 
 Download the private-server client from
-[GitHub Releases](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.12.0-one-connection).
+[GitHub Releases](https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.13.0-home-network).
 Follow the [installation guide](docs/INSTALL.md) to assemble and install all the
 required APK splits. A fresh install also needs the unchanged splits and asset
 parts linked from the apartment release.
