@@ -75,7 +75,7 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                     scene = await read_frame()
                     self.assertEqual((scene.message_type, scene.version), (23491, 0))
                     server_nonce = LoginTransport.advance(server_nonce)
-                    self.assertEqual(cipher.decrypt(scene.payload, server_nonce), tutorial_scene(new_id) if identity else apartment_scene(new_id))
+                    self.assertEqual(cipher.decrypt(scene.payload, server_nonce), tutorial_scene(new_id, look=equipped_look(None)) if identity else apartment_scene(new_id, look=equipped_look(None)))
                     writer.write(Frame(10108,0,cipher.encrypt(b'',LoginTransport.advance(nonce)).ciphertext).encode())
                     keepalive = await read_frame()
                     self.assertEqual(keepalive.message_type,20108)
@@ -129,7 +129,7 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                         destination = await read_frame()
                         self.assertEqual((destination.message_type, destination.version), (23491, 0))
                         receive_nonce = LoginTransport.advance(receive_nonce)
-                        self.assertEqual(cipher.decrypt(destination.payload, receive_nonce), tutorial_scene(new_id))
+                        self.assertEqual(cipher.decrypt(destination.payload, receive_nonce), tutorial_scene(new_id, look=equipped_look(None)))
                     # Repeated selections must not insert a second scene into
                     # the encrypted stream or disrupt the following keepalive.
                     send_nonce = LoginTransport.advance(send_nonce)
@@ -159,7 +159,7 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                                      season_seconds=SEASON_SECONDS_LEFT, worlds=PORTAL_WORLDS))
                     self.assertEqual(returned_scene.message_type, 23491)
                     receive_nonce = LoginTransport.advance(receive_nonce)
-                    self.assertEqual(cipher.decrypt(returned_scene.payload, receive_nonce), apartment_scene(new_id))
+                    self.assertEqual(cipher.decrypt(returned_scene.payload, receive_nonce), apartment_scene(new_id, look=equipped_look(None)))
                     self.assertEqual(store.authenticate(new_id, new_token).profile['scene_id'], 10900000)
                     # Old battle frames can arrive after the return response.
                     # Only acknowledge the new scene once its counter resets.
@@ -203,7 +203,7 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                     await writer.drain()
                     destination = await read_frame()
                     receive_nonce = LoginTransport.advance(receive_nonce)
-                    self.assertEqual(cipher.decrypt(destination.payload, receive_nonce), tutorial_scene(new_id))
+                    self.assertEqual(cipher.decrypt(destination.payload, receive_nonce), tutorial_scene(new_id, look=equipped_look(None)))
                     writer.close()
                     await writer.wait_closed()
                     await asyncio.wait_for(finished,2)

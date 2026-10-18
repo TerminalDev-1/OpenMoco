@@ -185,6 +185,14 @@ builds contain the user's address and server key: never publish or commit
 them, and keep the PC's address out of committed docs. Public releases keep
 the loopback/adb default. See docs/HOME_NETWORK.md and PROJECT_STATUS.md.
 
+Update 2026-10-18 (in-world look, server-only): the player character's look
+(character +0x3c8: skins, dyes) and the player metadata skin/dye lists are
+now sent from the saved editor look in the apartment, COOL zone, Shrine Canyon
+and Downtown snapshots. Each dye adds a shared presence bit that moves every
+later bit, so these scenes come from client re-encodes with a marker look
+(scene_look_templates.py) and scene.apply_look swaps values in place. Keep
+exactly three dyes; never splice dyes into a template. See PROJECT_STATUS.md.
+
 ## Current scene-transition priority
 The verified reconnect/background-resume APK is published as v0.6.0-reconnect:
 https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.6.0-reconnect.

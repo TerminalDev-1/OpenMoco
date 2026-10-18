@@ -118,6 +118,7 @@ class GameSession:
         self.pending_home_scene = False
         self.home_level = 1  # Set from saved XP whenever own-home is built.
         self.home_name = DEFAULT_PLAYER_NAME
+        self.home_look = None  # None keeps the template look (no own-home sent yet).
         self.last_clock_request = None
         self.pending_battle_xp = 0  # Server-credited XP not yet sent to the battle.
         self.battle_end_sent = False
@@ -285,8 +286,10 @@ class GameSession:
         self.home_level = min(63, level_for_xp(profile.get('battle_progress', {}).get('xp', 0)))
         name = profile.get('display_name') if profile.get('name_set') else None
         self.home_name = name or DEFAULT_PLAYER_NAME
+        # The home scene that follows dresses the in-world player in this look.
+        self.home_look = equipped_look(profile.get('look'))
         return own_home(self.account.account_id, vanity=STARTER_VANITY,
-                        look=equipped_look(profile.get('look')),
+                        look=self.home_look,
                         age_category=profile.get('age_category', 0),
                         tutorials=profile.get('tutorials', {}),
                         main_steps=intro_main_steps(profile),
@@ -320,9 +323,9 @@ class GameSession:
                 body = self._battle_scene(self.current_scene, self.account.profile)
             elif self.current_scene == SOCIAL_HUB:
                 from scene import cool_zone_scene
-                body = cool_zone_scene(account_id, level=self.home_level, name=self.home_name)
+                body = cool_zone_scene(account_id, level=self.home_level, name=self.home_name, look=self.home_look)
             else:
-                body = apartment_scene(account_id, level=self.home_level, name=self.home_name)
+                body = apartment_scene(account_id, level=self.home_level, name=self.home_name, look=self.home_look)
         else:
             body = self.home_probe
         if self.current_scene in BATTLE_SCENES:
@@ -445,7 +448,8 @@ class GameSession:
         """Second half of return-home: the client asked for its home scene."""
         from scene import apartment_scene
         account_id = self.account.account_id
-        await self.send_session(SCENE_START, apartment_scene(account_id, level=self.home_level, name=self.home_name))
+        await self.send_session(SCENE_START, apartment_scene(account_id, level=self.home_level, name=self.home_name,
+                                                             look=self.home_look))
         self.pending_home_scene = False
         self.current_scene = APARTMENT
         self.battle = None
@@ -468,7 +472,8 @@ class GameSession:
         """Home for players past the tutorial: the COOL zone (SocialHub)."""
         from scene import cool_zone_scene
         account_id = self.account.account_id
-        await self.send_session(SCENE_START, cool_zone_scene(account_id, level=self.home_level, name=self.home_name))
+        await self.send_session(SCENE_START, cool_zone_scene(account_id, level=self.home_level, name=self.home_name,
+                                                             look=self.home_look))
         self.pending_home_scene = False
         self.current_scene = SOCIAL_HUB
         self.battle = None
@@ -480,14 +485,16 @@ class GameSession:
     def _battle_scene(self, scene, profile):
         """Battle snapshot; Shrine Canyon carries today's jobs for the in-battle
         tracker, names its portal card and gives the HUD the saved XP and the
-        XP level table."""
+        XP level table. The player wears the equipped look."""
+        from home import equipped_look
         from progress import SHRINE_CANYON_SLOT, XP_LEVELS, job_quests
         from scene import battle_scene
+        look = equipped_look(profile.get('look'))
         if scene != SHRINE_CANYON:
-            return battle_scene(self.account.account_id, scene)
+            return battle_scene(self.account.account_id, scene, look=look)
         jobs = job_quests(profile, time.time(), self.account.account_id)
         xp = profile.get('battle_progress', {}).get('xp', 0)
-        return battle_scene(self.account.account_id, scene, jobs, SHRINE_CANYON_SLOT, xp, XP_LEVELS)
+        return battle_scene(self.account.account_id, scene, jobs, SHRINE_CANYON_SLOT, xp, XP_LEVELS, look=look)
 
     async def _enter_tutorial_area(self, scene=TUTORIAL_AREA):
         """Portal travel from the apartment into a Downtown street scene."""

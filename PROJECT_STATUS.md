@@ -1,5 +1,62 @@
 # Project status — 2026-10-16
 
+## In-world player wears the editor look (2026-10-18, server-only)
+Bug: at home (apartment, COOL zone) and in battles the player kept the
+template head (face 2900435, no dyes: the dark "tutorial ninja" look) instead
+of the faces, hairstyles and dyes saved by command 543.
+- Native evidence: the character serializer 0x6e0258 ends with its look
+  object +0x3c8 (0x71bde0): skins (0x6860d4: compact count, compact cosmetic
+  references), dyes (writer +0x148: compact count; per dye 0x8ef104 = a
+  shared presence bit (always 0) plus the graphicAsset UUID's 16 raw bytes in
+  string order), graphicsAssetOverride (presence bit, then a UUID) and
+  useGoldenWeapon (bit). The player metadata (0x73ab98) holds the same look:
+  skinData +0xe0, originalSkinData +0x118 (references), dyeData +0xf0,
+  originalDyeData +0x128 (UUID entries 0x28 bytes, ctor 0x86cc94). Character
+  creation 0x737bc0 (0x737e24..) and the 1221 player update copy metadata
+  skins/dyes onto the character (0x6f2624 skin replaces by slot, 0x6f2890 dye
+  replaces by kind, 0x6f2854 clears skins); metadata setters 0x73862c (skin)
+  and 0x738ad0 (dye), each with an "also original" flag.
+- Why templates: every dye adds a shared-boolean bit, which moves all later
+  bits of the snapshot (every home item's and zone's bit bytes change), so a
+  splice is not possible. Probe client/look_probe.js (in an --apartment-probe
+  build with --server-host, never published, removed afterwards) gave the
+  decoded player of each scene-start (0x5bf784) a marker look on the metadata
+  (flag 1) and the character: face 2900792, hairstyle 2900869, skin 2900419,
+  eye 2900424, hair dye 2900433, then saved the client's own re-encode.
+  Re-encoding without changes reproduced Python's bytes exactly. Captures:
+  apartment 576 -> 741, COOL zone 738 -> 904, Shrine Canyon 1015 -> 1181,
+  Downtown 4946 -> 5111 bytes (private, analysis/look/). The look rendered on
+  the tablet at home and in the canyon, and combat worked.
+- tools/make_look_templates.py turns them into scene_look_templates.py
+  (frame and metadata between and after the two identity fields; the canyon
+  keeps the template's own battle-start tail). scene.apply_look swaps the
+  marker values for the saved look; all bits stay in place because the three
+  dyes stay three, while skin references have no presence bits (a look with no
+  hairstyle just drops one reference from each of the three skin lists).
+  Two layout details: in the home suffixes the shifted bits put a shared
+  boolean byte between metadata level and realLevel (level, 0x12, realLevel;
+  scene._look_levels), and the canyon gains one extra zero byte at the very
+  end, after the battle-start tail (jobs/XP are filled first).
+- server.py sends the look (home.equipped_look of the saved profile) in the
+  apartment, COOL zone, Shrine Canyon and Downtown snapshots; scenes built
+  without a look stay byte-identical to before. tests/test_scene_look.py pins
+  the marker bodies (the client re-encodes, rebound to a synthetic identity)
+  and the substitution; test_server expects the default look.
+- Tablet (normal home-network build lan-base eee0cc95, probe script removed;
+  manual server restarted with this change, PID 2532, listener 9984): cold
+  launch into the COOL zone (904-byte look snapshot), then 6 Shrine Canyon
+  entries with combat and 6 Leave Battle -> summary -> EXIT -> COOL zone
+  cycles on one process (13082) and one connection; empty crash buffer. The
+  in-world player now wears the saved look (bald head, beard, mid skin), the
+  same head as the battle-end summary, at home and in the canyon
+  (.local/look-soak/*.png, server.log). The apartment and Downtown look
+  snapshots are verified by exact match with the client's encodes and loaded
+  in the probe run; the soak itself only covered the COOL zone and the canyon.
+  Account DB restored to .local/accounts.before-look-probe-20261018.sqlite3.
+- Not done: a pick in the editor changes the in-world player only from the
+  next scene load (the server does not send 1221). Other apartment variants
+  (portal-only, wardrobe-only) have no look template.
+
 ## Home network: play over Wi-Fi without adb, several devices at once (2026-10-18, verified on the tablet)
 User request: no wireless debugging needed to play, and more than one
 connection. Shared-world multiplayer is not in scope. See docs/HOME_NETWORK.md.

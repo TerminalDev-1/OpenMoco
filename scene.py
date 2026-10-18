@@ -78,6 +78,64 @@ _ARMOURY_SUFFIX = bytes.fromhex(
 DEFAULT_PLAYER_NAME = 'Local Hunter'
 _NAME_FIELD = len(DEFAULT_PLAYER_NAME).to_bytes(4, 'big') + DEFAULT_PLAYER_NAME.encode()
 
+# In-world look. The character (serializer 0x6e0258) ends with its look
+# object +0x3c8 (0x71bde0): skins (compact count, compact cosmetic
+# references), dyes (compact count; per dye a shared presence bit and the
+# graphicAsset UUID's 16 raw bytes), graphicsAssetOverride (presence bit) and
+# useGoldenWeapon (bit). The player metadata (0x73ab98) keeps the same look in
+# skinData/originalSkinData (+0xe0/+0x118) and dyeData/originalDyeData
+# (+0xf0/+0x128); character creation (0x737bc0) and the 1221 player update
+# copy those onto the character. Without it the in-world player wears the
+# template's lone face 2900435 and no dyes.
+# Each dye adds a presence bit to the shared boolean bytes, which moves every
+# later bit of the snapshot, so dyes cannot be spliced into a template. The
+# scene_look_templates bodies were re-encoded by the client itself after a
+# probe (2026-10-18) gave the player this marker look (0x73862c/0x738ad0 on
+# the metadata, 0x6f2624/0x6f2890 on the character): two skins and one dye
+# of each kind. apply_look swaps the marker values for the saved ones; that
+# keeps every bit in place (skin references carry no presence bits, so the
+# skin count may change, while the three dyes stay three).
+LOOK_MARKER_SKINS = (2900792, 2900869)  # A face (slot 3) and a hairstyle (slot 2).
+LOOK_MARKER_DYES = {'skin': '4b9f0096-3fe2-6c29-ff90-f33fc826c375',
+                    'eye': '4b9f0096-40de-a598-e05e-75c897fece02',
+                    'hair': '4b9f0096-931a-bd76-f31a-74b6756bcfc9'}
+
+
+def _skin_list(skins):
+    writer = Writer().compact(len(skins))
+    for skin in skins:
+        writer.compact(skin)
+    return writer.bytes()
+
+
+def _look_levels(suffix, level):
+    """Metadata level and realLevel in a look template suffix. The dye bits
+    moved a shared boolean byte between the two (level, bits, realLevel)."""
+    return bytes([level]) + suffix[1:2] + bytes([level]) + suffix[3:]
+
+
+def apply_look(body, look):
+    """Put an equipped look (home.equipped_look: a face, an optional
+    hairstyle, one dye of each kind) into a marker-look template body."""
+    from home import STARTER_DYES, STARTER_FACES, STARTER_HAIRSTYLES
+    faces = [item for item in look if item in STARTER_FACES]
+    hairs = [item for item in look if item in STARTER_HAIRSTYLES]
+    dyes = {STARTER_DYES[item][0]: STARTER_DYES[item][1] for item in look if item in STARTER_DYES}
+    if len(faces) != 1 or len(hairs) > 1 or sorted(dyes) != sorted(LOOK_MARKER_DYES) \
+            or len(look) != 1 + len(hairs) + 3:
+        raise ValueError('A look needs one face, at most one hairstyle and one dye of each kind')
+    marker = _skin_list(LOOK_MARKER_SKINS)
+    # Character skins, metadata skinData and originalSkinData.
+    if body.count(marker) != 3:
+        raise ValueError('Look template skins not found')
+    body = body.replace(marker, _skin_list(faces + hairs))
+    for kind, uuid in LOOK_MARKER_DYES.items():
+        old, new = bytes.fromhex(uuid.replace('-', '')), bytes.fromhex(dyes[kind].replace('-', ''))
+        if body.count(old) != 3:
+            raise ValueError('Look template dye not found')
+        body = body.replace(old, new)
+    return body
+
 
 def _with_player_name(suffix, name):
     """Replace the template's metadata name (length-prefixed string)."""
@@ -91,8 +149,12 @@ def _with_player_name(suffix, name):
     return suffix.replace(_NAME_FIELD, len(encoded).to_bytes(4, 'big') + encoded)
 
 
-def apartment_scene(account_id, portal=True, level=1, name=DEFAULT_PLAYER_NAME, wardrobe=True, armoury=True):
+def apartment_scene(account_id, portal=True, level=1, name=DEFAULT_PLAYER_NAME, wardrobe=True, armoury=True,
+                    look=None):
     """Bind the two evidenced accountId fields to a valid local namespace.
+
+    look: the equipped look (home.equipped_look) for the in-world player;
+    only the full apartment (portal, wardrobe and weapons rack) has it.
 
     Native metadata serializer 0x73ab98 starts with accountId; the second
     occurrence is the character's linked player identity. The native
@@ -107,6 +169,12 @@ def apartment_scene(account_id, portal=True, level=1, name=DEFAULT_PLAYER_NAME, 
     if type(level) is not int or not 1 <= level < 64:
         raise ValueError('Apartment level must fit the one-byte native field')
     identity = Writer().compact(account_id, 64).bytes()
+    if look is not None:
+        if not (portal and wardrobe and armoury):
+            raise ValueError('Only the full apartment has a look template')
+        from scene_look_templates import APARTMENT_MIDDLE, APARTMENT_SUFFIX
+        return apply_look(_PREFIX + identity + APARTMENT_MIDDLE + identity
+                          + _look_levels(_with_player_name(APARTMENT_SUFFIX, name), level), look)
     # The overhead badge shows the metadata name that follows the levels.
     if portal:
         if wardrobe and armoury:
@@ -676,11 +744,14 @@ def _rename_battle_scene(body, scene):
     return body[:1] + selected * 2 + body[head:].replace(raw_basic, raw_selected)
 
 
-def progression_tutorial_scene(account_id):
+def progression_tutorial_scene(account_id, look=None):
     """Initialize additional slime, jumper and slammer with native defaults."""
     if type(account_id) is not int or not 128 <= account_id >> 32 <= 255 or not account_id & 0xffffffff:
         raise ValueError('Tutorial requires a nonzero local guest identity')
     identity = Writer().compact(account_id, 64).bytes()
+    if look is not None:
+        from scene_look_templates import PROGRESSION_MIDDLE, PROGRESSION_SUFFIX
+        return apply_look(_PROGRESSION_PREFIX + identity + PROGRESSION_MIDDLE + identity + PROGRESSION_SUFFIX, look)
     return _PROGRESSION_PREFIX + identity + _PROGRESSION_MIDDLE + identity + _PROGRESSION_SUFFIX
 
 
@@ -733,17 +804,25 @@ _CANYON_SUFFIX = bytes.fromhex(
 )
 
 
-def canyon_scene(account_id, jobs=(), map_slot=None, xp=0, levels=()):
+def canyon_scene(account_id, jobs=(), map_slot=None, xp=0, levels=(), look=None):
     """Shrine Canyon snapshot. jobs: home.Quest daily jobs for the battle's
     own quest list; map_slot: the portal card's slot ID, named in the
     battle-start selection; xp and levels: the saved XP and the XP level
-    table for the battle HUD."""
+    table for the battle HUD; look: the in-world player's equipped look."""
     if type(account_id) is not int or not 128 <= account_id >> 32 <= 255 or not account_id & 0xffffffff:
         raise ValueError('Canyon requires a nonzero local guest identity')
     identity = Writer().compact(account_id, 64).bytes()
-    body = _with_battle_jobs(_CANYON_PREFIX + identity + _CANYON_MIDDLE + identity + _CANYON_SUFFIX,
-                             jobs, map_slot)
-    return _with_battle_xp(body, xp, levels)
+    if look is None:
+        middle, suffix = _CANYON_MIDDLE, _CANYON_SUFFIX
+    else:
+        from scene_look_templates import CANYON_MIDDLE as middle, CANYON_SUFFIX as suffix
+    body = _with_battle_jobs(_CANYON_PREFIX + identity + middle + identity + suffix, jobs, map_slot)
+    body = _with_battle_xp(body, xp, levels)
+    if look is None:
+        return body
+    # The look's nine dye presence bits leave one more (zero) shared boolean
+    # byte at the very end of the message, after the battle-start tail.
+    return apply_look(body, look) + b'\0'
 
 
 def _with_battle_xp(body, xp, levels):
@@ -830,12 +909,16 @@ _COOL_ZONE_SUFFIX = bytes.fromhex(
 )
 
 
-def cool_zone_scene(account_id, level=1, name=DEFAULT_PLAYER_NAME):
+def cool_zone_scene(account_id, level=1, name=DEFAULT_PLAYER_NAME, look=None):
     """SocialHub 10900005: the COOL zone with its key items."""
     if type(level) is not int or not 1 <= level < 64:
         raise ValueError('COOL zone level must fit the one-byte native field')
     base = _cool_zone_base(account_id)
     identity = Writer().compact(account_id, 64).bytes()
+    if look is not None:
+        from scene_look_templates import COOL_ZONE_MIDDLE, COOL_ZONE_SUFFIX
+        head = base[:base.index(identity) + len(identity)] + COOL_ZONE_MIDDLE + identity
+        return apply_look(head + _look_levels(_with_player_name(COOL_ZONE_SUFFIX, name), level), look)
     head = base[:base.rindex(identity) + len(identity)]
     return head + bytes([level, level]) + _with_player_name(_COOL_ZONE_SUFFIX, name)[2:]
 
@@ -844,9 +927,9 @@ def cool_zone_scene(account_id, level=1, name=DEFAULT_PLAYER_NAME):
 BATTLE_SCENE_BUILDERS = {10900001: progression_tutorial_scene, SHRINE_CANYON: canyon_scene}
 
 
-def battle_scene(account_id, scene, jobs=(), map_slot=None, xp=0, levels=()):
+def battle_scene(account_id, scene, jobs=(), map_slot=None, xp=0, levels=(), look=None):
     if scene not in BATTLE_SCENE_BUILDERS:
         raise ValueError('Unsupported battle scene')
     if scene == SHRINE_CANYON:
-        return canyon_scene(account_id, jobs, map_slot, xp, levels)
-    return BATTLE_SCENE_BUILDERS[scene](account_id)
+        return canyon_scene(account_id, jobs, map_slot, xp, levels, look)
+    return BATTLE_SCENE_BUILDERS[scene](account_id, look=look)
