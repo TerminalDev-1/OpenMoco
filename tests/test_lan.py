@@ -93,8 +93,8 @@ class HomeNetworkTests(unittest.IsolatedAsyncioTestCase):
                 await server.wait_closed()
 
     def test_home_network_peers(self):
-        for address in ('127.0.0.1', '192.168.1.91', '10.0.0.5', '172.16.4.2', '::1',
-                        'fe80::1%12', '::ffff:192.168.1.91', 'fd00::5'):
+        for address in ('127.0.0.1', '192.168.1.20', '10.0.0.5', '172.16.4.2', '::1',
+                        'fe80::1%12', '::ffff:192.168.1.20', 'fd00::5'):
             self.assertTrue(home_network_peer(address), address)
         for address in ('8.8.8.8', '2001:4860:4860::8888', '::ffff:8.8.8.8', 'not an address'):
             self.assertFalse(home_network_peer(address), address)

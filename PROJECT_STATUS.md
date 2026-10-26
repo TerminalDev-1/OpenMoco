@@ -275,8 +275,8 @@ unchanged splits linked from v0.3.0-apartment). The tablet runs this base.
 Account: tests ran on the real DB after backing it up; it was restored to
 .local/accounts.before-battle-end-20261018.sqlite3 (hash a14e4ffe...), and the
 test state is kept as .local/accounts.after-battle-jobs-tests-20261018.sqlite3.
-Tablet wireless-debugging port is now 192.168.1.91:35385.
-Manual server: hidden, mode battle-jobs, --serial 192.168.1.91:35385 --login
+Tablet wireless-debugging port changed (find it with `adb mdns services`).
+Manual server: hidden, mode battle-jobs, --serial <tablet address:port> --login
 --apartment, log captures/user-test-server-battle-jobs.log, PID in
 .local/user-test-server.json.
 
@@ -395,7 +395,7 @@ the summary and chaos cores are missing. Next: decode the full 23200 layout
 and its drop entries, send it on Leave Battle with server-rolled drops, then
 handle opening/claiming them and the resulting gear.
 Tablet note: after the tablet's reboot its wireless-debugging port changed;
-the runner now uses --serial 192.168.1.91:42235 (adb connect).
+the runner now uses --serial <tablet address:port> (adb connect).
 
 ## Next: server-side jobs, mission quests and chaos cores (2026-10-16, research notes)
 User direction: rewards and future systems stay server side. Findings so far:
