@@ -77,7 +77,7 @@ def main():
                         assert strings.count(old) == 1
                         strings[strings.index(old)] = 'com.supercell.moco.localtest.DiagnosticFactory'
                         if args.local_network:
-                            strings[strings.index('mo.co Local Test (Offline)')] = 'mo.co Local Test (Local Server)'
+                            strings[strings.index('mo.co Local Test (Offline)')] = 'OpenMoco'
                         parts[i] = (kind, write_pool(strings, utf8))
                     elif kind == 0x102 and strings[u32(part, 20)] == 'application':
                         start, attr_size, count = struct.unpack_from('<HHH', part, 24)

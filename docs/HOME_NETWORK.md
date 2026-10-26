@@ -83,7 +83,7 @@ This mode uses no adb at all. On Windows, the desktop `Run OpenMoco Server.bat`
 launcher starts this mode. It refuses to start a second server while port 9339
 is in use.
 
-Now open **mo.co Local Test (Local Server)** from the app icon on any device
+Now open **OpenMoco** (older builds: mo.co Local Test (Local Server)) from the app icon on any device
 with the home-network build installed. Wireless debugging can stay off.
 
 ## Limits

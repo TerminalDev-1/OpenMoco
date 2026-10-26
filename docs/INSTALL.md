@@ -70,8 +70,9 @@ python tools/run_local_test.py --login --apartment --launch
 ADB must be on PATH or discoverable through your Android SDK; otherwise add
 `--adb` with its executable path. With multiple devices, add `--serial` for
 your test tablet. The runner forwards tablet port 9339 (the one game connection) to
-the PC, starts the game listener, and launches **mo.co Local Test (Local
-Server)**. Local routing is installed before game startup. Keep ADB connected
+the PC, starts the game listener, and launches the test client (app name
+**OpenMoco**; releases up to v0.13.0 call it **mo.co Local Test (Local
+Server)**). Local routing is installed before game startup. Keep ADB connected
 while testing. The runner provisions only your server's public key into the
 test client. Keep the private key and `.local/accounts.sqlite3` on your PC; retain
 both across runs to preserve local test identities. The server verifies local

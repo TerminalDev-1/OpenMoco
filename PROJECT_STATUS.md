@@ -1,5 +1,24 @@
 # Project status — 2026-10-16
 
+## Test client renamed to "OpenMoco" (2026-10-26, verified on the tablet)
+User request: the app icon name is now **OpenMoco** instead of "mo.co Local
+Test (Local Server)". build_diagnostic_client.py sets this label for every
+--local-network build; offline builds keep "mo.co Local Test (Offline)".
+verify_test_client.py checks the new label. Package ID is unchanged
+(com.supercell.moco.localtest), so app data and the guest account are kept.
+- Tablet: personal home-network build (--debuggable --local-network
+  --server-host <PC> --server-key, probes off), base 920d11d4 replaced
+  eee0cc95 via install-multiple -p; aapt2 badging label 'OpenMoco'; the
+  installed file's SHA-256 matches the build. Cold launch logged in over
+  Wi-Fi with encrypted session frames. Only a login was rechecked; no battle
+  soak (the change is manifest-only, 1457 game payload entries unchanged).
+- The manual server was not running at the start of this session (old PID
+  2532 gone); restarted hidden in lan mode, PID in .local/user-test-server.json.
+- .local/android-sdk.txt points at an SDK path that no longer exists; builds
+  this session used ANDROID_SDK_ROOT=%LOCALAPPDATA%\Android\Sdk.
+- Public releases up to v0.13.0 still show the old name until the next
+  published client.
+
 ## In-world player wears the editor look (2026-10-18, server-only)
 Bug: at home (apartment, COOL zone) and in battles the player kept the
 template head (face 2900435, no dyes: the dark "tutorial ninja" look) instead

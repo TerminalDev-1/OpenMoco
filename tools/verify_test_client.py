@@ -41,7 +41,7 @@ def main():
                     assert apk.read('classes3.dex') == (ROOT / 'build' / 'diagnostic-client' / 'dex' / 'classes.dex').read_bytes()
                 assert ('android.permission.INTERNET' in xml) == network
                 assert 'com.supercell.moco.localtest.DiagnosticFactory' in xml
-                assert 'mo.co Local Test (' in xml
+                assert ('"OpenMoco"' if network else 'mo.co Local Test (Offline)') in xml
             else:
                 assert 'android.permission.INTERNET' not in xml
                 assert 'mo.co Local Test (Offline)' in xml
