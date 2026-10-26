@@ -42,8 +42,9 @@ def decode_client_turn(payload):
     for _ in range(count):
         offset = reader.position
         command_type = reader.integer()
-        # 603 (0x67b6f4, daily goal completion reward) has only the base fields.
-        if command_type not in (524, 541, 543, 560, 569, 572, 574, 575, 576, 583, 591, 593, 603):
+        # 587 (decoder 0x680020; its execute 0x67fd3c reads home key 52) and 603
+        # (0x67b6f4, daily goal completion reward) have only the base fields.
+        if command_type not in (524, 541, 543, 560, 569, 572, 574, 575, 576, 583, 587, 591, 593, 603):
             raise UnsupportedCommand(command_type, offset)
         tick, game_id, account_id = (
             reader.compact(64) if reader.boolean() else 0 for _ in range(3)

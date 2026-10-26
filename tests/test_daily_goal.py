@@ -139,14 +139,15 @@ class DailyGoalEncodingTests(unittest.TestCase):
 
 
 class ClaimCommandTests(unittest.TestCase):
-    def test_603_has_only_the_base_fields(self):
+    def test_587_and_603_have_only_the_base_fields(self):
         from commands import decode_client_turn
-        writer = Writer().compact(5).raw(bytes(8)).compact(1)
-        writer.integer(603)
-        for _ in range(3):
-            writer.boolean(False)
+        writer = Writer().compact(5).raw(bytes(8)).compact(2)
+        for command_type in (587, 603):
+            writer.integer(command_type)
+            for _ in range(3):
+                writer.boolean(False)
         turn = decode_client_turn(writer.bytes())
-        self.assertEqual(turn.commands[0].command_type, 603)
+        self.assertEqual([c.command_type for c in turn.commands], [587, 603])
 
     def test_claim_through_the_account_store(self):
         import tempfile

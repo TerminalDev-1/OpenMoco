@@ -193,6 +193,17 @@ later bit, so these scenes come from client re-encodes with a marker look
 (scene_look_templates.py) and scene.apply_look swaps values in place. Keep
 exactly three dyes; never splice dyes into a template. See PROJECT_STATUS.md.
 
+Update 2026-10-26 (user request: daily goal and streak): the portal's DAILY
+GOAL (finish today's 3 jobs, 300 XP provisional) and SERIOUS HUNTER STREAK
+(7 days doubles it, a missed day resets) are served and verified on the
+tablet, including CLAIM! (command 569) and the saved streak. The client drops
+a goal quest unless its +88 equals the avatar's first integer; both carry the
+UTC day number. Known cosmetic gaps: the refresh countdown is sometimes wrong
+(home-clone race) and the P.E.R.K line shows <VALUE>. Manny's Shrinecanyon
+quest line is disabled in the 13.5.1 data; don't serve it unless the user
+asks. See PROJECT_STATUS.md. The repo also has CLAUDE.md (push every
+verified checkpoint, partial ones included).
+
 ## Current scene-transition priority
 The verified reconnect/background-resume APK is published as v0.6.0-reconnect:
 https://github.com/TerminalDev-1/OpenMoco/releases/tag/v0.6.0-reconnect.

@@ -1,6 +1,6 @@
 # Project status — 2026-10-16
 
-## Daily goal and Serious Hunter Streak (2026-10-26, PARTIAL, server-only)
+## Daily goal and Serious Hunter Streak (2026-10-26, verified on the tablet; two cosmetic gaps)
 User request: the portal's "Complete Jobs" daily goal and its streak.
 Native findings (runtime dump analysis/runtime/game, base 0x7b460ae000):
 - Settings: avatar +0x88 is the "events" list (0x77bd70): a count, then per
@@ -47,10 +47,32 @@ The server now sends today's UTC day number as both (progress.
 daily_goal_marker). Verified on the tablet: the goal stays (n=4, +88 20752),
 the popup shows "Complete Jobs 0/3 – 300", "Refreshes in 11 h 20 m" (equal
 to the boost timer), and the portal header shows "Complete Jobs 0/3 300".
-The drifting timer and 3/3 were the "no goal" fallback views.
-Open defects:
-- P.E.R.K text shows a raw <VALUE> (no completion rewards are sent).
-- Claim and streak growth on the tablet: being verified next.
+The 3/3 was the "no goal" fallback view.
+Claim verified on the tablet (test state: today's three jobs marked done in
+the real account after backup .local/accounts.before-goal-claim-test-
+20261026.sqlite3, hash 7dac1104): the popup opened by itself, CLAIM! sent
+569, the server logged "claimed the daily goal: +300 XP" and saved streak 1,
+total 1; the HUD XP rose by 300. After a relaunch the portal showed
+"Complete Jobs – DONEZO ✓" and the streak flame 1/7. The account was then
+restored to the backup (test state kept as .local/accounts.after-goal-claim-
+test-20261026.sqlite3); the normal build shows Complete Jobs 0/3, streak 0/7.
+Command 587 (decoder 0x680020 = base fields only; execute 0x67fd3c reads
+home key 52) arrived in these sessions and made the server drop whole
+turns; commands.py now accepts it. 130 tests pass.
+Remaining gaps (cosmetic):
+- The "Refreshes in"/"Next in" countdown is right only in some sessions.
+  Cause (probes v4/v5): the own-home router (0x5be984) stamps the home's
+  quest collection +0x10 with the clock (0x77ef00 -> 0x78fcb0), but the scene
+  start clones the home by encode/decode (0x5c4d9c -> 0x756ba8), and the
+  clone's collection stamp is 0 (constructor 0x78eb4c). With stamp 0 the
+  countdown subtracts (realtime ns mod 2^48)/1e9 s (0xa832e0 masks 48 bits),
+  which grew by a minute per minute (6 h 06 m .. 6 h 29 m). Whether the portal
+  sees the stamped home or the clone is a race between own-home handling and
+  the scene start. Not fixed: it needs a change to the login/scene order, which
+  earlier experiments found fragile (see AGENTS.md); the goal itself works.
+- P.E.R.K text shows a raw <VALUE>: completionRewards entries (0x771660) are
+  points, firstItemOfLoop (bool) and a polymorphic reward object; no P.E.R.K
+  reward exists on this server yet, so none is sent.
 Do not reuse the second probe (it also hooked 0x4c036c): the client crashed
 three times on Mainloop (SIGSEGV/SIGBUS) with it. The normal build was
 reinstalled and verified by hash; the probe file was removed.
