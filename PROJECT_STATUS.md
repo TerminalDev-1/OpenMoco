@@ -24,7 +24,15 @@ User request: fix the countdown race even if the login/scene order changes.
   (10 h 40 m / 10 h 38 m). Both timers read about 1 h less than the real time
   to UTC midnight; that offset comes from the tablet clock and is not new.
 - Tests: the login tests read own-home within their 2 s/5 s read timeouts;
-  130 pass. Only logins/home were rechecked, not a battle entry.
+  130 pass.
+- User play test after the change (normal build 920d11d4, home network,
+  session 20261026T132538Z-ef8773fb): a cold start loaded normally; 3
+  Shrine Canyon entries with combat, each followed by Leave Battle and a
+  return home, on one process; 31 kill reports credited, one daily job
+  completed (+100 XP); the portal's Complete Jobs then read 1/3, matching
+  the jobs the client showed done; empty crash buffer. 3 cycles is below the
+  release bar (more than 4), so this is a stability check of the timing
+  change, not a release soak.
 
 ## Daily goal and Serious Hunter Streak (2026-10-26, verified on the tablet; two cosmetic gaps)
 User request: the portal's "Complete Jobs" daily goal and its streak.

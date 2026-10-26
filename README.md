@@ -5,7 +5,8 @@ Python implementation of mo.co's server: accounts, worlds, combat, progression,
 inventory, multiplayer, and everything needed to play the game.
 
 We're building toward 100% feature coverage. It isn't complete yet, but you can
-already log in, explore the apartment, use the portal, and fight in Downtown Chaos.
+already log in, finish the tutorial, make your hunter, hang out in the COOL zone,
+and hunt in Shrine Canyon with daily jobs and a daily goal.
 The current client version is **13.5.1**.
 
 ## What works now
@@ -22,18 +23,34 @@ The current client version is **13.5.1**.
 - The first tutorial quest (defeat 50 monsters, rescue 3 civilians) tracked on
   the server. Once you've done both, **Leave Battle** finishes the Portal
   tutorial: Luna congratulates you and the client moves on to character creation.
+- Character creation: the editor lists the free faces, hairstyles and colours,
+  your picks are saved, and your hunter wears them at home and in battle. The
+  hunter name you sign is saved too.
+- The COOL zone as your home once the tutorial reaches it, with its portal,
+  shop, wardrobe, weapons rack and cores items. The WEAPONS screen lists the
+  starter bow.
+- Shrine Canyon from the portal card, with monsters that keep coming back,
+  kill-based XP decided by the server, and a battle-end summary on Leave Battle.
+- Daily jobs ("Hunt Jumpers" and so on) that count your kills and pay XP once,
+  plus the boosted chaos energy orb (4x XP while today's boost lasts).
+- The daily goal: finish today's three jobs, claim 300 XP, and build a Serious
+  Hunter Streak (7 days in a row doubles the reward; missing a day ends it).
+  The goal and its "Refreshes in" countdown reset at midnight UTC.
 - Connections stay open while you take a break.
 - Play over your home network without adb, with several devices connected at
   once (each with its own guest account; shared-world multiplayer isn't done yet).
 - The client reconnects when you return to the app with the server available.
-
 - The in-battle XP bar and level badge show the server's saved XP and fill as
-  the server credits kills (the XP-per-level table is provisional for now).
+  the server credits kills.
 
-Still to do: the real XP-per-level curve, character creation (the editor opens
-but has no head/cosmetic data yet), rewards, inventory, COOL-zone access,
-multiplayer, and combat controlled by the Python server. Combat currently runs in
-the Android client from the scenes supplied by the server. The client bridge
+Some numbers are this server's own choice until the official values are known:
+the XP-per-level curve, the job rewards, the daily goal reward and the season
+length. They're marked PROVISIONAL in the code.
+
+Still to do: shop offers, gear and other rewards, inventory, the P.E.R.K
+rewards for finished daily goals, main quests after the tutorial, multiplayer,
+and combat controlled by the Python server. Combat currently runs in the
+Android client from the scenes supplied by the server. The client bridge
 reports native kill/rescue counts on the game connection (inside message 18855).
 The server decides what they're worth, saves them, and turns them into quest
 progress, job progress and saved XP, which it sends back as native XP events.
