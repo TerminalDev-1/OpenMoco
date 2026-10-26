@@ -16,10 +16,13 @@ user wants Claude to work.
 ## How the user wants the work done
 - Don't stop early. Keep going through failures and diagnosis until the
   requested feature works, or until a real blocker needs the user.
-- Commit **and push** every verified checkpoint to
-  https://github.com/TerminalDev-1/OpenMoco (`main`), including partial ones.
-  Label partial work as partial in the commit message and in
-  PROJECT_STATUS.md, with its open defects. Don't leave checkpoints local.
+- **"Commit" always means commit AND push to GitHub.** A local-only commit
+  does not count as committing. Every verified checkpoint, partial ones
+  included, must be pushed to https://github.com/TerminalDev-1/OpenMoco
+  (`main`) in the same step. Never end a turn, or report work as committed,
+  with commits that exist only locally; check with `git status -sb` that the
+  branch is not ahead of `origin/main`. Label partial work as partial in the
+  commit message and in PROJECT_STATUS.md, with its open defects.
 - Before every push, check the staged files for private data: keys,
   `.local/`, account databases, captures, APKs, the PC's or tablet's
   home-network address.
