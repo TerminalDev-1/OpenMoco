@@ -3,7 +3,7 @@ import unittest
 
 from home import DAILY_GOAL_EVENT_TYPE, DailyGoalEvent, Quest, Writer, _daily_goal_event, own_home
 from progress import (DAILY_GOAL_EVENT, DAILY_GOAL_TARGET, DAILY_GOAL_XP, DAY_SECONDS, STREAK_MULTIPLIER,
-                      STREAK_THRESHOLD, claim_daily_goal, daily_goal_events, daily_goal_quest_id,
+                      STREAK_THRESHOLD, claim_daily_goal, daily_goal_events, daily_goal_marker, daily_goal_quest_id,
                       daily_goal_quests, daily_jobs, refresh_seconds, streak_record)
 from stream import Reader
 
@@ -25,8 +25,11 @@ class DailyGoalRuleTests(unittest.TestCase):
     def test_goal_follows_todays_finished_jobs(self):
         profile = cool_zone_profile()
         (goal,) = daily_goal_quests(profile, NOW, 7)
+        # +88 must equal avatar +0 (daily_goal_marker), or the client drops the goal.
         self.assertEqual((goal.quest_type, goal.job, goal.progress, goal.target, goal.main),
-                         (36, DAILY_GOAL_EVENT, 0, DAILY_GOAL_TARGET, False))
+                         (36, NOW // DAY_SECONDS, 0, DAILY_GOAL_TARGET, False))
+        self.assertEqual(daily_goal_marker(profile, NOW), goal.job)
+        self.assertEqual(daily_goal_marker({'tutorials': {}}, NOW), 0)
         self.assertEqual(goal.rewards, ((2, DAILY_GOAL_XP),))
         finish_jobs(profile, NOW, 2)
         self.assertEqual(daily_goal_quests(profile, NOW, 7)[0].progress, 2)
@@ -109,6 +112,12 @@ class DailyGoalEncodingTests(unittest.TestCase):
         body = own_home(1, jobs=(goal,))
         self.assertEqual(len(body) - len(plain), 2 + 2 * 1 - 1 + 32 + 7)  # type, amount(2), refs, ints
         self.assertIn(bytes([2]) + bytes([0x80 | (300 & 63), 300 >> 6]) + bytes(32), body)
+
+    def test_goal_marker_is_the_first_avatar_integer(self):
+        plain, marked = own_home(1), own_home(1, goal_marker=20752)
+        marker = Writer().compact(20752).bytes()
+        # An empty avatar plus the own-home suffix is 20 one-byte fields; the marker is the first.
+        self.assertEqual(marked, plain[:-20] + marker + plain[-19:])
 
     def test_refresh_and_streak_fill_client_home(self):
         body = own_home(1, refresh_seconds=3600, streak=(20000, 20003, 5, 1, 0, 0))

@@ -281,7 +281,7 @@ class GameSession:
 
     def _own_home_body(self, profile):
         from home import PORTAL_WORLDS, STARTER_VANITY, equipped_look, own_home
-        from progress import (cool_zone_unlocked, daily_boosts, daily_goal_events, daily_goal_quests,
+        from progress import (cool_zone_unlocked, daily_boosts, daily_goal_events, daily_goal_marker, daily_goal_quests,
                               intro_main_steps, job_quests, level_for_xp, refresh_seconds,
                               season_seconds_left, streak_record)
         now = time.time()
@@ -307,7 +307,8 @@ class GameSession:
                         boosts=daily_boosts(profile, now),
                         refresh_seconds=refresh_seconds(now) if cool_zone_unlocked(profile) else 0,
                         streak=streak_record(profile, now),
-                        events=daily_goal_events(profile))
+                        events=daily_goal_events(profile),
+                        goal_marker=daily_goal_marker(profile, now))
 
     async def _send_initial_home(self):
         from home import own_home

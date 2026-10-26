@@ -244,7 +244,7 @@ def refresh_seconds(now):
 # choice: finish today's three jobs. DAILY_GOAL_XP is PROVISIONAL; the streak
 # threshold (7 days) and double rewards come from the game's own texts
 # (TID_DAILY_GOAL_SERIOUS_INFO). A missed day ends the streak (loss type 0).
-DAILY_GOAL_EVENT = 1             # Local chronosEventId; also the goal quest's +88.
+DAILY_GOAL_EVENT = 1             # Local chronosEventId of the goal settings event.
 DAILY_GOAL_QUEST_TYPE = 36
 DAILY_GOAL_TARGET = JOBS_PER_DAY
 DAILY_GOAL_XP = 300
@@ -285,8 +285,15 @@ def daily_goal_quests(profile, now, account_id=0):
     if claimed:
         return ()
     return (Quest(0, jobs_done_today(profile, now, account_id), DAILY_GOAL_TARGET,
-                  quest_type=DAILY_GOAL_QUEST_TYPE, main=False, job=DAILY_GOAL_EVENT,
+                  quest_type=DAILY_GOAL_QUEST_TYPE, main=False, job=daily_goal_marker(profile, now),
                   rewards=((XP_REWARD_TYPE, goal_xp(streak)),)),)
+
+
+def daily_goal_marker(profile, now):
+    """Avatar +0 and the goal quest's +88: the client keeps the goal only
+    while both match (0x78e6b0). Today's UTC day number, so a goal from an
+    earlier day no longer matches; 0 (no goal) before the COOL zone."""
+    return _job_day(now) if cool_zone_unlocked(profile) else 0
 
 
 def daily_goal_events(profile):

@@ -38,15 +38,19 @@ popup shows SERIOUS HUNTER STREAK 0/7, "Missing a day will end your Streak",
 "Double Daily Goal rewards 600". A read-only probe (apartment-probe build,
 hook on 0x78fc24) confirmed the client holds the goal (type 36, 0/3, +88 1,
 one reward) at load.
+Fixed (same day): the popup first showed "COMPLETED! 3/3" and the header
+"DONEZO / Next in 5 h 19 m" because the client deleted the goal ~0.6 s after
+load. Probe v3 (hook on 0x78fc24 only) saw the quest list drop from 4 to 3.
+0x78ffbc removes quests failing 0x78e6b0, which keeps a quest with +88 > 0
+only while +88 equals avatar +0 (the avatar's first compact, sent as 0).
+The server now sends today's UTC day number as both (progress.
+daily_goal_marker). Verified on the tablet: the goal stays (n=4, +88 20752),
+the popup shows "Complete Jobs 0/3 – 300", "Refreshes in 11 h 20 m" (equal
+to the boost timer), and the portal header shows "Complete Jobs 0/3 300".
+The drifting timer and 3/3 were the "no goal" fallback views.
 Open defects:
-- The popup shows "COMPLETED! 3/3" although the goal is 0/3 and no CLAIM
-  button appears (a tap sent no 569). Cause unknown; the popup did not log
-  through the probe. Next: find which quest/state 0x4bf8f0 shows when the
-  popup opens (it may run before the client's quest list is current).
-- "Next in"/"Refreshes in" was right on the first launch (11 h 39 m) but read
-  5 h 19 m in a later session when about 12 h 29 m were left: the stamp that
-  0x4bfd2c subtracts (collection +0x10 object, 0xa832e0) is not understood.
 - P.E.R.K text shows a raw <VALUE> (no completion rewards are sent).
+- Claim and streak growth on the tablet: being verified next.
 Do not reuse the second probe (it also hooked 0x4c036c): the client crashed
 three times on Mainloop (SIGSEGV/SIGBUS) with it. The normal build was
 reinstalled and verified by hash; the probe file was removed.

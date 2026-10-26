@@ -325,7 +325,7 @@ def _client_home(writer, account_id, battle_kit, age_category, tutorials, main_s
         writer.compact(value)
 
 
-def _avatar_and_suffix(writer, xp, season_seconds=1, worlds=(), boosts=(), events=()):
+def _avatar_and_suffix(writer, xp, season_seconds=1, worlds=(), boosts=(), events=(), goal_marker=0):
     """Avatar 0x77c010, then the own-home auxiliary-event count and suffix.
 
     The avatar's first collection holds resources (entry 0x791cc8: data
@@ -337,7 +337,9 @@ def _avatar_and_suffix(writer, xp, season_seconds=1, worlds=(), boosts=(), event
     The native reader has no bounds checks, so these counts must be exact:
     reading past the payload consumes stale heap bytes.
     """
-    writer.compact(0)
+    # +0: the current daily goal marker. The client keeps a quest with +88 > 0
+    # only while +88 equals it (0x78e6b0 via 0x78ffbc) and drops it otherwise.
+    writer.compact(goal_marker)
     writer.compact(1 if xp else 0)
     if xp:
         _ref(writer, XP_POINT)
@@ -465,7 +467,7 @@ def _level_track(writer, track, season_seconds=1):
 
 def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, main_steps=(), xp=0,
              vanity=(), look=(), name=None, season_seconds=1, worlds=(), weapons=OWNED_WEAPONS, jobs=(),
-             boosts=(), refresh_seconds=0, streak=(0,) * 6, events=()):
+             boosts=(), refresh_seconds=0, streak=(0,) * 6, events=(), goal_marker=0):
     if not isinstance(account_id, int) or not 0 <= account_id < 1 << 64:
         raise ValueError('Home account ID is outside the native 64-bit range')
     if battle_kit != SMART_BOW:
@@ -499,5 +501,5 @@ def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, m
                  refresh_seconds, tuple(streak))
     if any(scene not in PORTAL_WORLDS for scene in worlds):
         raise ValueError('Unsupported portal world')
-    _avatar_and_suffix(writer, xp, season_seconds, tuple(worlds), tuple(boosts), tuple(events))
+    _avatar_and_suffix(writer, xp, season_seconds, tuple(worlds), tuple(boosts), tuple(events), goal_marker)
     return writer.bytes()
