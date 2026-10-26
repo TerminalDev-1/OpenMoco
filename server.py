@@ -125,6 +125,7 @@ class GameSession:
         self.pending_battle_xp = 0  # Server-credited XP not yet sent to the battle.
         self.battle_end_sent = False
         self.initial_home_task = None  # See _send_initial_home_when_ready.
+        self.clock_wrap_task = None    # See _reload_home_at_clock_wrap.
 
     # ----- logging and capture files -------------------------------------
 
@@ -197,6 +198,7 @@ class GameSession:
 
     async def _close(self):
         self.battle = None
+        self._cancel_clock_wrap_reload()
         self.writer.close()
         try:
             await self.writer.wait_closed()
@@ -576,11 +578,50 @@ class GameSession:
         self.battle_end_sent = False
         if self.accounts.complete_intro_quest(account_id):
             self.log('Intro_3 earned: Portal tutorial advanced to ClaimQuests')
-        saved = self.accounts.authenticate(account_id, self.account.token).profile
+        await self._send_cloned_home()
+        self.log('sent home profile; awaiting client home-scene request')
+
+    async def _send_cloned_home(self):
+        """Own-home that the client will clone at the following home scene
+        start (return from a battle, clock-wrap reload): its refresh countdown
+        carries the zero-stamp correction, which holds until the client's
+        clock window wraps, so a reload is armed for that moment."""
+        saved = self.accounts.authenticate(self.account.account_id, self.account.token).profile
         await self.send_session(OWN_HOME, self._own_home_body(saved, cloned=True))
         self.pending_home_scene = True
         self.state = 'awaiting_home_scene_request'
-        self.log('sent home profile; awaiting client home-scene request')
+        self._arm_clock_wrap_reload()
+
+    def _arm_clock_wrap_reload(self, delay=None):
+        from progress import seconds_to_clock_wrap
+        self._cancel_clock_wrap_reload()
+        if delay is None:
+            delay = seconds_to_clock_wrap(time.time_ns())
+        self.clock_wrap_task = asyncio.create_task(self._reload_home_at_clock_wrap(delay))
+
+    def _cancel_clock_wrap_reload(self):
+        task, self.clock_wrap_task = self.clock_wrap_task, None
+        if task is not None and not task.done() and task is not asyncio.current_task():
+            task.cancel()
+
+    async def _reload_home_at_clock_wrap(self, delay):
+        """When the client's 2^48 ns clock window wraps (about every 78 hours)
+        while the player is at home, the corrected countdown becomes 78 hours
+        too large. Reload the home once, the way the hunter-name popup does:
+        own-home, then the client's home request, then the home scene."""
+        await asyncio.sleep(delay)
+        if self.pending_home_scene:
+            # A home scene is on its way; try again once it has arrived.
+            self._arm_clock_wrap_reload(2.0)
+            return
+        self.clock_wrap_task = None
+        if self.current_scene not in (APARTMENT, SOCIAL_HUB):
+            return  # In a battle: the next return home sends a fresh countdown.
+        try:
+            await self._send_cloned_home()
+            self.log('client clock window wrapped: reloading home for a fresh refresh countdown')
+        except (ConnectionError, OSError) as error:
+            self.log(f'clock-wrap home reload not sent: {error}')
 
     async def _send_battle_end(self):
         """Battle-end summary (23200), showing the player's equipped look.
@@ -634,6 +675,7 @@ class GameSession:
 
     def _begin_battle(self, scene):
         """A new battle epoch for every battle scene this session sends."""
+        self._cancel_clock_wrap_reload()  # The return home sends a fresh countdown.
         self.battle_display = None
         if self.battle_progress is not None:
             self.battle = self.battle_progress.begin(self.account.account_id, scene)

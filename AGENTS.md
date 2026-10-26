@@ -203,7 +203,9 @@ after the login reply (server.POST_LOGIN_WAIT); sent right behind it, the
 scene start clones the home and loses the countdown stamp. Don't remove the
 wait. After a battle the clone can't be avoided (own-home triggers the
 client's home request), so that own-home's countdown carries
-progress.unstamped_elapsed to cancel the client's zero-stamp subtraction.
+progress.unstamped_elapsed to cancel the client's zero-stamp subtraction,
+and the server reloads the home when the client's 2^48 ns clock window
+wraps (about every 78 h) while the player is at home.
 Known cosmetic gap: the P.E.R.K line shows <VALUE>. Manny's Shrinecanyon
 quest line is disabled in the 13.5.1 data; don't serve it unless the user
 asks. See PROJECT_STATUS.md. The repo also has CLAUDE.md (push every

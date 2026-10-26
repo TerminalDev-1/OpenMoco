@@ -18,9 +18,23 @@ Verified on the tablet (normal build 920d11d4, session
 each Leave Battle -> summary -> EXIT -> COOL zone; after each, the portal's
 Complete Jobs timer equalled the boost timer (10 h 20 m, 10 h 19 m) and
 showed 1/3; empty crash buffer. 131 tests pass.
-Known limit: if the client's 2^48 ns clock wraps (every ~78 h) during a
-session after a battle, the countdown jumps up by ~78 h until the next home
-load.
+Clock wrap (fixed the same day): the correction holds only until the
+client's 2^48 ns clock window wraps (every ~78 h); after that it is ~78 h
+too large. No single countdown value is right on both sides of the wrap, so
+the server reloads the home at the wrap instead: every own-home sent with the
+correction (server._send_cloned_home, used by Leave Battle) arms a task for
+progress.seconds_to_clock_wrap (time to the wrap + 5 s margin). If the player
+is at home then, the server sends a fresh corrected own-home; the client
+answers with its flagged home request and gets the home scene again (the
+hunter-name reload route). In a battle it does nothing (the return home sends
+a fresh value); while a home scene is pending it retries every 2 s; starting a
+battle or closing the connection cancels it. The tablet and PC clocks were
+measured within 0.3 s (adb `$EPOCHREALTIME`), so the server's wrap time is the
+client's. Verified on the tablet with a test-only launcher (not committed)
+that set the wrap 40 s after each return home: after a Shrine Canyon cycle
+the server reloaded the home 3 times (log "client clock window wrapped"),
+the COOL zone loaded each time, movement worked, no crash, and the portal's
+Complete Jobs timer still equalled the boost timer (10 h, 1/3). 135 tests.
 
 ## Refresh countdown fixed: own-home 1 s after the login reply (2026-10-26, verified on the tablet)
 User request: fix the countdown race even if the login/scene order changes.
@@ -43,8 +57,9 @@ User request: fix the countdown race even if the login/scene order changes.
   scene POST_LOGIN_WAIT = 1.0 s after the login reply. The client sends
   nothing of its own before own-home. Probe: 4 of 4 cold launches stamped.
   Normal build 920d11d4, 3 cold launches: "Next in" equals the boost timer
-  (10 h 40 m / 10 h 38 m). Both timers read about 1 h less than the real time
-  to UTC midnight; that offset comes from the tablet clock and is not new.
+  (10 h 40 m / 10 h 38 m), which is the real time to UTC midnight (an earlier
+  note here claimed a 1 h tablet clock offset; that was a time-zone mistake:
+  the PC and tablet both run on UTC and agree within 0.3 s).
 - Tests: the login tests read own-home within their 2 s/5 s read timeouts;
   130 pass.
 - User play test after the change (normal build 920d11d4, home network,

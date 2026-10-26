@@ -4,6 +4,10 @@ OpenMoco is a mo.co private server written in Python, with a separate test
 client (`com.supercell.moco.localtest`). The goal is 100% of the server
 behaviour the 13.5.1 client needs. Never call it a clone.
 
+**If next-task.md exists, read it first and start that task straight away
+without asking.** It is a temporary hand-over the user asked for; delete it
+when its task is done.
+
 **AGENTS.md is the full project guide** (scope, terminology, safety rules,
 verified baseline, release history). Read it, then the newest sections at the
 top of PROJECT_STATUS.md, before starting work. This file only adds how the

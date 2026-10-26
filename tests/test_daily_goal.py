@@ -144,6 +144,66 @@ class DailyGoalEncodingTests(unittest.TestCase):
             own_home(1, streak=(1, 2))
 
 
+class ClockWrapTests(unittest.IsolatedAsyncioTestCase):
+    def test_seconds_to_clock_wrap(self):
+        from progress import CLOCK_WRAP_MARGIN, seconds_to_clock_wrap
+        self.assertAlmostEqual(seconds_to_clock_wrap((1 << 48) - 3 * 10**9), 3 + CLOCK_WRAP_MARGIN)
+        self.assertAlmostEqual(seconds_to_clock_wrap(5 * (1 << 48)), (1 << 48) / 1e9 + CLOCK_WRAP_MARGIN)
+
+    def session(self, scene):
+        import tempfile
+        from pathlib import Path
+        from accounts import AccountStore
+        from server import GameSession
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        store = AccountStore(Path(folder.name) / 'accounts.sqlite3')
+
+        class Writer:
+            def get_extra_info(self, name):
+                return None
+        session = GameSession(None, Writer(), Path(folder.name), accounts=store, apartment=True)
+        session.account = store.authenticate(0, None)
+        with store.edit_profile(session.account.account_id) as profile:
+            profile.update(cool_zone_profile())
+        session.current_scene = scene
+        session.sent = []
+
+        async def send_session(message_type, body, version=0):
+            session.sent.append(message_type)
+        session.send_session = send_session
+        return session
+
+    async def test_wrap_at_home_reloads_the_home_once(self):
+        import asyncio
+        from server import OWN_HOME, SOCIAL_HUB
+        session = self.session(SOCIAL_HUB)
+        session._arm_clock_wrap_reload(0.01)
+        await asyncio.sleep(0.05)
+        self.assertEqual(session.sent, [OWN_HOME])
+        self.assertTrue(session.pending_home_scene)
+        self.assertIsNotNone(session.clock_wrap_task)  # Re-armed for the next wrap.
+        session._cancel_clock_wrap_reload()
+
+    async def test_wrap_in_battle_waits_for_the_return_home(self):
+        import asyncio
+        from server import SHRINE_CANYON
+        session = self.session(SHRINE_CANYON)
+        session._arm_clock_wrap_reload(0.01)
+        await asyncio.sleep(0.05)
+        self.assertEqual(session.sent, [])
+
+    async def test_starting_a_battle_cancels_the_reload(self):
+        import asyncio
+        from server import SHRINE_CANYON, SOCIAL_HUB
+        session = self.session(SOCIAL_HUB)
+        session._arm_clock_wrap_reload(0.05)
+        session._begin_battle(SHRINE_CANYON)
+        await asyncio.sleep(0.1)
+        self.assertEqual(session.sent, [])
+        self.assertIsNone(session.clock_wrap_task)
+
+
 class ClaimCommandTests(unittest.TestCase):
     def test_587_and_603_have_only_the_base_fields(self):
         from commands import decode_client_turn

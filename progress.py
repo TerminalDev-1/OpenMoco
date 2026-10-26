@@ -248,9 +248,19 @@ def unstamped_elapsed(now_ns):
     by a scene start that clones the home (return from a battle; 0x5c4d9c ->
     0x756ba8), the clone's stamp is 0 (0x78eb4c), so the client subtracts the
     real-time clock modulo 2^48 ns (about 78 hours). Adding this value to +c
-    cancels it. Rare exception: if that clock wraps during the session, the
-    countdown jumps up by about 78 hours until the next home load."""
+    cancels it. The client clock wraps every 2^48 ns (about 78 hours); after
+    that the correction is 78 hours too large, so the server reloads the home
+    at the wrap (seconds_to_clock_wrap, server.GameSession)."""
     return (now_ns & CLOCK_MASK) // 1_000_000_000
+
+
+CLOCK_WRAP_MARGIN = 5.0  # Seconds after the wrap, covering small client/server clock differences.
+
+
+def seconds_to_clock_wrap(now_ns):
+    """Seconds until the client's 2^48 ns clock window wraps, plus a margin.
+    The tablet's and the PC's clocks were measured within 0.3 s of each other."""
+    return (CLOCK_MASK + 1 - (now_ns & CLOCK_MASK)) / 1e9 + CLOCK_WRAP_MARGIN
 
 
 # Daily goal ("DAILY GOAL") and the SERIOUS HUNTER STREAK. Native evidence:
