@@ -1,5 +1,27 @@
 # Project status — 2026-10-16
 
+## Refresh countdown after a battle (2026-10-26, verified on the tablet)
+The user's play test (below) found "Complete Jobs" right (1/3) but its timer
+reading 3 h 15 m after returning from Shrine Canyon. On Leave Battle the
+server sends own-home, the client answers with its flagged home request, and
+the home scene start clones that home (0x5c4d40 -> 0x756ba8), so its stamp
+is 0 again. Unlike login, the order can't change here: own-home is what makes
+the client ask to go home (AGENTS.md: omitting it crashed).
+Fix: on that own-home only, the server adds progress.unstamped_elapsed(now
+ns) = (realtime ns mod 2^48) / 1e9 (the client's conversion: 0xa832e0 masks
+48 bits; x 1e-6 at 0x13b7c8, then x 0.001) to client-home +c, which cancels
+the client's subtraction (server._own_home_body(cloned=True)). Login keeps
+the plain value (its home stays stamped). The hunter-name reload sends no
+countdown (it happens before the COOL zone).
+Verified on the tablet (normal build 920d11d4, session
+20261026T133644Z-1c0bdbf7, driven by adb input): 2 Shrine Canyon entries,
+each Leave Battle -> summary -> EXIT -> COOL zone; after each, the portal's
+Complete Jobs timer equalled the boost timer (10 h 20 m, 10 h 19 m) and
+showed 1/3; empty crash buffer. 131 tests pass.
+Known limit: if the client's 2^48 ns clock wraps (every ~78 h) during a
+session after a battle, the countdown jumps up by ~78 h until the next home
+load.
+
 ## Refresh countdown fixed: own-home 1 s after the login reply (2026-10-26, verified on the tablet)
 User request: fix the countdown race even if the login/scene order changes.
 - Cause confirmed with probe v6 (hook on 0x78fc24 logging the active quest
@@ -32,7 +54,8 @@ User request: fix the countdown race even if the login/scene order changes.
   completed (+100 XP); the portal's Complete Jobs then read 1/3, matching
   the jobs the client showed done; empty crash buffer. 3 cycles is below the
   release bar (more than 4), so this is a stability check of the timing
-  change, not a release soak.
+  change, not a release soak. The user also saw the jobs timer at 3 h 15 m
+  after these battles; fixed in the section above.
 
 ## Daily goal and Serious Hunter Streak (2026-10-26, verified on the tablet; two cosmetic gaps)
 User request: the portal's "Complete Jobs" daily goal and its streak.

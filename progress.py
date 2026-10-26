@@ -236,6 +236,23 @@ def refresh_seconds(now):
     return DAY_SECONDS - int(now) % DAY_SECONDS
 
 
+CLOCK_MASK = (1 << 48) - 1  # 0xa832e0 keeps 48 bits of a nanosecond difference.
+
+
+def unstamped_elapsed(now_ns):
+    """Seconds the client subtracts from the refresh countdown when the home's
+    quest collection has no clock stamp.
+
+    The countdown (0x4bfd2c) is client-home +c minus ((now - stamp) & 2^48-1)
+    ns, converted to seconds (x 1e-6, then x 0.001). When own-home is followed
+    by a scene start that clones the home (return from a battle; 0x5c4d9c ->
+    0x756ba8), the clone's stamp is 0 (0x78eb4c), so the client subtracts the
+    real-time clock modulo 2^48 ns (about 78 hours). Adding this value to +c
+    cancels it. Rare exception: if that clock wraps during the session, the
+    countdown jumps up by about 78 hours until the next home load."""
+    return (now_ns & CLOCK_MASK) // 1_000_000_000
+
+
 # Daily goal ("DAILY GOAL") and the SERIOUS HUNTER STREAK. Native evidence:
 # home.DailyGoalEvent (settings), a type-36 quest with +88 != 0 (0x78fc24)
 # whose progress the client also advances by one per finished job (0x486440),

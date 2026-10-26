@@ -303,12 +303,22 @@ class GameSession:
         self.state = 'local_login_reply_sent'
         self.log('sent encrypted local login reply (29125/v1); home data pending')
 
-    def _own_home_body(self, profile):
+    def _own_home_body(self, profile, cloned=False):
+        """Own-home for this account. `cloned`: a home scene start follows
+        this own-home (return from a battle), so the client clones the home
+        and the refresh countdown loses its clock stamp;
+        the countdown then carries progress.unstamped_elapsed to cancel that.
+        At login the own-home arrives after the client's own scene request
+        (POST_LOGIN_WAIT) and keeps its stamp."""
         from home import PORTAL_WORLDS, STARTER_VANITY, equipped_look, own_home
         from progress import (cool_zone_unlocked, daily_boosts, daily_goal_events, daily_goal_marker, daily_goal_quests,
                               intro_main_steps, job_quests, level_for_xp, refresh_seconds,
-                              season_seconds_left, streak_record)
-        now = time.time()
+                              season_seconds_left, streak_record, unstamped_elapsed)
+        now_ns = time.time_ns()
+        now = now_ns / 1e9
+        refresh = 0
+        if cool_zone_unlocked(profile):
+            refresh = refresh_seconds(now) + (unstamped_elapsed(now_ns) if cloned else 0)
         # The apartment scene that follows shows this level over the player.
         # Capped to keep its snapshot field one byte (see scene.apartment_scene).
         self.home_level = min(63, level_for_xp(profile.get('battle_progress', {}).get('xp', 0)))
@@ -329,7 +339,7 @@ class GameSession:
                         jobs=(job_quests(profile, now, self.account.account_id)
                               + daily_goal_quests(profile, now, self.account.account_id)),
                         boosts=daily_boosts(profile, now),
-                        refresh_seconds=refresh_seconds(now) if cool_zone_unlocked(profile) else 0,
+                        refresh_seconds=refresh,
                         streak=streak_record(profile, now),
                         events=daily_goal_events(profile),
                         goal_marker=daily_goal_marker(profile, now))
@@ -567,7 +577,7 @@ class GameSession:
         if self.accounts.complete_intro_quest(account_id):
             self.log('Intro_3 earned: Portal tutorial advanced to ClaimQuests')
         saved = self.accounts.authenticate(account_id, self.account.token).profile
-        await self.send_session(OWN_HOME, self._own_home_body(saved))
+        await self.send_session(OWN_HOME, self._own_home_body(saved, cloned=True))
         self.pending_home_scene = True
         self.state = 'awaiting_home_scene_request'
         self.log('sent home profile; awaiting client home-scene request')

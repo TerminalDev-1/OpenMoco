@@ -77,6 +77,12 @@ class DailyGoalRuleTests(unittest.TestCase):
     def test_goal_id_follows_the_jobs(self):
         self.assertEqual(daily_goal_quest_id(cool_zone_profile(), NOW, 7), 3)
 
+    def test_unstamped_elapsed_matches_the_client_clock_formula(self):
+        from progress import unstamped_elapsed
+        # At 12:51:56 on 2026-10-26 the observed countdown error was about 6 h 31 m.
+        self.assertEqual(unstamped_elapsed(1793019116096 * 10**6) // 60, 6 * 60 + 31)
+        self.assertEqual(unstamped_elapsed((1 << 48) + 5 * 10**9), 5)  # 48-bit wrap.
+
     def test_refresh_counts_down_to_the_next_utc_day(self):
         self.assertEqual(refresh_seconds(DAY_SECONDS * 5), DAY_SECONDS)
         self.assertEqual(refresh_seconds(DAY_SECONDS * 5 + 60), DAY_SECONDS - 60)
