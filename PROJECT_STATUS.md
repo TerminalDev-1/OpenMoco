@@ -1,5 +1,28 @@
 # Project status — 2026-10-16
 
+## Main quest lines after the tutorial: research (2026-10-26, no code change)
+The earlier note that "the next line is Shrinecanyon (Manny)" needs a
+correction. In the 13.5.1 data (analysis/main_quests.csv) every main quest
+line except Tutorial_1 has Disabled=true, Shrinecanyon included, and its title
+TID_MAIN_QUEST_SHRINECANYON is the placeholder "#onboarding". The csv_meta1
+m1_* quest tables hold only names (Dummy column), not another live line.
+- Shrinecanyon steps: main_quest_steps instances 24..32 (15400024..32),
+  ChatCharacter Visitor_Manny. Its quests (main_quest_step_quests 13..17):
+  Shrinecanyon_1_1 type 19 (skin-token reward 100), _4_1 type 9 (target 1),
+  _5_1 type 16 (gear HealPerHitPassive), _6_1 type 1 target 2 in W01_OA01
+  with MonsterCond DragonlingProtect (2000 XP, 25 skin tokens), _7_1_1 type 19.
+- DragonlingProtect (characters instance 100, 10800100) is the friendly
+  "Shrine Dancer" (TID_PROTECT_ARCHEOLOGIST) of zone W01_OA1_DragonlingProtect
+  (zones instance 154), so _6_1 is a protect objective, not a kill. The only
+  "defeat" quest of the line is therefore not a kill quest.
+- achievements.csv: 2362 enabled, visible rows; the 700 TaskType 1 rows are
+  per-weapon stat trackers (TrackerAllMonsters<weapon>, MonsterCondition =
+  battle kit), not quests.
+- The real account has every tutorial finished and main quests reported up to
+  Tutorial_1_8 (TutorialDone, 15400016); nothing is offered after that.
+Serving Shrinecanyon would mean enabling a line the 13.5.1 data disables; this
+is a pending user decision. Nothing was implemented.
+
 ## Test client renamed to "OpenMoco" (2026-10-26, verified on the tablet)
 User request: the app icon name is now **OpenMoco** instead of "mo.co Local
 Test (Local Server)". build_diagnostic_client.py sets this label for every
