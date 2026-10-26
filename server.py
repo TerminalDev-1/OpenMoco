@@ -55,6 +55,7 @@ AGE_CHOICE_COMMAND = 541
 EQUIP_COSMETIC_COMMAND = 543
 TUTORIAL_COMMAND = 574
 CLAIM_QUESTS_COMMAND = 569
+POST_LOGIN_WAIT = 1.0  # Seconds between the login reply and own-home (refresh countdown stamp).
 MAIN_QUEST_SEEN_COMMAND = 575
 MAIN_QUEST_DONE_COMMAND = 576
 
@@ -123,6 +124,7 @@ class GameSession:
         self.last_clock_request = None
         self.pending_battle_xp = 0  # Server-credited XP not yet sent to the battle.
         self.battle_end_sent = False
+        self.initial_home_task = None  # See _send_initial_home_when_ready.
 
     # ----- logging and capture files -------------------------------------
 
@@ -266,10 +268,32 @@ class GameSession:
             self.log('sent encrypted empty keepalive transport probe; no login success reply')
         elif self.accounts is not None:
             await self._send_login_reply(request)
-            if self.profile_probe is not None or self.apartment:
+            if self.apartment:
+                self.initial_home_task = asyncio.create_task(self._send_initial_home_when_ready())
+                return
+            if self.profile_probe is not None:
                 await self._send_initial_home()
-            if self.home_probe is not None or self.apartment:
+            if self.home_probe is not None:
                 await self._send_initial_scene()
+
+    async def _send_initial_home_when_ready(self):
+        """Send own-home and the first scene POST_LOGIN_WAIT seconds after the
+        login reply.
+
+        Why: the own-home handler (0x5be984) stamps the home's quest collection
+        with the clock (0x77ef00), and the daily refresh countdown counts from
+        that stamp (0x4bfd2c). When own-home arrived right behind the login
+        reply, the scene start cloned the home (0x5c4d9c -> 0x756ba8) and the
+        clone's stamp was 0, so "Refreshes in" / "Next in" were hours wrong.
+        After the wait the stamped home is the one in use: 4 of 4 cold launches
+        on the tablet (2026-10-26), against 0 of 6 without it. The client sends
+        nothing of its own before own-home, so there is no message to wait for."""
+        await asyncio.sleep(POST_LOGIN_WAIT)
+        try:
+            await self._send_initial_home()
+            await self._send_initial_scene()
+        except (ConnectionError, OSError) as error:
+            self.log(f'initial home not sent: {error}')
 
     async def _send_login_reply(self, request):
         from protocol import login_reply

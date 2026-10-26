@@ -1,5 +1,31 @@
 # Project status — 2026-10-16
 
+## Refresh countdown fixed: own-home 1 s after the login reply (2026-10-26, verified on the tablet)
+User request: fix the countdown race even if the login/scene order changes.
+- Cause confirmed with probe v6 (hook on 0x78fc24 logging the active quest
+  collection's +0x10 stamp): 0 on every cold launch while own-home was sent
+  right behind the login reply (0 of 6), set on the first launch after a
+  server restart (slower first own-home: lazy imports). With stamp 0 the
+  countdown subtracts (realtime ns mod 2^48)/1e9 s; at 12:51:56 that is
+  6 h 31 m, matching the observed error.
+- Other routes checked and rejected: command 17 (server command, execute
+  0x68b68c) merges a quest collection into the home and calls the listener
+  slot +0x240 (0x5a0ccc), which stamps the active collection; but the only
+  delivery found is message 27971 (0x6d43), a zlib JSON command
+  (loadCommandFromJSON 0x67da60, keys "ct" and "c"), and the JSON loader
+  (0x67d014 -> 0x68ba7c) fills only the base fields and "id", leaving +0x30
+  null, which the execute dereferences. The binary decoder 0x68b884 (presence
+  bit + quest collection) has no message path found (calls through the
+  0xfe1a28 trampolines are not resolved).
+- Fix (server.py): in apartment mode the server sends own-home and the first
+  scene POST_LOGIN_WAIT = 1.0 s after the login reply. The client sends
+  nothing of its own before own-home. Probe: 4 of 4 cold launches stamped.
+  Normal build 920d11d4, 3 cold launches: "Next in" equals the boost timer
+  (10 h 40 m / 10 h 38 m). Both timers read about 1 h less than the real time
+  to UTC midnight; that offset comes from the tablet clock and is not new.
+- Tests: the login tests read own-home within their 2 s/5 s read timeouts;
+  130 pass. Only logins/home were rechecked, not a battle entry.
+
 ## Daily goal and Serious Hunter Streak (2026-10-26, verified on the tablet; two cosmetic gaps)
 User request: the portal's "Complete Jobs" daily goal and its streak.
 Native findings (runtime dump analysis/runtime/game, base 0x7b460ae000):
@@ -60,7 +86,7 @@ Command 587 (decoder 0x680020 = base fields only; execute 0x67fd3c reads
 home key 52) arrived in these sessions and made the server drop whole
 turns; commands.py now accepts it. 130 tests pass.
 Remaining gaps (cosmetic):
-- The "Refreshes in"/"Next in" countdown is right only in some sessions.
+- FIXED later the same day (see the section above). The "Refreshes in"/"Next in" countdown was right only in some sessions.
   Cause (probes v4/v5): the own-home router (0x5be984) stamps the home's
   quest collection +0x10 with the clock (0x77ef00 -> 0x78fcb0), but the scene
   start clones the home by encode/decode (0x5c4d9c -> 0x756ba8), and the
