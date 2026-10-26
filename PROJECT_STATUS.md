@@ -1,5 +1,56 @@
 # Project status — 2026-10-16
 
+## Daily goal and Serious Hunter Streak (2026-10-26, PARTIAL, server-only)
+User request: the portal's "Complete Jobs" daily goal and its streak.
+Native findings (runtime dump analysis/runtime/game, base 0x7b460ae000):
+- Settings: avatar +0x88 is the "events" list (0x77bd70): a count, then per
+  event a shared-boolean presence bit and a compact type (0x8edf38), then the
+  object's named fields (stream archive: integer = shared-boolean presence +
+  compact, 0x8ed37c; integer list = count + compacts, 0x8ed808). Type 4501
+  (0x1195, decoder 0x76c588, base 0x76ccd8): chronosEventId +10,
+  impressionId +1c, variantId +20, startTime +14, endTime +18, then
+  targetProgress +24, xpReward +28, onStreakAt +2c, streakMultiplier +30,
+  streakLossType +34 (1 decay, 2 grace, else reset; 0x4c0cd0),
+  streakGraceDays +38, completionRewards +40, powerGemRewardWeights +50,
+  powerGemRewardRarities +60. 0x77cbec returns the first 4501 event with
+  startTime <= now < endTime.
+- Goal: the first quest with type 36 and +88 != 0 (0x78fc24). Quest +10 is
+  the reward list (entry 0x7920b0: type, amount, four raw refs, six ints,
+  nested list; type 2 = XP, 0x78e528), previously sent empty as "+18".
+- Streak record client-home +130 (0x7717b0; six compacts in stream order +0,
+  +8, +c, +10, +14, +4): streak = +8 - +0 when both > 0 (0x771850), +c goals
+  finished, +10 event ID, +14 completion rewards claimed (0x67b730).
+- client-home +c (2nd compact after the raw ID) is the refresh countdown
+  read by "Refreshes in"/"Next in" (0x4bfd2c: +c minus time since a stamp).
+- CLAIM! sends 569 with the goal quest's ID (0x4c0188). 603 (0x67b6f4, base
+  fields only) claims a completion reward (P.E.R.K); commands.py accepts it.
+- Popup: popup_daily_goal (0x4bf8f0, 0x4c0c60, 0x4c0f7c); the streak-loss
+  animation compares with client-local dailyGoal_lastSeenStreak.
+Implementation: progress.py (daily_goal_events, daily_goal_quests,
+streak_record, claim_daily_goal, refresh_seconds; goal = finish today's 3
+jobs, 300 XP PROVISIONAL, 7-day streak doubles it, a missed day resets),
+home.py (events, quest rewards, +c, +130), server.py (own-home fields and 569
+claim), accounts.claim_quests. tests/test_daily_goal.py; 129 tests pass.
+Tablet (normal build 920d11d4; DB backup
+.local/accounts.before-daily-goal-20261026.sqlite3, no claim was made):
+the COOL zone loads; the portal shows the streak flame 0/7; the DAILY GOAL
+popup shows SERIOUS HUNTER STREAK 0/7, "Missing a day will end your Streak",
+"Double Daily Goal rewards 600". A read-only probe (apartment-probe build,
+hook on 0x78fc24) confirmed the client holds the goal (type 36, 0/3, +88 1,
+one reward) at load.
+Open defects:
+- The popup shows "COMPLETED! 3/3" although the goal is 0/3 and no CLAIM
+  button appears (a tap sent no 569). Cause unknown; the popup did not log
+  through the probe. Next: find which quest/state 0x4bf8f0 shows when the
+  popup opens (it may run before the client's quest list is current).
+- "Next in"/"Refreshes in" was right on the first launch (11 h 39 m) but read
+  5 h 19 m in a later session when about 12 h 29 m were left: the stamp that
+  0x4bfd2c subtracts (collection +0x10 object, 0xa832e0) is not understood.
+- P.E.R.K text shows a raw <VALUE> (no completion rewards are sent).
+Do not reuse the second probe (it also hooked 0x4c036c): the client crashed
+three times on Mainloop (SIGSEGV/SIGBUS) with it. The normal build was
+reinstalled and verified by hash; the probe file was removed.
+
 ## Main quest lines after the tutorial: research (2026-10-26, no code change)
 The earlier note that "the next line is Shrinecanyon (Manny)" needs a
 correction. In the 13.5.1 data (analysis/main_quests.csv) every main quest

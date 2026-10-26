@@ -230,6 +230,110 @@ def job_quests(profile, now, account_id=0):
     return tuple(quests)
 
 
+def refresh_seconds(now):
+    """Seconds until the next UTC day, when jobs and the daily goal renew
+    (client-home +c, "Refreshes in")."""
+    return DAY_SECONDS - int(now) % DAY_SECONDS
+
+
+# Daily goal ("DAILY GOAL") and the SERIOUS HUNTER STREAK. Native evidence:
+# home.DailyGoalEvent (settings), a type-36 quest with +88 != 0 (0x78fc24)
+# whose progress the client also advances by one per finished job (0x486440),
+# CLAIM! sends command 569 with that quest's ID (0x4c0188), and the streak
+# record client-home +130 (home._client_home). The goal is this server's
+# choice: finish today's three jobs. DAILY_GOAL_XP is PROVISIONAL; the streak
+# threshold (7 days) and double rewards come from the game's own texts
+# (TID_DAILY_GOAL_SERIOUS_INFO). A missed day ends the streak (loss type 0).
+DAILY_GOAL_EVENT = 1             # Local chronosEventId; also the goal quest's +88.
+DAILY_GOAL_QUEST_TYPE = 36
+DAILY_GOAL_TARGET = JOBS_PER_DAY
+DAILY_GOAL_XP = 300
+STREAK_THRESHOLD = 7
+STREAK_MULTIPLIER = 2
+XP_REWARD_TYPE = 2               # Reward entry type read as XP (0x78e528).
+EVENT_END = 0x7fffffff           # The goal settings never expire.
+
+
+def _goal_saved(profile, now):
+    """(today, current streak, goals finished, claimed today).
+
+    The saved streak counts only while its last claim was today or yesterday."""
+    saved = profile.get('daily_goal', {})
+    day, last = _job_day(now), saved.get('last_day')
+    streak = saved.get('streak', 0) if last is not None and last >= day - 1 else 0
+    return day, streak, saved.get('total', 0), last == day
+
+
+def goal_xp(streak):
+    """XP for claiming the goal: doubled once the streak reaches the threshold."""
+    return DAILY_GOAL_XP * (STREAK_MULTIPLIER if streak >= STREAK_THRESHOLD else 1)
+
+
+def jobs_done_today(profile, now, account_id=0):
+    return sum(1 for job in daily_jobs(profile, now, account_id) if job['done'])
+
+
+def daily_goal_quests(profile, now, account_id=0):
+    """Today's goal quest, or none before the COOL zone or once claimed.
+
+    A claimed goal is left out, as after the client's own claim, so the
+    popup shows its claimed state until the next day."""
+    from home import Quest
+    if not cool_zone_unlocked(profile):
+        return ()
+    _, streak, _, claimed = _goal_saved(profile, now)
+    if claimed:
+        return ()
+    return (Quest(0, jobs_done_today(profile, now, account_id), DAILY_GOAL_TARGET,
+                  quest_type=DAILY_GOAL_QUEST_TYPE, main=False, job=DAILY_GOAL_EVENT,
+                  rewards=((XP_REWARD_TYPE, goal_xp(streak)),)),)
+
+
+def daily_goal_events(profile):
+    from home import DailyGoalEvent
+    if not cool_zone_unlocked(profile):
+        return ()
+    return (DailyGoalEvent(DAILY_GOAL_EVENT, 0, EVENT_END, DAILY_GOAL_TARGET, DAILY_GOAL_XP,
+                           STREAK_THRESHOLD, STREAK_MULTIPLIER),)
+
+
+def streak_record(profile, now):
+    """Client-home +130 integers in stream order (+0, +8, +c, +10, +14, +4).
+
+    The client shows +8 - +0 as the streak, so the record spans the streak's
+    days: from its first day to the day after its last claim."""
+    if not cool_zone_unlocked(profile):
+        return (0,) * 6
+    _, streak, total, _ = _goal_saved(profile, now)
+    if streak:
+        end = profile['daily_goal']['last_day'] + 1
+        return (end - streak, end, total, DAILY_GOAL_EVENT, 0, 0)
+    return (0, 0, total, DAILY_GOAL_EVENT, 0, 0)
+
+
+def claim_daily_goal(profile, now, account_id=0):
+    """Claim today's goal if its jobs are finished. Returns the XP granted (0 if not claimable)."""
+    if not cool_zone_unlocked(profile):
+        return 0
+    day, streak, total, claimed = _goal_saved(profile, now)
+    if claimed or jobs_done_today(profile, now, account_id) < DAILY_GOAL_TARGET:
+        return 0
+    reward = goal_xp(streak)
+    profile['daily_goal'] = {'last_day': day, 'streak': streak + 1, 'total': total + 1}
+    progress = profile.setdefault('battle_progress', {})
+    progress['xp'] = progress.get('xp', 0) + reward
+    return reward
+
+
+def daily_goal_quest_id(profile, now, account_id=0):
+    """The goal quest's ID in the own-home quest collection (its position
+    after the main-quest quests and today's jobs), or None without a goal."""
+    if not daily_goal_quests(profile, now, account_id):
+        return None
+    main = sum(len(step.quests) for step in intro_main_steps(profile))
+    return main + len(job_quests(profile, now, account_id))
+
+
 # Boosted chaos energy (the portal orb). globals.csv: MONSTER_XP_DAILY_CAP
 # 60000 boosted XP a day; the multiplier is 4x while at least 50000 is left,
 # 3x from 37500, 2x from 22500, then 1x. The server applies it to kill XP.

@@ -54,6 +54,7 @@ BATTLE_EVENTS = 28852        # Logic events for one frame (battle_events.py).
 AGE_CHOICE_COMMAND = 541
 EQUIP_COSMETIC_COMMAND = 543
 TUTORIAL_COMMAND = 574
+CLAIM_QUESTS_COMMAND = 569
 MAIN_QUEST_SEEN_COMMAND = 575
 MAIN_QUEST_DONE_COMMAND = 576
 
@@ -280,7 +281,10 @@ class GameSession:
 
     def _own_home_body(self, profile):
         from home import PORTAL_WORLDS, STARTER_VANITY, equipped_look, own_home
-        from progress import daily_boosts, intro_main_steps, job_quests, level_for_xp, season_seconds_left
+        from progress import (cool_zone_unlocked, daily_boosts, daily_goal_events, daily_goal_quests,
+                              intro_main_steps, job_quests, level_for_xp, refresh_seconds,
+                              season_seconds_left, streak_record)
+        now = time.time()
         # The apartment scene that follows shows this level over the player.
         # Capped to keep its snapshot field one byte (see scene.apartment_scene).
         self.home_level = min(63, level_for_xp(profile.get('battle_progress', {}).get('xp', 0)))
@@ -295,10 +299,15 @@ class GameSession:
                         main_steps=intro_main_steps(profile),
                         xp=profile.get('battle_progress', {}).get('xp', 0),
                         name=name,
-                        season_seconds=season_seconds_left(time.time()),
+                        season_seconds=season_seconds_left(now),
                         worlds=PORTAL_WORLDS,
-                        jobs=job_quests(profile, time.time(), self.account.account_id),
-                        boosts=daily_boosts(profile, time.time()))
+                        # The daily goal follows the jobs (progress.daily_goal_quest_id).
+                        jobs=(job_quests(profile, now, self.account.account_id)
+                              + daily_goal_quests(profile, now, self.account.account_id)),
+                        boosts=daily_boosts(profile, now),
+                        refresh_seconds=refresh_seconds(now) if cool_zone_unlocked(profile) else 0,
+                        streak=streak_record(profile, now),
+                        events=daily_goal_events(profile))
 
     async def _send_initial_home(self):
         from home import own_home
@@ -420,6 +429,10 @@ class GameSession:
                 elif command.command_type == TUTORIAL_COMMAND:
                     self.accounts.record_tutorial(account_id, command.fields['tutorial'], command.fields['step'])
                     self.log('persisted tutorial transition')
+                elif command.command_type == CLAIM_QUESTS_COMMAND:
+                    xp = self.accounts.claim_quests(account_id, command.fields['quests'], time.time())
+                    if xp:
+                        self.log(f'claimed the daily goal: +{xp} XP')
                 elif command.command_type in (MAIN_QUEST_SEEN_COMMAND, MAIN_QUEST_DONE_COMMAND):
                     self.accounts.record_main_quest(account_id, command.command_type, command.fields['step'])
                     self.log(f'persisted main-quest step {command.command_type}')

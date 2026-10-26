@@ -105,6 +105,41 @@ class Quest:
     claimed: bool = False   # +40; 0x78e108 counts a quest complete when progress >= target and not claimed
     job: int = 0            # +88, nonzero for the type-36 daily goal (0x78fc24)
     map_slot: int = 0       # +60, the portal map card (avatar +48 slot ID) a daily job belongs to
+    rewards: tuple = ()     # +10 (type, amount) reward entries; type 2 is XP (0x78e528)
+
+
+@dataclass(frozen=True)
+class DailyGoalEvent:
+    """Avatar +88 event of type 4501 (decoder 0x76c588): the daily goal's
+    settings. The client uses the first one with start <= now < end (0x77cbec).
+    Loss type 1 shows 'reduce your Streak by 1', 2 shows grace days, any
+    other value 'Missing a day will end your Streak' (0x4c0cd0)."""
+    event_id: int           # base +10 chronosEventId
+    start: int              # base +14 startTime (seconds)
+    end: int                # base +18 endTime (seconds)
+    target: int             # +24 targetProgress: jobs to finish
+    xp_reward: int          # +28 xpReward
+    streak_at: int          # +2c onStreakAt: streak days for the bonus
+    streak_multiplier: int  # +30 streakMultiplier
+    loss_type: int = 0      # +34 streakLossType
+    grace_days: int = 0     # +38 streakGraceDays
+
+
+DAILY_GOAL_EVENT_TYPE = 4501  # 0x1195
+
+
+def _daily_goal_event(writer, event):
+    """One avatar +88 event: a presence bit and the type ID (0x8edf38), then
+    the named fields (versioned archive 0x8ed37c): each integer is a presence
+    bit plus a compact; each list is a count. Base fields come first (0x76ccd8)."""
+    writer.boolean(True).compact(DAILY_GOAL_EVENT_TYPE)
+    for value in (event.event_id, 0, 0, event.start, event.end,  # chronosEventId, impressionId, variantId
+                  event.target, event.xp_reward, event.streak_at, event.streak_multiplier,
+                  event.loss_type, event.grace_days):
+        writer.boolean(True).compact(value)
+    # completionRewards (+40), powerGemRewardWeights (+50), powerGemRewardRarities (+60).
+    # With no completion rewards the P.E.R.K section stays hidden (0x76c954).
+    _zeros(writer, 3)
 
 
 @dataclass(frozen=True)
@@ -130,7 +165,9 @@ def _quest(writer, quest_id, quest):
     writer.compact(quest.quest_type)      # +4 quest type
     writer.compact(min(quest.progress, quest.target))  # +8 progress
     writer.compact(quest.target)          # +c target
-    writer.compact(0)                     # +18 objective list
+    writer.compact(len(quest.rewards))    # +10 rewards (count +1c), entries 0x7920b0
+    for reward_type, amount in quest.rewards:
+        _reward(writer, reward_type, amount)
     writer.compact(len(quest.locations))  # +28 count, +20 raw references (0x83c13c)
     for location in quest.locations:
         _ref(writer, location)
@@ -149,6 +186,15 @@ def _quest(writer, quest_id, quest):
     writer.bit_boolean(False)             # optional +80 object absent
     writer.compact(quest.job)             # +88 job marker
     writer.compact(0)                     # +8c
+
+
+def _reward(writer, reward_type, amount):
+    """Reward entry 0x7920b0: +10 type, +14 amount, four raw data references,
+    six integers (+38..+4c), then a nested reward list."""
+    writer.compact(reward_type).compact(amount)
+    for _ in range(4):
+        _ref(writer, 0)
+    _zeros(writer, 6 + 1)
 
 
 def _track_record(writer, track, xp):
@@ -213,10 +259,11 @@ def _owned_weapons(writer, kits):
 
 
 def _client_home(writer, account_id, battle_kit, age_category, tutorials, main_steps, vanity, look, xp,
-                 weapons=OWNED_WEAPONS, jobs=()):
+                 weapons=OWNED_WEAPONS, jobs=(), refresh_seconds=0, streak=(0,) * 6):
     writer.raw(struct.pack('>Q', account_id))  # Home's two raw ID words.
-    # Empty resources, home events, and native default battle-kit entry.
-    _zeros(writer, 3)
+    # +8, then +c: seconds until the daily refresh when received ("Refreshes
+    # in", 0x4bfd2c), then the empty +10 collection.
+    writer.compact(0).compact(refresh_seconds).compact(0)
     # 0x77e1bc collection, entries 0x779ab4: raw key/value integers.
     writer.compact(1 if age_category else 0)
     if age_category:
@@ -267,13 +314,18 @@ def _client_home(writer, account_id, battle_kit, age_category, tutorials, main_s
         writer.bit_boolean(True).compact(0)
     writer.compact(0)  # +128 object 0x781f14: one count, always encoded.
     writer.bit_boolean(True).compact(0)  # +30 conditional collection.
-    # +130 object 0x7717b0 reads six integers. Writing one moved the avatar
-    # start five bytes early (the native decoder read through 0x7717b0 into
-    # the avatar), which made it misread the XP resource and over-read the payload.
-    _zeros(writer, 6)
+    # +130 daily goal streak record 0x7717b0: always exactly six integers, in
+    # stream order +0, +8, +c, +10, +14, +4 (fewer moved the avatar start and
+    # made the decoder over-read). The streak is +8 - +0 when both are
+    # positive (0x771850); +c counts finished goals, +10 is the goal event ID
+    # and +14 the completion rewards claimed (0x67b730). +4 is unused here.
+    if len(streak) != 6:
+        raise ValueError('The streak record has six integers')
+    for value in streak:
+        writer.compact(value)
 
 
-def _avatar_and_suffix(writer, xp, season_seconds=1, worlds=(), boosts=()):
+def _avatar_and_suffix(writer, xp, season_seconds=1, worlds=(), boosts=(), events=()):
     """Avatar 0x77c010, then the own-home auxiliary-event count and suffix.
 
     The avatar's first collection holds resources (entry 0x791cc8: data
@@ -300,8 +352,13 @@ def _avatar_and_suffix(writer, xp, season_seconds=1, worlds=(), boosts=()):
     for slot_id, scene in enumerate(worlds, 1):
         _map_slot(writer, slot_id, scene, season_seconds, WORLD_NAMES.get(scene))
     # +50 Versus cards (0x782f80, entries 0x782890, card 0x515a84) and +58
-    # dungeon sets (0x7743c4) stay empty, then +70, +78, +88, +60, +68 and +98.
-    _zeros(writer, 8)
+    # dungeon sets (0x7743c4) stay empty, then +70 and +78.
+    _zeros(writer, 4)
+    # +88 "events" (0x77bd70): a count, then polymorphic events (0x8edf38).
+    writer.compact(len(events))
+    for event in events:
+        _daily_goal_event(writer, event)
+    _zeros(writer, 3)  # +60, +68 and +98 stay empty.
     # +a8 chaos energy boosts (entries 0x77b430), read by the portal orb.
     writer.compact(len(boosts))
     for boost in boosts:
@@ -408,7 +465,7 @@ def _level_track(writer, track, season_seconds=1):
 
 def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, main_steps=(), xp=0,
              vanity=(), look=(), name=None, season_seconds=1, worlds=(), weapons=OWNED_WEAPONS, jobs=(),
-             boosts=()):
+             boosts=(), refresh_seconds=0, streak=(0,) * 6, events=()):
     if not isinstance(account_id, int) or not 0 <= account_id < 1 << 64:
         raise ValueError('Home account ID is outside the native 64-bit range')
     if battle_kit != SMART_BOW:
@@ -438,8 +495,9 @@ def own_home(account_id, battle_kit=SMART_BOW, age_category=0, tutorials=None, m
     for _ in range(3):
         writer.integer(0)
     _client_home(writer, account_id, battle_kit, age_category, entries, tuple(main_steps),
-                 tuple(vanity), tuple(look), xp, tuple(weapons), tuple(jobs))
+                 tuple(vanity), tuple(look), xp, tuple(weapons), tuple(jobs),
+                 refresh_seconds, tuple(streak))
     if any(scene not in PORTAL_WORLDS for scene in worlds):
         raise ValueError('Unsupported portal world')
-    _avatar_and_suffix(writer, xp, season_seconds, tuple(worlds), tuple(boosts))
+    _avatar_and_suffix(writer, xp, season_seconds, tuple(worlds), tuple(boosts), tuple(events))
     return writer.bytes()

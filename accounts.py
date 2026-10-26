@@ -121,6 +121,16 @@ class AccountStore:
         with self.edit_profile(account_id) as profile:
             record_main_quest(profile, command_type, step)
 
+    def claim_quests(self, account_id, quest_ids, now):
+        """Persist an authenticated 569 claim. Only the daily goal is handled
+        here; returns the XP granted (0 when the goal was not claimed)."""
+        from progress import claim_daily_goal, daily_goal_quest_id
+        with self.edit_profile(account_id) as profile:
+            goal = daily_goal_quest_id(profile, now, account_id)
+            if goal is None or goal not in quest_ids:
+                return 0
+            return claim_daily_goal(profile, now, account_id)
+
     def complete_intro_quest(self, account_id):
         """Advance the Portal tutorial if Intro_3 was earned. Returns True if advanced."""
         from progress import complete_intro_quest
